@@ -62,7 +62,10 @@ const translations: Record<Language, any> = {
         reload: 'Reload Application',
         logs: 'System Logs',
         level: 'Level',
-        message: 'Message'
+        message: 'Message',
+        edit: 'Edit',
+        cancel: 'Cancel',
+        confirm: 'Confirm'
     },
     nav: {
       dashboard: 'Dashboard',
@@ -241,7 +244,7 @@ const translations: Record<Language, any> = {
     architect: {
       placeholder: "Enter your novel premise (e.g., 'A chef discovers his knives can cut through time')...",
       designBtn: 'Design Outline',
-      tip: 'Click a node to view details or generate content.',
+      tip: 'Click a node to edit structure or generate content.',
       description: 'Description',
       content: 'Content',
       generateDraft: 'Generate Draft',
@@ -254,7 +257,13 @@ const translations: Record<Language, any> = {
           scene: 'Scene'
       },
       historyTitle: 'Saved Outlines',
-      load: 'Load'
+      load: 'Load',
+      actions: 'Actions',
+      addChild: 'Add Child Node',
+      deleteNode: 'Delete Node',
+      nodeName: 'Node Name',
+      nodeDesc: 'Description',
+      confirmDelete: 'Are you sure you want to delete this node and all its children?'
     },
     mindmap: {
       empty: 'Generate an outline to view the map'
@@ -331,7 +340,10 @@ const translations: Record<Language, any> = {
         reload: '重新加载',
         logs: '系统日志',
         level: '级别',
-        message: '信息'
+        message: '信息',
+        edit: '编辑',
+        cancel: '取消',
+        confirm: '确认'
     },
     nav: {
       dashboard: '仪表盘',
@@ -510,7 +522,7 @@ const translations: Record<Language, any> = {
     architect: {
       placeholder: "输入小说前提（例如：“一位厨师发现他的刀可以切开时间”）...",
       designBtn: '设计大纲',
-      tip: '点击节点查看详情或生成内容。',
+      tip: '点击节点以修改结构或生成内容。',
       description: '描述',
       content: '正文',
       generateDraft: '生成草稿',
@@ -523,7 +535,13 @@ const translations: Record<Language, any> = {
           scene: '场景'
       },
       historyTitle: '大纲存档',
-      load: '加载'
+      load: '加载',
+      actions: '结构操作',
+      addChild: '添加子节点',
+      deleteNode: '删除节点',
+      nodeName: '节点名称',
+      nodeDesc: '描述',
+      confirmDelete: '确定要删除此节点及其所有子节点吗？'
     },
     mindmap: {
       empty: '生成大纲以查看思维导图'

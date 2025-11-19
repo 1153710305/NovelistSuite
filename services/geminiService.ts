@@ -166,6 +166,19 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
 };
 
 /**
+ * 辅助函数：为节点分配 ID
+ */
+const assignIds = (node: OutlineNode): OutlineNode => {
+    if (!node.id) {
+        node.id = Math.random().toString(36).substring(2, 11);
+    }
+    if (node.children) {
+        node.children = node.children.map(assignIds);
+    }
+    return node;
+}
+
+/**
  * 生成小说大纲
  */
 export const generateOutline = async (premise: string, lang: string, model: string): Promise<OutlineNode | null> => {
@@ -222,7 +235,12 @@ export const generateOutline = async (premise: string, lang: string, model: stri
     });
     const duration = Date.now() - startTime;
     Logger.info('GeminiService', `[${reqId}] Success: generateOutline`, { duration: `${duration}ms` });
-    return JSON.parse(response.text || "null");
+    
+    const json = JSON.parse(response.text || "null");
+    if (json) {
+        return assignIds(json);
+    }
+    return null;
   } catch (error: any) {
     Logger.error('GeminiService', `[${reqId}] Failed: generateOutline`, { error: error.message });
     return null;

@@ -90,12 +90,12 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
       .attr("stroke", "white")
       .attr("stroke-width", 3);
 
-  }, [data, onNodeClick]);
+  }, [data, onNodeClick]); // Re-render when data (object reference) changes
 
   if (!data) return <div className="text-gray-400 text-center italic mt-10">{t('mindmap.empty')}</div>;
 
   return (
-    <div ref={containerRef} className="w-full overflow-auto border border-slate-200 rounded-lg bg-white shadow-inner">
+    <div ref={containerRef} className="w-full overflow-auto border border-slate-200 rounded-lg bg-white shadow-inner h-full">
       <svg ref={svgRef}></svg>
     </div>
   );
