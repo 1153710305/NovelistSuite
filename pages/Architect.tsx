@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { generateChapterContent } from '../services/geminiService';
 import { OutlineNode, ArchitectRecord } from '../types';
 import { MindMap } from '../components/MindMap';
-import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, Save, Plus, Edit2, X, Check } from 'lucide-react';
+import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, Save, Plus, Edit2, X, Check, CopyPlus } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
@@ -143,6 +143,25 @@ export const Architect: React.FC = () => {
       return root;
   }
 
+  const addSiblingToNode = (root: OutlineNode, targetId: string, newSibling: OutlineNode): OutlineNode => {
+    // Cannot add sibling to root from this logic check (root has no parent in this structure traversal)
+    if (root.children) {
+        // Check if target is immediate child of current root
+        if (root.children.some(child => child.id === targetId)) {
+            return {
+                ...root,
+                children: [...root.children, newSibling]
+            };
+        }
+        // Recurse deeper
+        return {
+            ...root,
+            children: root.children.map(child => addSiblingToNode(child, targetId, newSibling))
+        };
+    }
+    return root;
+  };
+
   const deleteNodeFromTree = (root: OutlineNode, targetId: string): OutlineNode | null => {
       if (root.id === targetId) return null; // Should probably not happen for root usually unless clearing all
       if (root.children) {
@@ -185,8 +204,22 @@ export const Architect: React.FC = () => {
 
       const newRoot = addChildToNode(architectState.outline, selectedNode.id, newNode);
       setArchitectState(prev => ({ ...prev, outline: newRoot, lastUpdated: Date.now() }));
-      
-      // Ideally we might want to auto-select the new node, but for now we stay on parent
+  };
+
+  const handleAddSibling = () => {
+    if (!architectState.outline || !selectedNode?.id) return;
+    if (selectedNode.type === 'book') return; // Cannot add sibling to root
+
+    const newNode: OutlineNode = {
+        id: Math.random().toString(36).substring(2, 11),
+        name: `New ${t(`architect.types.${selectedNode.type}`)}`,
+        type: selectedNode.type,
+        description: 'New description...',
+        children: []
+    };
+
+    const newRoot = addSiblingToNode(architectState.outline, selectedNode.id, newNode);
+    setArchitectState(prev => ({ ...prev, outline: newRoot, lastUpdated: Date.now() }));
   };
 
   const handleDeleteNode = () => {
@@ -277,7 +310,7 @@ export const Architect: React.FC = () => {
              </div>
          </div>
          
-         <div className="flex-1 bg-slate-50 p-6 overflow-hidden flex flex-col relative">
+         <div className="flex-1 bg-slate-50 p-0 overflow-hidden flex flex-col relative">
             {architectState.isGenerating ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/90 z-10">
                     <div className="w-64">
@@ -301,7 +334,6 @@ export const Architect: React.FC = () => {
 
             <MindMap data={architectState.outline} onNodeClick={setSelectedNode} />
             {!architectState.outline && !architectState.isGenerating && <p className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none opacity-50">{t('mindmap.empty')}</p>}
-            <p className="text-xs text-slate-400 mt-2 text-center">{t('architect.tip')}</p>
          </div>
       </div>
 
@@ -371,16 +403,24 @@ export const Architect: React.FC = () => {
                         {/* Structural Actions */}
                         <div className="mb-6 border-t border-b border-slate-100 py-4">
                             <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">{t('architect.actions')}</h3>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                                 <button 
                                     onClick={handleAddChild}
-                                    className="flex-1 py-2 border border-slate-200 rounded text-xs font-medium hover:bg-slate-50 text-slate-600 flex items-center justify-center gap-1"
+                                    className="flex-1 py-2 border border-slate-200 rounded text-xs font-medium hover:bg-slate-50 text-slate-600 flex items-center justify-center gap-1 whitespace-nowrap"
                                 >
                                     <Plus size={12} /> {t('architect.addChild')}
                                 </button>
+                                {selectedNode.type !== 'book' && (
+                                    <button 
+                                        onClick={handleAddSibling}
+                                        className="flex-1 py-2 border border-slate-200 rounded text-xs font-medium hover:bg-slate-50 text-slate-600 flex items-center justify-center gap-1 whitespace-nowrap"
+                                    >
+                                        <CopyPlus size={12} /> {t('architect.addSibling')}
+                                    </button>
+                                )}
                                 <button 
                                     onClick={handleDeleteNode}
-                                    className="flex-1 py-2 border border-red-200 rounded text-xs font-medium hover:bg-red-50 text-red-600 flex items-center justify-center gap-1"
+                                    className="flex-1 py-2 border border-red-200 rounded text-xs font-medium hover:bg-red-50 text-red-600 flex items-center justify-center gap-1 whitespace-nowrap"
                                 >
                                     <Trash2 size={12} /> {t('architect.deleteNode')}
                                 </button>

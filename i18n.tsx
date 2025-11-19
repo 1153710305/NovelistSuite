@@ -260,10 +260,16 @@ const translations: Record<Language, any> = {
       load: 'Load',
       actions: 'Actions',
       addChild: 'Add Child Node',
+      addSibling: 'Add Sibling Node',
       deleteNode: 'Delete Node',
       nodeName: 'Node Name',
       nodeDesc: 'Description',
-      confirmDelete: 'Are you sure you want to delete this node and all its children?'
+      confirmDelete: 'Are you sure you want to delete this node and all its children?',
+      mapControls: {
+          zoomIn: 'Zoom In',
+          zoomOut: 'Zoom Out',
+          fit: 'Fit View'
+      }
     },
     mindmap: {
       empty: 'Generate an outline to view the map'
@@ -538,10 +544,16 @@ const translations: Record<Language, any> = {
       load: '加载',
       actions: '结构操作',
       addChild: '添加子节点',
+      addSibling: '添加兄弟节点',
       deleteNode: '删除节点',
       nodeName: '节点名称',
       nodeDesc: '描述',
-      confirmDelete: '确定要删除此节点及其所有子节点吗？'
+      confirmDelete: '确定要删除此节点及其所有子节点吗？',
+      mapControls: {
+          zoomIn: '放大',
+          zoomOut: '缩小',
+          fit: '适配'
+      }
     },
     mindmap: {
       empty: '生成大纲以查看思维导图'
