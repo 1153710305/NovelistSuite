@@ -40,38 +40,3 @@ export const AVAILABLE_SOURCES = [
     'douyin', 'kuaishou', 'bilibili', 'baidu', 'weibo', 
     'xiaohongshu', 'fanqie', 'qidian', 'jinjiang', 'zhihu'
 ];
-
-// --- Global State ---
-
-export interface StudioGlobalState {
-    isGenerating: boolean;
-    progress: number; // 0 - 100
-    generatedContent: string;
-    trendFocus: string;
-    lastUpdated: number;
-}
-
-// --- History Records ---
-
-export interface BaseHistoryRecord {
-    id: string;
-    timestamp: number;
-}
-
-export interface LabRecord extends BaseHistoryRecord {
-    inputText: string;
-    mode: 'viral_factors' | 'pacing' | 'characters';
-    analysis: string;
-    snippet: string; // Short preview of text
-}
-
-export interface StudioRecord extends BaseHistoryRecord {
-    trendFocus: string;
-    content: string;
-    sources: string[];
-}
-
-export interface ArchitectRecord extends BaseHistoryRecord {
-    premise: string;
-    outline: OutlineNode;
-}
