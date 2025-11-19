@@ -27,7 +27,15 @@ export interface OutlineNode {
   name: string;
   type: 'book' | 'act' | 'chapter' | 'scene';
   description?: string;
+  content?: string; // Stores the generated chapter draft
   children?: OutlineNode[];
+}
+
+export interface PromptTemplate {
+    id: string;
+    name: string;
+    content: string; // The system instruction or style wrapper
+    tags: string[]; // e.g., 'platform', 'style'
 }
 
 export enum WritingMode {
@@ -42,23 +50,9 @@ export const AVAILABLE_SOURCES = [
     'xiaohongshu', 'fanqie', 'qidian', 'jinjiang', 'zhihu'
 ];
 
-// --- Logging Types ---
-
-export enum LogLevel {
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-  DEBUG = 'DEBUG'
-}
-
-export interface LogEntry {
-  id: string;
-  sessionId: string;
-  timestamp: number;
-  level: LogLevel;
-  category: string;
-  message: string;
-  data?: any;
+export enum ImageModel {
+    IMAGEN_3 = 'imagen-3.0-generate-001',
+    GEMINI_FLASH_IMAGE = 'gemini-2.5-flash-image' // Actually just for text-to-image if supported, sticking to Imagen for quality
 }
 
 // --- Global State ---
@@ -77,7 +71,10 @@ export interface ArchitectGlobalState {
     progress: number;
     remainingTime: number; // seconds
     premise: string;
+    synopsis: string;
+    coverImage: string; // Base64 string of the generated cover
     outline: OutlineNode | null;
+    activeRecordId?: string; 
     lastUpdated: number;
 }
 
@@ -102,7 +99,7 @@ export interface LabRecord extends BaseHistoryRecord {
     inputText: string;
     mode: 'viral_factors' | 'pacing' | 'characters';
     analysis: string;
-    snippet: string; // Short preview of text
+    snippet: string; 
 }
 
 export interface StudioRecord extends BaseHistoryRecord {
@@ -113,5 +110,40 @@ export interface StudioRecord extends BaseHistoryRecord {
 
 export interface ArchitectRecord extends BaseHistoryRecord {
     premise: string;
+    synopsis: string;
+    coverImage?: string; // New
     outline: OutlineNode;
+}
+
+// --- Quota Types ---
+
+export interface QuotaLimit {
+    dailyRequests: number;
+    rpm: number; 
+}
+
+export interface ModelUsage {
+    count: number;
+    lastReset: number; 
+    minuteCount: number;
+    lastRequestTime: number;
+}
+
+// --- Logging Types ---
+
+export enum LogLevel {
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  DEBUG = 'DEBUG'
+}
+
+export interface LogEntry {
+  id: string;
+  sessionId: string;
+  timestamp: number;
+  level: LogLevel;
+  category: string;
+  message: string;
+  data?: any;
 }

@@ -1,9 +1,17 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS, addHistoryItem } from '../services/storageService';
-import { AVAILABLE_SOURCES, StudioGlobalState, StudioRecord, ArchitectGlobalState, LabGlobalState, ArchitectRecord, LabRecord } from '../types';
+import { AVAILABLE_SOURCES, StudioGlobalState, ArchitectGlobalState, LabGlobalState, PromptTemplate } from '../types';
 import { generateDailyStories, generateOutline, analyzeText } from '../services/geminiService';
-import { Logger } from '../services/logger';
+import { useI18n } from '../i18n';
+
+// Default Prompts
+const DEFAULT_PROMPTS: PromptTemplate[] = [
+    { id: 'p1', name: '起点热血风 (Qidian)', content: '文风要求：节奏紧凑，升级感强，爽点密集。多用短句，少用形容词堆砌。强调主角的意志和行动力。', tags: ['style', 'male'] },
+    { id: 'p2', name: '番茄脑洞风 (Fanqie)', content: '文风要求：开篇即高潮，设定要新奇（脑洞大）。对话要接地气，带有一定的幽默感或吐槽役风格。', tags: ['style', 'viral'] },
+    { id: 'p3', name: '晋江细腻风 (Jinjiang)', content: '文风要求：情感细腻，注重心理描写和环境烘托。人物互动要有张力（苏感）。', tags: ['style', 'female'] },
+    { id: 'p4', name: '去AI感 (Humanize)', content: '禁止使用排比句和翻译腔。多使用口语化表达。增加感官描写（视觉、听觉、嗅觉）。不要过度总结。', tags: ['tweak'] }
+];
 
 interface AppContextType {
   model: string;
@@ -25,23 +33,26 @@ interface AppContextType {
   labState: LabGlobalState;
   setLabState: React.Dispatch<React.SetStateAction<LabGlobalState>>;
   startLabAnalysis: (text: string, mode: 'viral_factors' | 'pacing' | 'characters', lang: string) => Promise<void>;
+
+  promptLibrary: PromptTemplate[];
+  addPrompt: (p: PromptTemplate) => void;
+  deletePrompt: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  Logger.info('AppContext', 'Provider mounting...');
-
   const [model, setModelState] = useState<string>('gemini-2.5-flash'); 
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false); 
   const [sources, setSources] = useState<string[]>(AVAILABLE_SOURCES); 
+  const [promptLibrary, setPromptLibrary] = useState<PromptTemplate[]>([]);
 
   // --- Global States ---
   const [studioState, setStudioState] = useState<StudioGlobalState>({
       isGenerating: false, progress: 0, remainingTime: 0, generatedContent: '', trendFocus: '', lastUpdated: Date.now()
   });
   const [architectState, setArchitectState] = useState<ArchitectGlobalState>({
-      isGenerating: false, progress: 0, remainingTime: 0, premise: '', outline: null, lastUpdated: Date.now()
+      isGenerating: false, progress: 0, remainingTime: 0, premise: '', synopsis: '', coverImage: '', outline: null, activeRecordId: undefined, lastUpdated: Date.now()
   });
   const [labState, setLabState] = useState<LabGlobalState>({
       isAnalyzing: false, progress: 0, remainingTime: 0, inputText: '', mode: 'viral_factors', analysisResult: '', lastUpdated: Date.now()
@@ -54,18 +65,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Init
   useEffect(() => {
-    Logger.info('AppContext', 'Initializing settings and checking storage...');
-    
     const hasSeen = localStorage.getItem('inkflow_onboarding_seen');
-    if (!hasSeen) {
-      Logger.info('AppContext', 'First time user detected.');
-      setShowOnboarding(true);
-    }
+    if (!hasSeen) setShowOnboarding(true);
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS);
     if (savedSettings) {
         if (savedSettings.model) setModelState(savedSettings.model);
         if (savedSettings.sources) setSources(savedSettings.sources);
+    }
+
+    // Load Prompts
+    const savedPrompts = loadFromStorage(STORAGE_KEYS.PROMPT_LIB);
+    if (savedPrompts && savedPrompts.length > 0) {
+        setPromptLibrary(savedPrompts);
+    } else {
+        setPromptLibrary(DEFAULT_PROMPTS);
+        saveToStorage(STORAGE_KEYS.PROMPT_LIB, DEFAULT_PROMPTS);
     }
 
     // Restore persistence
@@ -76,14 +91,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const savedArchitect = loadFromStorage(STORAGE_KEYS.ARCHITECT);
     if (savedArchitect && !architectState.isGenerating) {
-        setArchitectState(prev => ({ ...prev, premise: savedArchitect.premise || '', outline: savedArchitect.outline || null }));
+        setArchitectState(prev => ({ 
+            ...prev, 
+            premise: savedArchitect.premise || '', 
+            synopsis: savedArchitect.synopsis || '',
+            coverImage: savedArchitect.coverImage || '',
+            outline: savedArchitect.outline || null,
+            activeRecordId: savedArchitect.activeRecordId
+        }));
     }
   }, []);
 
-  // Persistence Effects omitted for brevity but logic is same...
+  // Persistence Effects
+  useEffect(() => {
+      if (!studioState.isGenerating && studioState.generatedContent) {
+          saveToStorage(STORAGE_KEYS.STUDIO, { trendFocus: studioState.trendFocus, generatedContent: studioState.generatedContent });
+      }
+  }, [studioState.generatedContent, studioState.trendFocus]);
+
+  useEffect(() => {
+      if (!architectState.isGenerating && architectState.outline) {
+          saveToStorage(STORAGE_KEYS.ARCHITECT, { 
+              premise: architectState.premise, 
+              synopsis: architectState.synopsis, 
+              coverImage: architectState.coverImage,
+              outline: architectState.outline,
+              activeRecordId: architectState.activeRecordId 
+          });
+      }
+  }, [architectState.outline, architectState.premise, architectState.synopsis, architectState.coverImage, architectState.activeRecordId]);
 
   const setModel = (newModel: string) => {
-      Logger.info('AppContext', 'User changed model', { from: model, to: newModel });
       setModelState(newModel);
       const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS) || {};
       saveToStorage(STORAGE_KEYS.SETTINGS, { ...savedSettings, model: newModel, sources });
@@ -97,8 +135,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
   }
 
+  const addPrompt = (p: PromptTemplate) => {
+      const newLib = [...promptLibrary, p];
+      setPromptLibrary(newLib);
+      saveToStorage(STORAGE_KEYS.PROMPT_LIB, newLib);
+  }
+
+  const deletePrompt = (id: string) => {
+      const newLib = promptLibrary.filter(p => p.id !== id);
+      setPromptLibrary(newLib);
+      saveToStorage(STORAGE_KEYS.PROMPT_LIB, newLib);
+  }
+
   const completeOnboarding = () => {
-    Logger.info('AppContext', 'Onboarding completed');
     localStorage.setItem('inkflow_onboarding_seen', 'true');
     setShowOnboarding(false);
   };
@@ -107,12 +156,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Background Task: Studio ---
   const startStudioGeneration = async (trendFocus: string, selectedSources: string[], lang: string) => {
-      if (studioState.isGenerating) {
-          Logger.warn('AppContext', 'Studio generation rejected (Busy)');
-          return;
-      }
+      if (studioState.isGenerating) return;
       const activeSources = selectedSources.length > 0 ? selectedSources : sourcesRef.current;
-      Logger.info('AppContext', 'Starting Studio Task', { trendFocus, sources: activeSources });
       
       setStudioState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: 25, trendFocus, generatedContent: '' }));
 
@@ -126,11 +171,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const result = await generateDailyStories(trendFocus, activeSources, lang, modelRef.current);
           clearInterval(timer);
-          Logger.info('AppContext', 'Studio Task Completed');
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, generatedContent: result, lastUpdated: Date.now() }));
           addHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, { id: Date.now().toString(), timestamp: Date.now(), trendFocus: trendFocus || 'General', content: result, sources: activeSources });
       } catch (error: any) {
-          Logger.error('AppContext', 'Studio Task Failed', { error: error.message });
           clearInterval(timer);
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, generatedContent: "Generation failed." }));
       }
@@ -139,9 +182,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- Background Task: Architect ---
   const startArchitectGeneration = async (premise: string, lang: string) => {
       if (architectState.isGenerating) return;
-      Logger.info('AppContext', 'Starting Architect Task', { premise });
 
-      setArchitectState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: 45, premise, outline: null }));
+      setArchitectState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: 45, premise, outline: null, activeRecordId: undefined }));
 
       const timer = setInterval(() => {
           setArchitectState(prev => {
@@ -154,14 +196,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const result = await generateOutline(premise, lang, modelRef.current);
           clearInterval(timer);
           if (result) {
-              Logger.info('AppContext', 'Architect Task Completed');
-              setArchitectState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, outline: result, lastUpdated: Date.now() }));
-              addHistoryItem(STORAGE_KEYS.HISTORY_ARCHITECT, { id: Date.now().toString(), timestamp: Date.now(), premise, outline: result });
-          } else {
-              throw new Error("Null outline returned");
+              const newId = Date.now().toString();
+              setArchitectState(prev => ({ 
+                  ...prev, 
+                  isGenerating: false, 
+                  progress: 100, 
+                  remainingTime: 0, 
+                  outline: result.outline, 
+                  synopsis: result.synopsis,
+                  coverImage: '', // Reset cover for new story
+                  activeRecordId: newId,
+                  lastUpdated: Date.now() 
+              }));
+              
+              // Add to history list
+              addHistoryItem(STORAGE_KEYS.HISTORY_ARCHITECT, { 
+                  id: newId, 
+                  timestamp: Date.now(), 
+                  premise, 
+                  synopsis: result.synopsis,
+                  outline: result.outline 
+              });
           }
       } catch (error: any) {
-          Logger.error('AppContext', 'Architect Task Failed', { error: error.message });
           clearInterval(timer);
           setArchitectState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, outline: null }));
       }
@@ -170,7 +227,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- Background Task: Lab ---
   const startLabAnalysis = async (text: string, mode: 'viral_factors' | 'pacing' | 'characters', lang: string) => {
       if (labState.isAnalyzing) return;
-      Logger.info('AppContext', 'Starting Lab Task', { mode });
 
       setLabState(prev => ({ ...prev, isAnalyzing: true, progress: 5, remainingTime: 20, inputText: text, mode, analysisResult: '' }));
 
@@ -184,11 +240,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const result = await analyzeText(text, mode, lang, modelRef.current);
           clearInterval(timer);
-          Logger.info('AppContext', 'Lab Task Completed');
           setLabState(prev => ({ ...prev, isAnalyzing: false, progress: 100, remainingTime: 0, analysisResult: result, lastUpdated: Date.now() }));
           addHistoryItem(STORAGE_KEYS.HISTORY_LAB, { id: Date.now().toString(), timestamp: Date.now(), inputText: text, mode, analysis: result, snippet: text.substring(0, 60) + '...' });
       } catch (error: any) {
-          Logger.error('AppContext', 'Lab Task Failed', { error: error.message });
           clearInterval(timer);
           setLabState(prev => ({ ...prev, isAnalyzing: false, progress: 0, remainingTime: 0, analysisResult: "Failed." }));
       }
@@ -199,7 +253,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         model, setModel, showOnboarding, completeOnboarding, resetOnboarding, sources, toggleSource,
         studioState, setStudioState, startStudioGeneration,
         architectState, setArchitectState, startArchitectGeneration,
-        labState, setLabState, startLabAnalysis
+        labState, setLabState, startLabAnalysis,
+        promptLibrary, addPrompt, deletePrompt
     }}>
       {children}
     </AppContext.Provider>

@@ -1,26 +1,22 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { OutlineNode } from '../types';
-import { Logger } from './logger';
 
 /**
  * 获取 AI 客户端实例
- * @returns GoogleGenAI 实例
- * @throws 如果环境变量中未找到 API Key 则抛出错误
  */
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    const err = "API Key not found in environment variables.";
-    Logger.error('GeminiService', 'FATAL: API Key missing', { env: process.env });
-    throw new Error(err);
+    // Fallback for browser env if process.env is not polyfilled automatically
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    }
+    throw new Error("API Key not found.");
   }
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * 根据用户选择的语言生成对应的系统指令
- */
 const getLangInstruction = (lang: string) => {
   switch (lang) {
     case 'zh': return "IMPORTANT: Provide the output in Simplified Chinese.";
@@ -33,13 +29,44 @@ const getLangInstruction = (lang: string) => {
 }
 
 /**
- * 生成每日灵感故事
+ * Generate a Novel Cover Image
+ */
+export const generateCover = async (prompt: string, model: string = 'imagen-3.0-generate-001'): Promise<string> => {
+    const reqId = Math.random().toString(36).substring(7);
+    console.log('GeminiService', `[${reqId}] Request: generateCover`, { prompt, model });
+    
+    const ai = getAiClient();
+
+    try {
+        // Using generateImages for Imagen model
+        // Note: As per instructions, aspect ratio can be configured. 2:3 is standard for book covers but SDK supports 3:4 or 9:16 closer to book.
+        // Let's try 3:4 as it's a standard vertical ratio supported by Imagen.
+        const response = await ai.models.generateImages({
+            model: model,
+            prompt: prompt,
+            config: {
+                numberOfImages: 1,
+                aspectRatio: '3:4', 
+                outputMimeType: 'image/jpeg'
+            }
+        });
+
+        const base64Image = response.generatedImages?.[0]?.image?.imageBytes;
+        if (base64Image) {
+             return `data:image/jpeg;base64,${base64Image}`;
+        }
+        throw new Error("No image returned");
+    } catch (error: any) {
+        console.error('GeminiService', `[${reqId}] Failed: generateCover`, { error: error.message });
+        throw error;
+    }
+}
+
+/**
+ * Generate Daily Stories
  */
 export const generateDailyStories = async (trendFocus: string, sources: string[], lang: string, model: string): Promise<string> => {
   const reqId = Math.random().toString(36).substring(7);
-  Logger.info('GeminiService', `[${reqId}] Request: generateDailyStories`, { trendFocus, sources, model });
-  const startTime = Date.now();
-
   const ai = getAiClient();
   
   const sourceContext = sources.length > 0 
@@ -48,232 +75,197 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
 
   const prompt = `
     You are a creative writing assistant specializing in the Chinese web novel market.
-    
-    TASK:
-    Generate 10 short story ideas based on current popular tropes.
+    TASK: Generate 10 short story ideas based on current popular tropes.
     ${sourceContext}
-    
-    CONSTRAINTS:
-    1. ONLY use trends/memes/styles popular on the selected Chinese platforms.
-    2. IGNORE Western trends.
-    3. Focus: ${trendFocus || 'Current viral hot spots'}.
-    4. For EACH story, you MUST explicitly specify the "Source Platform" (e.g., "Source: Douyin Hot Search").
-    
+    CONSTRAINTS: Focus on ${trendFocus || 'viral trends'}.
     OUTPUT FORMAT (Markdown):
     ### 1. [Title]
-    *   **Source**: [Platform Name]
+    *   **Source**: [Platform]
     *   **Genre**: [Genre]
-    *   **Hook**: [One sentence high concept]
-    *   **Synopsis**: [50 words summary]
-    
-    ...
+    *   **Hook**: [High concept]
+    *   **Synopsis**: [Summary]
     ${getLangInstruction(lang)}
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-    });
-    const duration = Date.now() - startTime;
-    Logger.info('GeminiService', `[${reqId}] Success: generateDailyStories`, { duration: `${duration}ms`, outputLength: response.text?.length });
+    const response = await ai.models.generateContent({ model, contents: prompt });
     return response.text || "Failed to generate stories.";
   } catch (error: any) {
-    Logger.error('GeminiService', `[${reqId}] Failed: generateDailyStories`, { error: error.message, stack: error.stack });
-    return "Error generating stories. Please check your API key or network connection.";
+    return "Error generating stories.";
   }
 };
 
 /**
- * 文本拆解分析实验室
+ * Analyze Text
  */
 export const analyzeText = async (text: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
-  const reqId = Math.random().toString(36).substring(7);
-  const safeText = text || "";
-  Logger.info('GeminiService', `[${reqId}] Request: analyzeText`, { focus, textLength: safeText.length, model });
-  const startTime = Date.now();
-
   const ai = getAiClient();
-
-  let instruction = "";
-  switch (focus) {
-    case 'viral_factors':
-      instruction = "Analyze this text for 'viral' potential within the Chinese web novel market. Identify the 'Golden 3 Chapters' (黄金三章) hook.";
-      break;
-    case 'pacing':
-      instruction = "Analyze the pacing of this text. Is it too slow? Too fast?";
-      break;
-    case 'characters':
-      instruction = "Analyze the characterization. Are the motivations clear?";
-      break;
-  }
-
-  const prompt = `
-    ${instruction}
-    ${getLangInstruction(lang)}
-    
-    TEXT TO ANALYZE:
-    ${safeText.substring(0, 10000)} 
-  `; 
-
+  const instruction = focus === 'viral_factors' ? "Identify 'Golden 3 Chapters' hooks." : focus === 'pacing' ? "Analyze pacing." : "Analyze characters.";
+  
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: `${instruction} ${getLangInstruction(lang)}\nTEXT: ${text.substring(0, 10000)}`
     });
-    const duration = Date.now() - startTime;
-    Logger.info('GeminiService', `[${reqId}] Success: analyzeText`, { duration: `${duration}ms` });
-    return response.text || "No analysis generated.";
-  } catch (error: any) {
-    Logger.error('GeminiService', `[${reqId}] Failed: analyzeText`, { error: error.message });
+    return response.text || "No analysis.";
+  } catch (error) {
     throw error;
   }
 };
 
 /**
- * AI 辅助写作工具
+ * Manipulate Text (Tools)
  */
 export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' | 'polish', lang: string, model: string): Promise<string> => {
-  const reqId = Math.random().toString(36).substring(7);
-  Logger.info('GeminiService', `[${reqId}] Request: manipulateText`, { mode, model });
-  const startTime = Date.now();
-
   const ai = getAiClient();
-
-  let prompt = "";
-  const langNote = getLangInstruction(lang);
-
-  if (mode === 'continue') {
-    prompt = `Continue the story for 500 words. Maintain tone. ${langNote}\n\nTEXT:\n${text}`;
-  } else if (mode === 'rewrite') {
-    prompt = `Rewrite to be more showing, less telling. ${langNote}\n\nTEXT:\n${text}`;
-  } else if (mode === 'polish') {
-    prompt = `Polish grammar and sentence variety. ${langNote}\n\nTEXT:\n${text}`;
-  }
-
+  const prompt = `${mode.toUpperCase()} this text. ${getLangInstruction(lang)}\nTEXT: ${text}`;
   try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-      });
-      const duration = Date.now() - startTime;
-      Logger.info('GeminiService', `[${reqId}] Success: manipulateText`, { duration: `${duration}ms` });
-      return response.text || "Generation failed.";
-  } catch(error: any) {
-      Logger.error('GeminiService', `[${reqId}] Failed: manipulateText`, { error: error.message });
+      const response = await ai.models.generateContent({ model, contents: prompt });
+      return response.text || "Failed.";
+  } catch(error) {
       throw error;
   }
 };
 
-/**
- * 辅助函数：为节点分配 ID
- */
 const assignIds = (node: OutlineNode): OutlineNode => {
-    if (!node.id) {
-        node.id = Math.random().toString(36).substring(2, 11);
-    }
-    if (node.children) {
-        node.children = node.children.map(assignIds);
-    }
+    if (!node.id) node.id = Math.random().toString(36).substring(2, 11);
+    if (node.children) node.children = node.children.map(assignIds);
     return node;
 }
 
 /**
- * 生成小说大纲
+ * Generate Outline (Recursive)
  */
-export const generateOutline = async (premise: string, lang: string, model: string): Promise<OutlineNode | null> => {
-  const reqId = Math.random().toString(36).substring(7);
-  Logger.info('GeminiService', `[${reqId}] Request: generateOutline`, { premise, model });
-  const startTime = Date.now();
-  
+export const generateOutline = async (premise: string, lang: string, model: string): Promise<{outline: OutlineNode, synopsis: string} | null> => {
   const ai = getAiClient();
 
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
-      name: { type: Type.STRING, description: "Title of the book" },
-      type: { type: Type.STRING, enum: ["book"] },
-      description: { type: Type.STRING },
-      children: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Act Name" },
-            type: { type: Type.STRING, enum: ["act"] },
+      synopsis: { type: Type.STRING },
+      root: {
+        type: Type.OBJECT,
+        properties: {
+            name: { type: Type.STRING },
+            type: { type: Type.STRING, enum: ["book"] },
             description: { type: Type.STRING },
             children: {
-              type: Type.ARRAY,
-              items: {
+                type: Type.ARRAY,
+                items: {
                 type: Type.OBJECT,
                 properties: {
-                  name: { type: Type.STRING, description: "Chapter Title" },
-                  type: { type: Type.STRING, enum: ["chapter"] },
-                  description: { type: Type.STRING }
+                    name: { type: Type.STRING },
+                    type: { type: Type.STRING, enum: ["act"] },
+                    description: { type: Type.STRING },
+                    children: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                        name: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: ["chapter"] },
+                        description: { type: Type.STRING }
+                        },
+                        required: ["name", "type", "description"]
+                    }
+                    }
                 },
-                required: ["name", "type", "description"]
-              }
+                required: ["name", "type", "children"]
+                }
             }
-          },
-          required: ["name", "type", "children"]
-        }
+        },
+        required: ["name", "type", "children"]
       }
     },
-    required: ["name", "type", "children"]
+    required: ["synopsis", "root"]
   };
 
-  const prompt = `Create a detailed novel outline. Premise: "${premise}". Structure: Book -> Acts -> Chapters. ${getLangInstruction(lang)}`;
+  const prompt = `Create a novel outline. Premise: "${premise}". Structure: Book -> Acts -> Chapters. ${getLangInstruction(lang)}`;
 
   try {
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
+      config: { responseMimeType: "application/json", responseSchema: schema },
     });
-    const duration = Date.now() - startTime;
-    Logger.info('GeminiService', `[${reqId}] Success: generateOutline`, { duration: `${duration}ms` });
-    
     const json = JSON.parse(response.text || "null");
-    if (json) {
-        return assignIds(json);
-    }
+    if (json && json.root) return { outline: assignIds(json.root), synopsis: json.synopsis || "" };
     return null;
-  } catch (error: any) {
-    Logger.error('GeminiService', `[${reqId}] Failed: generateOutline`, { error: error.message });
+  } catch (error) {
     return null;
   }
 };
 
 /**
- * 根据大纲节点生成具体的章节草稿
+ * Generate Child Nodes
  */
-export const generateChapterContent = async (node: OutlineNode, context: string, lang: string, model: string): Promise<string> => {
-    const reqId = Math.random().toString(36).substring(7);
-    Logger.info('GeminiService', `[${reqId}] Request: generateChapterContent`, { nodeName: node.name, model });
-    const startTime = Date.now();
-
+export const generateChildNodes = async (parentNode: OutlineNode, context: string, lang: string, model: string): Promise<OutlineNode[]> => {
     const ai = getAiClient();
+    let targetType = parentNode.type === 'act' ? 'chapter' : parentNode.type === 'chapter' ? 'scene' : 'act';
     
-    const prompt = `
-    Write content for chapter: ${node.name}
-    Description: ${node.description}
-    Context: ${context}
-    ${getLangInstruction(lang)}
-    `;
+    const schema: Schema = {
+        type: Type.OBJECT,
+        properties: {
+            children: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: [targetType] },
+                        description: { type: Type.STRING }
+                    },
+                    required: ["name", "type", "description"]
+                }
+            }
+        },
+        required: ["children"]
+    };
+
+    const prompt = `Generate ${targetType.toUpperCase()}S for node: ${parentNode.name}. Context: ${context}. Include Hooks/Cool Points. ${getLangInstruction(lang)}`;
 
     try {
         const response = await ai.models.generateContent({
             model,
-            contents: prompt
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: schema }
         });
-        const duration = Date.now() - startTime;
-        Logger.info('GeminiService', `[${reqId}] Success: generateChapterContent`, { duration: `${duration}ms` });
+        const json = JSON.parse(response.text || "null");
+        return json && json.children ? json.children.map((child: OutlineNode) => assignIds(child)) : [];
+    } catch (error) {
+        throw error;
+    }
+}
+
+/**
+ * Generate Chapter Content with Style
+ */
+export const generateChapterContent = async (
+    node: OutlineNode, 
+    context: string, 
+    lang: string, 
+    model: string,
+    stylePrompt?: string // New parameter for Prompt Library
+): Promise<string> => {
+    const ai = getAiClient();
+    
+    let styleInstruction = "";
+    if (stylePrompt) {
+        styleInstruction = `\nWRITING STYLE/GUIDELINE:\n${stylePrompt}\n\nApply this style strictly.`;
+    }
+
+    const prompt = `
+    Write content for chapter: ${node.name}
+    Description: ${node.description}
+    Context: ${context}
+    ${styleInstruction}
+    ${getLangInstruction(lang)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({ model, contents: prompt });
         return response.text || "Failed to generate chapter.";
-    } catch(error: any) {
-        Logger.error('GeminiService', `[${reqId}] Failed: generateChapterContent`, { error: error.message });
+    } catch(error) {
         throw error;
     }
 }

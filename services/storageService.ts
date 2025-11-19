@@ -1,11 +1,12 @@
 
 export const STORAGE_KEYS = {
   SETTINGS: 'inkflow_settings',
-  STUDIO: 'inkflow_studio', // Current active state
-  ARCHITECT: 'inkflow_architect', // Current active state
+  STUDIO: 'inkflow_studio', 
+  ARCHITECT: 'inkflow_architect', 
   HISTORY_LAB: 'inkflow_history_lab',
   HISTORY_STUDIO: 'inkflow_history_studio',
-  HISTORY_ARCHITECT: 'inkflow_history_architect'
+  HISTORY_ARCHITECT: 'inkflow_history_architect',
+  PROMPT_LIB: 'inkflow_prompt_library' // New Key
 };
 
 export const saveToStorage = (key: string, data: any) => {
@@ -30,12 +31,27 @@ export const loadFromStorage = (key: string) => {
 
 export const addHistoryItem = <T extends { id: string }>(key: string, item: T) => {
     const current = loadFromStorage(key) || [];
-    // Prepend new item
     const updated = [item, ...current];
-    // Limit to last 50 items to prevent localStorage overflow
     if (updated.length > 50) updated.length = 50; 
     saveToStorage(key, updated);
     return updated;
+};
+
+export const updateHistoryItem = <T extends { id: string }>(key: string, id: string, updates: Partial<T>) => {
+    const current = loadFromStorage(key) || [];
+    const index = current.findIndex((item: T) => item.id === id);
+    
+    if (index !== -1) {
+        const updatedItem = { ...current[index], ...updates, timestamp: Date.now() };
+        const newHistory = [
+            updatedItem,
+            ...current.slice(0, index),
+            ...current.slice(index + 1)
+        ];
+        saveToStorage(key, newHistory);
+        return newHistory;
+    }
+    return current;
 };
 
 export const getHistory = <T>(key: string): T[] => {
