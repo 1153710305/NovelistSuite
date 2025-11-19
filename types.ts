@@ -25,7 +25,7 @@ export interface GeneratedStory {
 export interface OutlineNode {
   id?: string; // Unique ID for editing
   name: string;
-  type: 'book' | 'act' | 'chapter' | 'scene';
+  type: 'book' | 'act' | 'chapter' | 'scene' | 'character' | 'setting'; // Added character and setting
   description?: string;
   content?: string; // Stores the generated chapter draft
   children?: OutlineNode[];
@@ -36,6 +36,15 @@ export interface PromptTemplate {
     name: string;
     content: string; // The system instruction or style wrapper
     tags: string[]; // e.g., 'platform', 'style'
+}
+
+export interface CoverRecord {
+    id: string;
+    timestamp: number;
+    prompt: string;
+    style: string;
+    model: string;
+    imageBase64: string;
 }
 
 export enum WritingMode {
@@ -51,8 +60,8 @@ export const AVAILABLE_SOURCES = [
 ];
 
 export enum ImageModel {
-    IMAGEN_3 = 'imagen-3.0-generate-001',
-    GEMINI_FLASH_IMAGE = 'gemini-2.5-flash-image' // Actually just for text-to-image if supported, sticking to Imagen for quality
+    IMAGEN = 'imagen-4.0-generate-001',
+    GEMINI_FLASH_IMAGE = 'gemini-2.5-flash-image'
 }
 
 // --- Global State ---

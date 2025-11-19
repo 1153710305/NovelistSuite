@@ -6,6 +6,7 @@ import { Market } from './pages/Market';
 import { Lab } from './pages/Lab';
 import { Studio } from './pages/Studio';
 import { Architect } from './pages/Architect';
+import { CoverStudio } from './pages/CoverStudio';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { I18nProvider } from './i18n';
@@ -34,18 +35,13 @@ const AppContent: React.FC = () => {
 
   const renderView = () => {
     switch (currentView) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'market':
-        return <Market />;
-      case 'analysis':
-        return <Lab />;
-      case 'writing':
-        return <Studio />;
-      case 'architect':
-        return <Architect />;
-      default:
-        return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
+      case 'market': return <Market />;
+      case 'analysis': return <Lab />;
+      case 'writing': return <Studio />;
+      case 'architect': return <Architect />;
+      case 'cover': return <CoverStudio />;
+      default: return <Dashboard />;
     }
   };
 

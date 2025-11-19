@@ -25,7 +25,7 @@ const translations: Record<Language, any> = {
         history: 'History', save: 'Save', delete: 'Delete', view: 'View', today: 'Today', yesterday: 'Yesterday', noHistory: 'No records found.', refresh: 'Refresh', logout: 'Logout', bgTask: 'Working in background...', safeToLeave: 'You can leave this page.', remainingTime: 'Est. remaining: {time}s', errorTitle: 'Something went wrong', errorDesc: 'We encountered an unexpected error.', reload: 'Reload Application', logs: 'System Logs', level: 'Level', message: 'Message', edit: 'Edit', cancel: 'Cancel', confirm: 'Confirm'
     },
     nav: {
-      dashboard: 'Dashboard', market: 'Market Trends', lab: 'Deconstruct Lab', studio: 'Writing Studio', architect: 'Story Architect', powered: 'Powered by Gemini'
+      dashboard: 'Dashboard', market: 'Market Trends', lab: 'Deconstruct Lab', studio: 'Writing Studio', architect: 'Story Architect', coverStudio: 'Art Studio', powered: 'Powered by Gemini'
     },
     settings: {
         title: 'Settings', language: 'Language', model: 'AI Model', modelHelp: 'Lite (Fast), Flash (Balanced), Pro (Smart)', resetGuide: 'Reset Guide'
@@ -52,7 +52,7 @@ const translations: Record<Language, any> = {
       generateDraft: 'Generate Draft',
       writing: 'Writing...',
       noContent: 'No content yet.',
-      types: { book: 'Book', act: 'Act', chapter: 'Chapter', scene: 'Scene' },
+      types: { book: 'Book', act: 'Act', chapter: 'Chapter', scene: 'Scene', character: 'Character', setting: 'Setting' },
       historyTitle: 'Saved Outlines',
       load: 'Load',
       actions: 'Actions',
@@ -79,7 +79,7 @@ const translations: Record<Language, any> = {
     models: { lite: 'Gemini Flash Lite (极速版)', flash: 'Gemini 2.5 Flash (平衡版)', pro: 'Gemini 3 Pro (强智版)' },
     quota: { dailyLimit: '每日额度', rpm: '频率限制', remaining: '剩余', errorTitle: '配额超限', errorDesc: '已达限制。' },
     common: { history: '历史记录', save: '保存', delete: '删除', view: '查看', today: '今天', yesterday: '昨天', noHistory: '无记录', refresh: '刷新', logout: '退出', bgTask: '后台运行中...', safeToLeave: '可离开页面', remainingTime: '预计剩余: {time}秒', errorTitle: '出错了', errorDesc: '意外错误。', reload: '重载', logs: '日志', level: '级别', message: '信息', edit: '编辑', cancel: '取消', confirm: '确认' },
-    nav: { dashboard: '仪表盘', market: '市场趋势', lab: '拆书实验室', studio: '写作工作室', architect: '故事架构师', powered: '由智能 AI 驱动' },
+    nav: { dashboard: '仪表盘', market: '市场趋势', lab: '拆书实验室', studio: '写作工作室', architect: '故事架构师', coverStudio: '封面工作室', powered: '由智能 AI 驱动' },
     settings: { title: '设置', language: '语言', model: '模型', modelHelp: 'Lite, Flash, Pro', resetGuide: '重置引导' },
     sources: { title: '数据来源', label: '选择平台：', douyin: '抖音', kuaishou: '快手', bilibili: 'B站', baidu: '百度', weibo: '微博', xiaohongshu: '小红书', fanqie: '番茄', qidian: '起点', jinjiang: '晋江', zhihu: '知乎', zongheng: '纵横', all: '全选' },
     dataDoc: { title: '数据说明', btnLabel: '数据源', method: { title: '获取方式', desc: 'API聚合+AI分析' }, sources: { title: '来源', desc: '官方榜单' }, reliability: { title: '真实性', desc: '交叉验证' } },
@@ -91,7 +91,7 @@ const translations: Record<Language, any> = {
     studio: { tabDaily: '每日灵感', tabTools: 'AI工具', dailyGenTitle: '每日生成', dailyGenDesc: '生成创意', trendLabel: '趋势焦点', trendPlaceholder: '例：赛博朋克...', generateBtn: '生成故事', generating: '生成中...', generatingBackground: '后台生成中...', backgroundTip: '可离开页面', emptyDaily: '灵感展示区', toolContinue: '续写', toolRewrite: '改写', toolPolish: '润色', toolPlaceholder: '粘贴草稿...', processing: '处理中...', emptyTool: 'AI输出...', historyTitle: '历史' },
     architect: {
       placeholder: "输入小说前提...", synopsisPlaceholder: "简介 (可选)", designBtn: '设计大纲', tip: '点击节点修改', description: '描述', content: '正文', generateDraft: '生成草稿', writing: '写作中...', noContent: '暂无内容',
-      types: { book: '书名', act: '卷/幕', chapter: '章节', scene: '场景' },
+      types: { book: '书名', act: '卷/幕', chapter: '章节', scene: '场景', character: '角色', setting: '设定' },
       historyTitle: '存档', load: '加载', actions: '操作', addChild: '加子节点', addSibling: '加兄弟节点', deleteNode: '删除', aiExpand: 'AI生细纲', expanding: 'AI思考中...', nodeName: '名称', nodeDesc: '描述', confirmDelete: '确定删除？',
       mapControls: { zoomIn: '放大', zoomOut: '缩小', fit: '适配' },
       views: { map: '蓝图视图', manuscript: '正文视图' },

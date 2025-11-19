@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { generateChapterContent, generateChildNodes, generateCover } from '../services/geminiService';
-import { OutlineNode, ArchitectRecord, ImageModel } from '../types';
+import { generateChapterContent, generateChildNodes } from '../services/geminiService';
+import { OutlineNode, ArchitectRecord } from '../types';
 import { MindMap } from '../components/MindMap';
-import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, Save, Plus, Edit2, X, Check, CopyPlus, Sparkles, BookOpen, Image as ImageIcon, Palette, Settings2, PlusCircle } from 'lucide-react';
+import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, BookOpen, ImageIcon, Edit2, Plus, CopyPlus, Sparkles, Settings2, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem, updateHistoryItem } from '../services/storageService';
+import { loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem, updateHistoryItem } from '../services/storageService';
 
 export const Architect: React.FC = () => {
   const [premise, setPremise] = useState('');
@@ -25,13 +25,6 @@ export const Architect: React.FC = () => {
   const [generatedChapter, setGeneratedChapter] = useState('');
   const [generatingChapter, setGeneratingChapter] = useState(false);
   const [expandingNode, setExpandingNode] = useState(false);
-
-  // Cover Generation
-  const [showCoverModal, setShowCoverModal] = useState(false);
-  const [coverPrompt, setCoverPrompt] = useState('');
-  const [coverStyle, setCoverStyle] = useState('Epic Fantasy Art');
-  const [isGeneratingCover, setIsGeneratingCover] = useState(false);
-  const [selectedImageModel, setSelectedImageModel] = useState<string>(ImageModel.IMAGEN_3);
 
   // Prompt Library
   const [selectedPromptId, setSelectedPromptId] = useState<string>('');
@@ -163,6 +156,19 @@ export const Architect: React.FC = () => {
       return root;
   }
 
+  // --- Context Extraction Helper ---
+  const extractContextFromTree = (root: OutlineNode): string => {
+      let context = '';
+      
+      const traverse = (node: OutlineNode) => {
+          if (node.type === 'character') context += `[Character] ${node.name}: ${node.description}\n`;
+          if (node.type === 'setting') context += `[Setting] ${node.name}: ${node.description}\n`;
+          if (node.children) node.children.forEach(traverse);
+      }
+      traverse(root);
+      return context;
+  }
+
   // --- Generation & Editing ---
 
   const handleGenerateChapter = async () => {
@@ -170,9 +176,12 @@ export const Architect: React.FC = () => {
       setGeneratingChapter(true);
       try {
           const selectedStyle = promptLibrary.find(p => p.id === selectedPromptId)?.content;
-          const context = `Book Title: ${architectState.outline?.name}. Synopsis: ${architectState.synopsis}. Description: ${architectState.outline?.description}`;
           
-          const result = await generateChapterContent(selectedNode, context, lang, model, selectedStyle);
+          // Extract global context from tree
+          const worldContext = extractContextFromTree(architectState.outline);
+          const fullContext = `Book Title: ${architectState.outline?.name}. Synopsis: ${architectState.synopsis}. \nWORLD & CHARACTERS:\n${worldContext}`;
+          
+          const result = await generateChapterContent(selectedNode, fullContext, lang, model, selectedStyle);
           
           setGeneratedChapter(result);
           if (selectedNode.id) {
@@ -222,9 +231,14 @@ export const Architect: React.FC = () => {
       setIsEditing(false);
   };
 
-  const handleAddChild = () => {
+  const handleAddChild = (forcedType?: string) => {
       if (!architectState.outline || !selectedNode?.id) return;
-      const newType = selectedNode.type === 'book' ? 'act' : selectedNode.type === 'act' ? 'chapter' : 'scene';
+      let newType: any = forcedType;
+      
+      if (!newType) {
+        newType = selectedNode.type === 'book' ? 'act' : selectedNode.type === 'act' ? 'chapter' : 'scene';
+      }
+      
       const newNode: OutlineNode = { id: Math.random().toString(36).substring(2, 11), name: `New ${newType}`, type: newType, description: 'New...', children: [] };
       const newRoot = addChildToNode(architectState.outline, selectedNode.id, newNode);
       setArchitectState(prev => ({ ...prev, outline: newRoot, lastUpdated: Date.now() }));
@@ -246,26 +260,6 @@ export const Architect: React.FC = () => {
       setSelectedNode(null);
   };
 
-  // --- Cover Generation ---
-
-  const handleGenerateCover = async () => {
-      if (!architectState.outline) return;
-      setIsGeneratingCover(true);
-      const finalPrompt = `Book Cover Art. Title: "${architectState.outline.name}". Style: ${coverStyle}. Description: ${coverPrompt || architectState.synopsis || architectState.outline.name}. No text overlay. High quality, detailed.`;
-      
-      try {
-          const base64 = await generateCover(finalPrompt, selectedImageModel);
-          setArchitectState(prev => ({ ...prev, coverImage: base64 }));
-          setShowCoverModal(false);
-      } catch (e) {
-          alert("Failed to generate cover.");
-      } finally {
-          setIsGeneratingCover(false);
-      }
-  }
-
-  // --- Prompt Library ---
-
   const handleAddPrompt = () => {
       if (!newPromptName || !newPromptContent) return;
       addPrompt({ id: Date.now().toString(), name: newPromptName, content: newPromptContent, tags: ['custom'] });
@@ -273,12 +267,11 @@ export const Architect: React.FC = () => {
       setNewPromptContent('');
   }
 
-  // --- Render Helpers ---
-
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' });
 
   // Recursive render for Manuscript View
   const renderManuscriptNode = (node: OutlineNode, level: number = 0) => {
+      if (node.type === 'character' || node.type === 'setting') return null; // Skip settings/chars in reader view
       return (
           <div key={node.id} className="mb-6">
               {node.type !== 'book' && (
@@ -361,9 +354,6 @@ export const Architect: React.FC = () => {
                                     ) : (
                                         <ImageIcon className="text-slate-400" size={48} />
                                     )}
-                                    <button onClick={() => setShowCoverModal(true)} className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center font-bold transition-opacity">
-                                        <Palette className="mr-2" /> {t('architect.cover.generate')}
-                                    </button>
                                 </div>
                                 <h1 className="text-4xl font-bold text-slate-900 mb-4">{architectState.outline.name}</h1>
                                 <p className="text-slate-500 italic max-w-lg mx-auto">{architectState.synopsis}</p>
@@ -385,7 +375,10 @@ export const Architect: React.FC = () => {
       {selectedNode && viewMode === 'map' && (
           <div className="w-1/3 bg-white border-l border-slate-200 h-full shadow-xl absolute right-0 top-0 flex flex-col z-10">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between">
-                  <span className="text-xs font-bold uppercase px-2 py-1 rounded bg-blue-100 text-blue-700">{selectedNode.type}</span>
+                  <span className={`text-xs font-bold uppercase px-2 py-1 rounded ${
+                      selectedNode.type === 'character' ? 'bg-purple-100 text-purple-700' :
+                      selectedNode.type === 'setting' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                  }`}>{selectedNode.type}</span>
                   <button onClick={() => setSelectedNode(null)}>×</button>
               </div>
               <div className="p-6 overflow-y-auto flex-1 space-y-6">
@@ -403,8 +396,17 @@ export const Architect: React.FC = () => {
                             <button onClick={() => setIsEditing(true)} className="text-teal-600 text-xs mt-2 flex items-center gap-1"><Edit2 size={12}/> {t('common.edit')}</button>
                         </div>
                         <div className="border-t pt-4 grid grid-cols-2 gap-2">
-                            <button onClick={handleAiExpandChildren} disabled={expandingNode || selectedNode.type==='scene'} className="col-span-2 bg-indigo-50 text-indigo-700 py-2 rounded flex justify-center gap-2">{expandingNode?<Loader2 className="animate-spin"/>:<Sparkles/>} {t('architect.aiExpand')}</button>
-                            <button onClick={handleAddChild} className="border py-2 rounded hover:bg-slate-50"><Plus size={14}/> {t('architect.addChild')}</button>
+                            <button onClick={handleAiExpandChildren} disabled={expandingNode || selectedNode.type==='scene' || selectedNode.type==='character' || selectedNode.type==='setting'} className="col-span-2 bg-indigo-50 text-indigo-700 py-2 rounded flex justify-center gap-2">{expandingNode?<Loader2 className="animate-spin"/>:<Sparkles/>} {t('architect.aiExpand')}</button>
+                            
+                            <button onClick={() => handleAddChild()} className="border py-2 rounded hover:bg-slate-50"><Plus size={14}/> {t('architect.addChild')}</button>
+                            
+                            {selectedNode.type === 'book' && (
+                                <>
+                                    <button onClick={() => handleAddChild('character')} className="border border-purple-200 text-purple-700 py-2 rounded hover:bg-purple-50">Add Character</button>
+                                    <button onClick={() => handleAddChild('setting')} className="border border-green-200 text-green-700 py-2 rounded hover:bg-green-50">Add Setting</button>
+                                </>
+                            )}
+
                             {selectedNode.type!=='book' && <button onClick={handleAddSibling} className="border py-2 rounded hover:bg-slate-50"><CopyPlus size={14}/> {t('architect.addSibling')}</button>}
                             <button onClick={handleDeleteNode} className="border border-red-200 text-red-600 py-2 rounded hover:bg-red-50"><Trash2 size={14}/> {t('architect.deleteNode')}</button>
                         </div>
@@ -422,11 +424,6 @@ export const Architect: React.FC = () => {
                                             <option value="">None (Default)</option>
                                             {promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
-                                        <div className="pt-2 border-t mt-2">
-                                            <input placeholder={t('architect.prompts.name')} value={newPromptName} onChange={e=>setNewPromptName(e.target.value)} className="w-full text-xs p-1 mb-1 border rounded"/>
-                                            <textarea placeholder={t('architect.prompts.instruction')} value={newPromptContent} onChange={e=>setNewPromptContent(e.target.value)} className="w-full text-xs p-1 mb-1 border rounded" rows={2}/>
-                                            <button onClick={handleAddPrompt} className="w-full bg-slate-200 text-xs py-1 rounded hover:bg-slate-300">{t('architect.prompts.add')}</button>
-                                        </div>
                                     </div>
                                 )}
                                 <div className="relative">
@@ -437,42 +434,6 @@ export const Architect: React.FC = () => {
                         )}
                       </>
                   )}
-              </div>
-          </div>
-      )}
-
-      {/* Cover Generator Modal */}
-      {showCoverModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-              <div className="bg-white p-6 rounded-xl w-96 shadow-2xl">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Palette className="text-teal-600"/> {t('architect.cover.generate')}</h3>
-                  <div className="space-y-4">
-                      <div>
-                          <label className="text-xs font-bold text-slate-500">{t('architect.cover.promptLabel')}</label>
-                          <textarea value={coverPrompt} onChange={e=>setCoverPrompt(e.target.value)} rows={3} className="w-full border rounded p-2 text-sm mt-1" placeholder="Describe the cover scene..." />
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-slate-500">{t('architect.cover.styleLabel')}</label>
-                          <select value={coverStyle} onChange={e=>setCoverStyle(e.target.value)} className="w-full border rounded p-2 text-sm mt-1">
-                              <option value="Epic Fantasy Art">Epic Fantasy (Xianxia)</option>
-                              <option value="Cyberpunk Anime">Cyberpunk Anime</option>
-                              <option value="Watercolor Painting">Watercolor</option>
-                              <option value="Dark Horror Realistic">Dark Horror</option>
-                              <option value="Modern Minimalist">Modern Minimalist</option>
-                          </select>
-                      </div>
-                       <div>
-                          <label className="text-xs font-bold text-slate-500">{t('architect.cover.modelLabel')}</label>
-                          <select value={selectedImageModel} onChange={e=>setSelectedImageModel(e.target.value)} className="w-full border rounded p-2 text-sm mt-1">
-                              <option value="imagen-3.0-generate-001">Imagen 3 (High Quality)</option>
-                              <option value="gemini-2.5-flash-image">Gemini Flash Image (Fast)</option>
-                          </select>
-                      </div>
-                      <div className="flex gap-2 pt-2">
-                          <button onClick={handleGenerateCover} disabled={isGeneratingCover} className="flex-1 bg-teal-600 text-white py-2 rounded hover:bg-teal-700 flex justify-center">{isGeneratingCover?<Loader2 className="animate-spin"/>:t('architect.cover.generate')}</button>
-                          <button onClick={()=>setShowCoverModal(false)} className="flex-1 bg-slate-200 py-2 rounded hover:bg-slate-300">{t('common.cancel')}</button>
-                      </div>
-                  </div>
               </div>
           </div>
       )}

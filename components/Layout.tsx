@@ -1,16 +1,6 @@
 
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  BookOpenText, 
-  PenTool, 
-  Network,
-  Feather,
-  Settings,
-  HelpCircle,
-  LogOut
-} from 'lucide-react';
+import { LayoutDashboard, TrendingUp, BookOpenText, PenTool, Network, Feather, Settings, HelpCircle, LogOut, Palette } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { Onboarding } from './Onboarding';
@@ -32,6 +22,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
     { id: 'analysis', label: t('nav.lab'), icon: BookOpenText },
     { id: 'writing', label: t('nav.studio'), icon: PenTool },
     { id: 'architect', label: t('nav.architect'), icon: Network },
+    { id: 'cover', label: t('nav.coverStudio'), icon: Palette },
   ];
 
   return (
@@ -121,7 +112,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
 
         <div className="p-4 border-t border-slate-800 text-xs text-slate-500">
           <p>{t('nav.powered')}</p>
-          <p>v1.2.0</p>
+          <p>v1.3.0</p>
         </div>
       </aside>
 

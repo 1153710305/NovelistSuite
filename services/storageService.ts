@@ -6,7 +6,8 @@ export const STORAGE_KEYS = {
   HISTORY_LAB: 'inkflow_history_lab',
   HISTORY_STUDIO: 'inkflow_history_studio',
   HISTORY_ARCHITECT: 'inkflow_history_architect',
-  PROMPT_LIB: 'inkflow_prompt_library' // New Key
+  HISTORY_COVERS: 'inkflow_history_covers', // New Key for Art Studio
+  PROMPT_LIB: 'inkflow_prompt_library'
 };
 
 export const saveToStorage = (key: string, data: any) => {
