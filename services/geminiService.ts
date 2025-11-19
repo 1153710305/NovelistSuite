@@ -1,10 +1,7 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { OutlineNode } from '../types';
-
-const logAPI = (msg: string, data?: any) => {
-    console.log(`%c[GeminiService] ${msg}`, 'color: #f59e0b; font-weight: bold;', data || '');
-};
+import { Logger } from './logger';
 
 /**
  * 获取 AI 客户端实例
@@ -14,8 +11,8 @@ const logAPI = (msg: string, data?: any) => {
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    const err = "API Key not found in environment variables. Please check your .env file.";
-    console.error(`[GeminiService] FATAL: ${err}`);
+    const err = "API Key not found in environment variables.";
+    Logger.error('GeminiService', 'FATAL: API Key missing', { env: process.env });
     throw new Error(err);
   }
   return new GoogleGenAI({ apiKey });
@@ -23,9 +20,6 @@ const getAiClient = () => {
 
 /**
  * 根据用户选择的语言生成对应的系统指令
- * 用于确保 AI 输出的语言符合用户设置
- * @param lang 语言代码 (zh, en, ja, etc.)
- * @returns 提示词指令字符串
  */
 const getLangInstruction = (lang: string) => {
   switch (lang) {
@@ -42,12 +36,15 @@ const getLangInstruction = (lang: string) => {
  * 生成每日灵感故事
  */
 export const generateDailyStories = async (trendFocus: string, sources: string[], lang: string, model: string): Promise<string> => {
-  logAPI('Requesting generateDailyStories', { trendFocus, sourceCount: sources.length, model });
+  const reqId = Math.random().toString(36).substring(7);
+  Logger.info('GeminiService', `[${reqId}] Request: generateDailyStories`, { trendFocus, sources, model });
+  const startTime = Date.now();
+
   const ai = getAiClient();
   
   const sourceContext = sources.length > 0 
     ? `STRICTLY LIMIT your trend sources to the following Chinese platforms: ${sources.join(', ')}.` 
-    : `Use trending topics from major Chinese web novel and social media platforms (e.g. Douyin, Qidian, Weibo).`;
+    : `Use trending topics from major Chinese web novel and social media platforms.`;
 
   const prompt = `
     You are a creative writing assistant specializing in the Chinese web novel market.
@@ -58,9 +55,9 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
     
     CONSTRAINTS:
     1. ONLY use trends/memes/styles popular on the selected Chinese platforms.
-    2. IGNORE Western trends (like Hollywood, Reddit, etc.).
+    2. IGNORE Western trends.
     3. Focus: ${trendFocus || 'Current viral hot spots'}.
-    4. For EACH story, you MUST explicitly specify the "Source Platform" (e.g., "Source: Douyin Hot Search" or "Source: Qidian Ranking") from the allowed list.
+    4. For EACH story, you MUST explicitly specify the "Source Platform" (e.g., "Source: Douyin Hot Search").
     
     OUTPUT FORMAT (Markdown):
     ### 1. [Title]
@@ -78,10 +75,11 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
       model,
       contents: prompt,
     });
-    logAPI('generateDailyStories response received', { length: response.text?.length });
+    const duration = Date.now() - startTime;
+    Logger.info('GeminiService', `[${reqId}] Success: generateDailyStories`, { duration: `${duration}ms`, outputLength: response.text?.length });
     return response.text || "Failed to generate stories.";
-  } catch (error) {
-    console.error('[GeminiService] generateDailyStories FAILED:', error);
+  } catch (error: any) {
+    Logger.error('GeminiService', `[${reqId}] Failed: generateDailyStories`, { error: error.message, stack: error.stack });
     return "Error generating stories. Please check your API key or network connection.";
   }
 };
@@ -90,21 +88,23 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
  * 文本拆解分析实验室
  */
 export const analyzeText = async (text: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
+  const reqId = Math.random().toString(36).substring(7);
   const safeText = text || "";
-  logAPI('Requesting analyzeText', { focus, textLength: safeText.length });
+  Logger.info('GeminiService', `[${reqId}] Request: analyzeText`, { focus, textLength: safeText.length, model });
+  const startTime = Date.now();
 
   const ai = getAiClient();
 
   let instruction = "";
   switch (focus) {
     case 'viral_factors':
-      instruction = "Analyze this text for 'viral' potential within the Chinese web novel market. Identify the 'Golden 3 Chapters' (黄金三章) hook, emotional beats, and reader retention triggers. Explain why this would or wouldn't succeed on platforms like Fanqie or Qidian.";
+      instruction = "Analyze this text for 'viral' potential within the Chinese web novel market. Identify the 'Golden 3 Chapters' (黄金三章) hook.";
       break;
     case 'pacing':
-      instruction = "Analyze the pacing of this text. Is it too slow? Too fast? Are the scene transitions smooth?";
+      instruction = "Analyze the pacing of this text. Is it too slow? Too fast?";
       break;
     case 'characters':
-      instruction = "Analyze the characterization. Are the motivations clear? Is the dialogue natural? detailed breakdown.";
+      instruction = "Analyze the characterization. Are the motivations clear?";
       break;
   }
 
@@ -121,10 +121,11 @@ export const analyzeText = async (text: string, focus: 'pacing' | 'characters' |
       model,
       contents: prompt,
     });
-    logAPI('analyzeText response received');
+    const duration = Date.now() - startTime;
+    Logger.info('GeminiService', `[${reqId}] Success: analyzeText`, { duration: `${duration}ms` });
     return response.text || "No analysis generated.";
-  } catch (error) {
-    console.error('[GeminiService] analyzeText FAILED:', error);
+  } catch (error: any) {
+    Logger.error('GeminiService', `[${reqId}] Failed: analyzeText`, { error: error.message });
     throw error;
   }
 };
@@ -133,18 +134,21 @@ export const analyzeText = async (text: string, focus: 'pacing' | 'characters' |
  * AI 辅助写作工具
  */
 export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' | 'polish', lang: string, model: string): Promise<string> => {
-  logAPI('Requesting manipulateText', { mode });
+  const reqId = Math.random().toString(36).substring(7);
+  Logger.info('GeminiService', `[${reqId}] Request: manipulateText`, { mode, model });
+  const startTime = Date.now();
+
   const ai = getAiClient();
 
   let prompt = "";
   const langNote = getLangInstruction(lang);
 
   if (mode === 'continue') {
-    prompt = `Read the following text and continue the story for another 500 words. Maintain the tone, style, and character voices. ${langNote}\n\nTEXT:\n${text}`;
+    prompt = `Continue the story for 500 words. Maintain tone. ${langNote}\n\nTEXT:\n${text}`;
   } else if (mode === 'rewrite') {
-    prompt = `Rewrite the following text to be more showing and less telling. Improve the flow and vocabulary. ${langNote}\n\nTEXT:\n${text}`;
+    prompt = `Rewrite to be more showing, less telling. ${langNote}\n\nTEXT:\n${text}`;
   } else if (mode === 'polish') {
-    prompt = `Polish the following text. Fix grammar, enhance sentence variety, and punch up the descriptions without changing the core plot. ${langNote}\n\nTEXT:\n${text}`;
+    prompt = `Polish grammar and sentence variety. ${langNote}\n\nTEXT:\n${text}`;
   }
 
   try {
@@ -152,10 +156,11 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
         model,
         contents: prompt,
       });
-      logAPI('manipulateText response received');
+      const duration = Date.now() - startTime;
+      Logger.info('GeminiService', `[${reqId}] Success: manipulateText`, { duration: `${duration}ms` });
       return response.text || "Generation failed.";
-  } catch(error) {
-      console.error('[GeminiService] manipulateText FAILED:', error);
+  } catch(error: any) {
+      Logger.error('GeminiService', `[${reqId}] Failed: manipulateText`, { error: error.message });
       throw error;
   }
 };
@@ -164,7 +169,10 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
  * 生成小说大纲
  */
 export const generateOutline = async (premise: string, lang: string, model: string): Promise<OutlineNode | null> => {
-  logAPI('Requesting generateOutline', { premise });
+  const reqId = Math.random().toString(36).substring(7);
+  Logger.info('GeminiService', `[${reqId}] Request: generateOutline`, { premise, model });
+  const startTime = Date.now();
+  
   const ai = getAiClient();
 
   const schema: Schema = {
@@ -178,7 +186,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
         items: {
           type: Type.OBJECT,
           properties: {
-            name: { type: Type.STRING, description: "Act or Major Arc Name" },
+            name: { type: Type.STRING, description: "Act Name" },
             type: { type: Type.STRING, enum: ["act"] },
             description: { type: Type.STRING },
             children: {
@@ -188,7 +196,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
                 properties: {
                   name: { type: Type.STRING, description: "Chapter Title" },
                   type: { type: Type.STRING, enum: ["chapter"] },
-                  description: { type: Type.STRING, description: "What happens in this chapter" }
+                  description: { type: Type.STRING }
                 },
                 required: ["name", "type", "description"]
               }
@@ -201,10 +209,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
     required: ["name", "type", "children"]
   };
 
-  const prompt = `Create a detailed novel outline based on this premise: "${premise}". 
-  Structure it as Book -> Acts -> Chapters. 
-  Create at least 3 Acts and 3 Chapters per Act.
-  ${getLangInstruction(lang)}`;
+  const prompt = `Create a detailed novel outline. Premise: "${premise}". Structure: Book -> Acts -> Chapters. ${getLangInstruction(lang)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -215,10 +220,11 @@ export const generateOutline = async (premise: string, lang: string, model: stri
         responseSchema: schema,
       },
     });
-    logAPI('generateOutline response received. Parsing JSON...');
+    const duration = Date.now() - startTime;
+    Logger.info('GeminiService', `[${reqId}] Success: generateOutline`, { duration: `${duration}ms` });
     return JSON.parse(response.text || "null");
-  } catch (e) {
-    console.error("[GeminiService] generateOutline FAILED or JSON Parse Error:", e);
+  } catch (error: any) {
+    Logger.error('GeminiService', `[${reqId}] Failed: generateOutline`, { error: error.message });
     return null;
   }
 };
@@ -227,19 +233,16 @@ export const generateOutline = async (premise: string, lang: string, model: stri
  * 根据大纲节点生成具体的章节草稿
  */
 export const generateChapterContent = async (node: OutlineNode, context: string, lang: string, model: string): Promise<string> => {
-    logAPI('Requesting generateChapterContent', { nodeName: node.name });
+    const reqId = Math.random().toString(36).substring(7);
+    Logger.info('GeminiService', `[${reqId}] Request: generateChapterContent`, { nodeName: node.name, model });
+    const startTime = Date.now();
+
     const ai = getAiClient();
     
     const prompt = `
-    Write the content for the following chapter/scene.
-    
-    Title: ${node.name}
+    Write content for chapter: ${node.name}
     Description: ${node.description}
-    
-    Context (Book Outline/Summary):
-    ${context}
-    
-    Write a compelling, immersive scene (approx 800 words).
+    Context: ${context}
     ${getLangInstruction(lang)}
     `;
 
@@ -248,10 +251,11 @@ export const generateChapterContent = async (node: OutlineNode, context: string,
             model,
             contents: prompt
         });
-        logAPI('generateChapterContent response received');
+        const duration = Date.now() - startTime;
+        Logger.info('GeminiService', `[${reqId}] Success: generateChapterContent`, { duration: `${duration}ms` });
         return response.text || "Failed to generate chapter.";
-    } catch(error) {
-        console.error('[GeminiService] generateChapterContent FAILED:', error);
+    } catch(error: any) {
+        Logger.error('GeminiService', `[${reqId}] Failed: generateChapterContent`, { error: error.message });
         throw error;
     }
 }

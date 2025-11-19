@@ -95,3 +95,22 @@ export interface ArchitectRecord extends BaseHistoryRecord {
     premise: string;
     outline: OutlineNode;
 }
+
+// --- Logging System ---
+
+export enum LogLevel {
+    INFO = 'INFO',
+    WARN = 'WARN',
+    ERROR = 'ERROR',
+    DEBUG = 'DEBUG'
+}
+
+export interface LogEntry {
+    id: string;
+    sessionId: string;
+    timestamp: number;
+    level: LogLevel;
+    category: string; // e.g., 'System', 'API', 'UI'
+    message: string;
+    data?: any; // Context data
+}

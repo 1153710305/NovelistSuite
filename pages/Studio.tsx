@@ -1,23 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { manipulateText } from '../services/geminiService';
-import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Save, Database, History, Trash2, Clock, Loader2 } from 'lucide-react';
+import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Save, Database, History, Trash2, Clock, Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
-import { StudioRecord } from '../types';
+import { StudioRecord, AVAILABLE_SOURCES } from '../types';
 
 export const Studio: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'daily' | 'tools'>('daily');
   
   // 从 AppContext 获取全局状态，替代本地状态
-  const { model, sources, studioState, setStudioState, startStudioGeneration } = useApp();
+  const { model, sources: globalSources, studioState, setStudioState, startStudioGeneration } = useApp();
   const { t, lang, getToolLabel, getProcessLabel } = useI18n();
 
   // Local state for History UI only
   const [history, setHistory] = useState<StudioRecord[]>([]);
   
+  // Local state for source selection inside Studio
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [showSourceSelector, setShowSourceSelector] = useState(false);
+
   // 工具模式状态 (仍保持本地，因为不需要后台长时间运行)
   const [editorText, setEditorText] = useState('');
   const [toolMode, setToolMode] = useState<'continue' | 'rewrite' | 'polish'>('continue');
@@ -36,6 +40,9 @@ export const Studio: React.FC = () => {
       if (savedData) {
           if (savedData.editorText) setEditorText(savedData.editorText);
       }
+      // Initialize sources with global settings if local not set? 
+      // Or just default to global sources on first load.
+      setSelectedSources(globalSources);
       loadHistory();
   }, []);
 
@@ -60,11 +67,18 @@ export const Studio: React.FC = () => {
 
   // 处理每日故事生成 (调用全局后台方法)
   const handleDailyGen = () => {
-    startStudioGeneration(studioState.trendFocus, lang);
+    startStudioGeneration(studioState.trendFocus, selectedSources, lang);
   };
 
   const handleInputChange = (val: string) => {
       setStudioState(prev => ({ ...prev, trendFocus: val }));
+  }
+
+  const toggleSourceSelection = (source: string) => {
+      setSelectedSources(prev => {
+          if (prev.includes(source)) return prev.filter(s => s !== source);
+          return [...prev, source];
+      });
   }
 
   const handleDeleteHistory = (e: React.MouseEvent, id: string) => {
@@ -93,8 +107,6 @@ export const Studio: React.FC = () => {
       try {
         const result = await manipulateText(editorText, toolMode, lang, model);
         // 工具模式的结果通常直接替换或追加，这里简单起见直接显示在右侧
-        // 或者我们可以复用 studioState 的 content 来显示工具结果，但这会混淆
-        // 暂时我们在 Daily Tab 显示 Daily 结果，Tools Tab 保持独立
         setStudioState(prev => ({ ...prev, generatedContent: result }));
       } catch (e) {
           console.error(e);
@@ -147,21 +159,49 @@ export const Studio: React.FC = () => {
                             disabled={studioState.isGenerating}
                         />
                         
-                        <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <Database size={12} /> <span>{sources.length} Sources</span>
-                            </div>
+                        {/* Platform Selection */}
+                        <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
+                            <button 
+                                onClick={() => setShowSourceSelector(!showSourceSelector)}
+                                className="w-full p-3 bg-slate-50 flex items-center justify-between text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Database size={12} />
+                                    <span>{selectedSources.length} {t('sources.title')}</span>
+                                </div>
+                                {showSourceSelector ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                            </button>
+                            
+                            {showSourceSelector && (
+                                <div className="p-3 bg-white grid grid-cols-2 gap-2 max-h-48 overflow-y-auto shadow-inner">
+                                    {AVAILABLE_SOURCES.map(source => (
+                                        <button
+                                            key={source}
+                                            onClick={() => toggleSourceSelection(source)}
+                                            className={`text-[10px] px-2 py-1.5 rounded border flex items-center justify-between group transition-all ${
+                                                selectedSources.includes(source) 
+                                                ? 'bg-teal-50 border-teal-200 text-teal-700' 
+                                                : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-teal-200'
+                                            }`}
+                                        >
+                                            {t(`sources.${source}`)}
+                                            {selectedSources.includes(source) && <Check size={10} />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         <button 
                             onClick={handleDailyGen}
-                            disabled={studioState.isGenerating}
+                            disabled={studioState.isGenerating || selectedSources.length === 0}
                             className="w-full py-2 bg-slate-900 text-white rounded-md text-sm font-medium hover:bg-slate-800 disabled:opacity-50 shadow-lg shadow-slate-900/20 flex items-center justify-center gap-2"
                         >
                             {studioState.isGenerating ? (
                                 <><Loader2 className="animate-spin" size={16}/> {t('studio.generating')}</>
                             ) : t('studio.generateBtn')}
                         </button>
+                        {selectedSources.length === 0 && <p className="text-[10px] text-red-500 text-center mt-2">Select at least one source</p>}
                     </div>
 
                     {/* History List */}
