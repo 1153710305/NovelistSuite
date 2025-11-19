@@ -4,6 +4,11 @@ import { saveToStorage, loadFromStorage, STORAGE_KEYS, addHistoryItem } from '..
 import { AVAILABLE_SOURCES, StudioGlobalState, StudioRecord, ArchitectGlobalState, LabGlobalState, ArchitectRecord, LabRecord } from '../types';
 import { generateDailyStories, generateOutline, analyzeText } from '../services/geminiService';
 
+// 日志辅助
+const logContext = (msg: string, data?: any) => {
+    console.log(`%c[AppContext] ${msg}`, 'color: #8b5cf6;', data || '');
+};
+
 interface AppContextType {
   model: string;
   setModel: (model: string) => void;
@@ -36,6 +41,8 @@ const AppContext = createContext<AppContextType | null>(null);
  * Manages settings, onboarding, and background tasks for Studio, Architect, and Lab.
  */
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  logContext('Provider mounting...');
+
   const [model, setModelState] = useState<string>('gemini-2.5-flash'); 
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false); 
   const [sources, setSources] = useState<string[]>(AVAILABLE_SOURCES); 
@@ -79,25 +86,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Init
   useEffect(() => {
+    logContext('Initializing application settings...');
+    
     const hasSeen = localStorage.getItem('inkflow_onboarding_seen');
     if (!hasSeen) {
+      logContext('First time user detected, enabling onboarding.');
       setShowOnboarding(true);
     }
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS);
     if (savedSettings) {
+        logContext('Settings loaded from storage', savedSettings);
         if (savedSettings.model) setModelState(savedSettings.model);
         if (savedSettings.sources) setSources(savedSettings.sources);
+    } else {
+        logContext('No saved settings found, using defaults.');
     }
 
     // Load persistence states if not active
     const savedStudio = loadFromStorage(STORAGE_KEYS.STUDIO);
     if (savedStudio && !studioState.isGenerating) {
+        logContext('Restoring Studio state');
         setStudioState(prev => ({ ...prev, trendFocus: savedStudio.trendFocus || '', generatedContent: savedStudio.generatedContent || '' }));
     }
 
     const savedArchitect = loadFromStorage(STORAGE_KEYS.ARCHITECT);
     if (savedArchitect && !architectState.isGenerating) {
+        logContext('Restoring Architect state');
         setArchitectState(prev => ({ ...prev, premise: savedArchitect.premise || '', outline: savedArchitect.outline || null }));
     }
   }, []);
@@ -117,6 +132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [architectState.premise, architectState.outline, architectState.isGenerating]);
 
   const setModel = (newModel: string) => {
+      logContext(`Model switched to: ${newModel}`);
       setModelState(newModel);
       const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS) || {};
       saveToStorage(STORAGE_KEYS.SETTINGS, { ...savedSettings, model: newModel, sources });
@@ -132,17 +148,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const completeOnboarding = () => {
+    logContext('Onboarding completed.');
     localStorage.setItem('inkflow_onboarding_seen', 'true');
     setShowOnboarding(false);
   };
 
   const resetOnboarding = () => {
+      logContext('Onboarding reset requested.');
       setShowOnboarding(true);
   }
 
   // --- Background Task: Studio ---
   const startStudioGeneration = async (trendFocus: string, lang: string) => {
-      if (studioState.isGenerating) return;
+      if (studioState.isGenerating) {
+          console.warn('[AppContext] Studio generation already in progress. Ignoring request.');
+          return;
+      }
+      logContext('Starting Studio Generation Task', { trendFocus, lang });
+      
       const estimatedTime = 25; // seconds
       setStudioState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: estimatedTime, trendFocus, generatedContent: '' }));
 
@@ -160,6 +183,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const result = await generateDailyStories(trendFocus, sourcesRef.current, lang, modelRef.current);
           clearInterval(timer);
+          logContext('Studio Generation Success');
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, generatedContent: result, lastUpdated: Date.now() }));
           
           const record: StudioRecord = {
@@ -171,14 +195,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           addHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record);
       } catch (error) {
+          console.error('[AppContext] Studio Generation Error:', error);
           clearInterval(timer);
-          setStudioState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, generatedContent: "Generation failed." }));
+          setStudioState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, generatedContent: "Generation failed. Please check console for details." }));
       }
   };
 
   // --- Background Task: Architect ---
   const startArchitectGeneration = async (premise: string, lang: string) => {
       if (architectState.isGenerating) return;
+      logContext('Starting Architect Generation Task', { premise });
+
       const estimatedTime = 45; // seconds
       setArchitectState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: estimatedTime, premise, outline: null }));
 
@@ -195,6 +222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const result = await generateOutline(premise, lang, modelRef.current);
           clearInterval(timer);
           if (result) {
+              logContext('Architect Generation Success');
               setArchitectState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, outline: result, lastUpdated: Date.now() }));
               const record: ArchitectRecord = {
                   id: Date.now().toString(),
@@ -204,9 +232,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               };
               addHistoryItem(STORAGE_KEYS.HISTORY_ARCHITECT, record);
           } else {
-              throw new Error("Null result");
+              throw new Error("Null result returned from service");
           }
       } catch (error) {
+          console.error('[AppContext] Architect Generation Error:', error);
           clearInterval(timer);
           setArchitectState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, outline: null }));
       }
@@ -215,6 +244,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- Background Task: Lab ---
   const startLabAnalysis = async (text: string, mode: 'viral_factors' | 'pacing' | 'characters', lang: string) => {
       if (labState.isAnalyzing) return;
+      logContext('Starting Lab Analysis Task', { mode, textLength: text.length });
+
       const estimatedTime = 20; // seconds
       const safeText = text || "";
       setLabState(prev => ({ ...prev, isAnalyzing: true, progress: 5, remainingTime: estimatedTime, inputText: safeText, mode, analysisResult: '' }));
@@ -231,6 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const result = await analyzeText(safeText, mode, lang, modelRef.current);
           clearInterval(timer);
+          logContext('Lab Analysis Success');
           setLabState(prev => ({ ...prev, isAnalyzing: false, progress: 100, remainingTime: 0, analysisResult: result, lastUpdated: Date.now() }));
           
           const record: LabRecord = {
@@ -243,8 +275,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           addHistoryItem(STORAGE_KEYS.HISTORY_LAB, record);
       } catch (error) {
+          console.error('[AppContext] Lab Analysis Error:', error);
           clearInterval(timer);
-          setLabState(prev => ({ ...prev, isAnalyzing: false, progress: 0, remainingTime: 0, analysisResult: "Analysis failed." }));
+          setLabState(prev => ({ ...prev, isAnalyzing: false, progress: 0, remainingTime: 0, analysisResult: "Analysis failed. Please check logs." }));
       }
   };
 

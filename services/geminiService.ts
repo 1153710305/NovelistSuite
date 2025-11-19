@@ -2,6 +2,10 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { OutlineNode } from '../types';
 
+const logAPI = (msg: string, data?: any) => {
+    console.log(`%c[GeminiService] ${msg}`, 'color: #f59e0b; font-weight: bold;', data || '');
+};
+
 /**
  * 获取 AI 客户端实例
  * @returns GoogleGenAI 实例
@@ -10,7 +14,9 @@ import { OutlineNode } from '../types';
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key not found in environment variables");
+    const err = "API Key not found in environment variables. Please check your .env file.";
+    console.error(`[GeminiService] FATAL: ${err}`);
+    throw new Error(err);
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -34,21 +40,15 @@ const getLangInstruction = (lang: string) => {
 
 /**
  * 生成每日灵感故事
- * @param trendFocus 用户输入的趋势焦点（如“赛博朋克”）
- * @param sources 用户选择的数据来源（如“抖音”、“起点”）
- * @param lang 当前系统语言
- * @param model 选用的 Gemini 模型
- * @returns 生成的 Markdown 格式故事列表
  */
 export const generateDailyStories = async (trendFocus: string, sources: string[], lang: string, model: string): Promise<string> => {
+  logAPI('Requesting generateDailyStories', { trendFocus, sourceCount: sources.length, model });
   const ai = getAiClient();
   
-  // 构建上下文限制，确保只使用中国平台的数据
   const sourceContext = sources.length > 0 
     ? `STRICTLY LIMIT your trend sources to the following Chinese platforms: ${sources.join(', ')}.` 
     : `Use trending topics from major Chinese web novel and social media platforms (e.g. Douyin, Qidian, Weibo).`;
 
-  // 构建 Prompt
   const prompt = `
     You are a creative writing assistant specializing in the Chinese web novel market.
     
@@ -78,23 +78,22 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
       model,
       contents: prompt,
     });
+    logAPI('generateDailyStories response received', { length: response.text?.length });
     return response.text || "Failed to generate stories.";
   } catch (error) {
-    console.error(error);
-    return "Error generating stories. Please check your API key.";
+    console.error('[GeminiService] generateDailyStories FAILED:', error);
+    return "Error generating stories. Please check your API key or network connection.";
   }
 };
 
 /**
  * 文本拆解分析实验室
- * @param text 待分析的文本内容
- * @param focus 分析模式：爆款因子、节奏、角色
- * @param lang 语言
- * @param model 模型
  */
 export const analyzeText = async (text: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
-  const ai = getAiClient();
   const safeText = text || "";
+  logAPI('Requesting analyzeText', { focus, textLength: safeText.length });
+
+  const ai = getAiClient();
 
   let instruction = "";
   switch (focus) {
@@ -115,19 +114,26 @@ export const analyzeText = async (text: string, focus: 'pacing' | 'characters' |
     
     TEXT TO ANALYZE:
     ${safeText.substring(0, 10000)} 
-  `; // 限制长度以防止 Token 溢出
+  `; 
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-  });
-  return response.text || "No analysis generated.";
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+    });
+    logAPI('analyzeText response received');
+    return response.text || "No analysis generated.";
+  } catch (error) {
+    console.error('[GeminiService] analyzeText FAILED:', error);
+    throw error;
+  }
 };
 
 /**
- * AI 辅助写作工具（续写、改写、润色）
+ * AI 辅助写作工具
  */
 export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' | 'polish', lang: string, model: string): Promise<string> => {
+  logAPI('Requesting manipulateText', { mode });
   const ai = getAiClient();
 
   let prompt = "";
@@ -141,21 +147,26 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
     prompt = `Polish the following text. Fix grammar, enhance sentence variety, and punch up the descriptions without changing the core plot. ${langNote}\n\nTEXT:\n${text}`;
   }
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-  });
-  return response.text || "Generation failed.";
+  try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+      logAPI('manipulateText response received');
+      return response.text || "Generation failed.";
+  } catch(error) {
+      console.error('[GeminiService] manipulateText FAILED:', error);
+      throw error;
+  }
 };
 
 /**
- * 生成小说大纲（JSON 结构化输出）
- * 使用 JSON Schema 强制模型返回可解析的数据结构
+ * 生成小说大纲
  */
 export const generateOutline = async (premise: string, lang: string, model: string): Promise<OutlineNode | null> => {
+  logAPI('Requesting generateOutline', { premise });
   const ai = getAiClient();
 
-  // 定义输出的 JSON Schema，用于 D3.js 树状图渲染
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -204,10 +215,10 @@ export const generateOutline = async (premise: string, lang: string, model: stri
         responseSchema: schema,
       },
     });
-    
+    logAPI('generateOutline response received. Parsing JSON...');
     return JSON.parse(response.text || "null");
   } catch (e) {
-    console.error("JSON parsing error", e);
+    console.error("[GeminiService] generateOutline FAILED or JSON Parse Error:", e);
     return null;
   }
 };
@@ -216,6 +227,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
  * 根据大纲节点生成具体的章节草稿
  */
 export const generateChapterContent = async (node: OutlineNode, context: string, lang: string, model: string): Promise<string> => {
+    logAPI('Requesting generateChapterContent', { nodeName: node.name });
     const ai = getAiClient();
     
     const prompt = `
@@ -231,10 +243,15 @@ export const generateChapterContent = async (node: OutlineNode, context: string,
     ${getLangInstruction(lang)}
     `;
 
-    const response = await ai.models.generateContent({
-        model,
-        contents: prompt
-    });
-
-    return response.text || "Failed to generate chapter.";
+    try {
+        const response = await ai.models.generateContent({
+            model,
+            contents: prompt
+        });
+        logAPI('generateChapterContent response received');
+        return response.text || "Failed to generate chapter.";
+    } catch(error) {
+        console.error('[GeminiService] generateChapterContent FAILED:', error);
+        throw error;
+    }
 }
