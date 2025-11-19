@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {/* Allow unsafe-eval for Tailwind CSS CDN and define trusted sources */}
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://aistudiocdn.com https://cdn.tailwindcss.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://aistudiocdn.com https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://aistudiocdn.com https://cdn.tailwindcss.com; connect-src 'self' https://generativelanguage.googleapis.com https://aistudiocdn.com;">
     <title>InkFlow AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -26,10 +28,10 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
     "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
     "d3": "https://aistudiocdn.com/d3@^7.9.0"
   }
 }

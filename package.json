@@ -14,7 +14,6 @@
     "@google/genai": "^1.30.0",
     "lucide-react": "^0.554.0",
     "recharts": "^3.4.1",
-    "react-markdown": "^10.1.0",
     "d3": "^7.9.0"
   },
   "devDependencies": {

@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { manipulateText } from '../services/geminiService';
 import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Save, Database, History, Trash2, Clock, Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
@@ -267,7 +265,9 @@ export const Studio: React.FC = () => {
 
                     {studioState.generatedContent ? (
                         <div className="prose prose-slate prose-sm max-w-none animate-in fade-in">
-                            <ReactMarkdown>{studioState.generatedContent}</ReactMarkdown>
+                             <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-700">
+                                 {studioState.generatedContent}
+                             </div>
                         </div>
                     ) : (
                         <div className="h-full flex items-center justify-center text-slate-400 italic flex-col gap-2">
