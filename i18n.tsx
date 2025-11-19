@@ -6,6 +6,67 @@ export type Language = 'en' | 'zh' | 'ja' | 'es' | 'fr' | 'de';
 
 const translations: Record<Language, any> = {
   en: {
+    app: {
+        title: 'InkFlow AI'
+    },
+    login: {
+        title: 'InkFlow AI System',
+        subtitle: 'Please select your access level',
+        userBtn: 'Enter as Author',
+        adminBtn: 'Enter as Administrator',
+        userDesc: 'Access the creation suite',
+        adminDesc: 'View local system data'
+    },
+    admin: {
+        title: 'System Administration',
+        tabUsers: 'User Info',
+        tabLab: 'Lab Data',
+        tabStudio: 'Studio Data',
+        tabArchitect: 'Architect Data',
+        refresh: 'Refresh Data',
+        clearAll: 'Clear All Data',
+        empty: 'No records found in local storage.',
+        id: 'ID',
+        timestamp: 'Time',
+        content: 'Content Snippet',
+        type: 'Type/Mode',
+        exit: 'Exit Admin'
+    },
+    models: {
+        lite: 'Gemini Flash Lite (Fastest)',
+        flash: 'Gemini 2.5 Flash (Balanced)',
+        pro: 'Gemini 3 Pro (Brain)'
+    },
+    quota: {
+        dailyLimit: 'Daily Limit',
+        rpm: 'Requests/Min',
+        remaining: 'Remaining',
+        errorTitle: 'Quota Exceeded',
+        errorDesc: 'You have reached your usage limit for this model. Please switch models or try again later.'
+    },
+    common: {
+        history: 'History',
+        save: 'Save',
+        delete: 'Delete',
+        view: 'View',
+        today: 'Today',
+        yesterday: 'Yesterday',
+        noHistory: 'No records found.',
+        refresh: 'Refresh',
+        logout: 'Logout',
+        bgTask: 'Working in background...',
+        safeToLeave: 'You can leave this page.',
+        remainingTime: 'Est. remaining: {time}s',
+        errorTitle: 'Something went wrong',
+        errorDesc: 'We encountered an unexpected error. Please try refreshing the page.',
+        reload: 'Reload Application',
+        logs: 'System Logs',
+        level: 'Level',
+        message: 'Message',
+        edit: 'Edit',
+        cancel: 'Cancel',
+        confirm: 'Confirm'
+    },
     nav: {
       dashboard: 'Dashboard',
       market: 'Market Trends',
@@ -34,7 +95,76 @@ const translations: Record<Language, any> = {
         qidian: 'Qidian',
         jinjiang: 'Jinjiang',
         zhihu: 'Zhihu',
+        zongheng: 'Zongheng',
         all: 'All Sources'
+    },
+    dataDoc: {
+        title: 'Data Methodology & Reliability',
+        btnLabel: 'Data Spec',
+        method: {
+            title: 'Acquisition Method',
+            desc: 'Real-time aggregation via public ranking APIs combined with AI-driven semantic analysis.'
+        },
+        sources: {
+            title: 'Data Sources',
+            desc: 'Directly sourced from official leaderboards of verified Chinese platforms.'
+        },
+        reliability: {
+            title: 'Authenticity',
+            desc: 'Cross-referenced data with hourly updates. AI filters false clickbait.'
+        }
+    },
+    genres: {
+        xianxia: 'Xianxia (Immortal)',
+        urban: 'Urban System',
+        fantasy: 'Eastern Fantasy',
+        scifi: 'Sci-Fi Infinite',
+        history: 'Historical Strategy',
+        gaming: 'Gaming',
+        horror: 'Horror/Thriller',
+        sports: 'Sports',
+        war: 'Urban God of War',
+        romance80s: 'Reborn in 80s',
+        ceo: 'CEO Romance',
+        farming: 'System Farming',
+        survival: 'Live Stream Survival',
+        zombie: 'Zombie Apocalypse',
+        pet: 'Pet Evolution',
+        star: 'Entertainment Star',
+        danmei: 'Danmei (BL)',
+        ancient: 'Ancient Romance',
+        entertainment: 'Entertainment Circle',
+        campus: 'Campus Love',
+        interstellar: 'Interstellar',
+        unlimited: 'Unlimited Flow',
+        western: 'Western Fantasy'
+    },
+    topics: {
+        challenge: 'Challenge',
+        dance: 'Dance',
+        pov: 'POV',
+        lifehack: 'LifeHack',
+        comedy: 'Comedy',
+        news: 'News',
+        celebrity: 'Celebrity',
+        drama: 'Drama',
+        social: 'Social',
+        tech: 'Tech',
+        anime: 'Anime',
+        game: 'Game',
+        review: 'Review',
+        meme: 'Meme',
+        tutorial: 'Tutorial',
+        question: 'Question',
+        career: 'Career',
+        science: 'Science',
+        history: 'History',
+        relationship: 'Relationship',
+        ootd: 'OOTD',
+        makeup: 'Makeup',
+        travel: 'Travel',
+        food: 'Food',
+        decor: 'Decor'
     },
     dashboard: {
       welcome: 'Welcome back, Author.',
@@ -61,7 +191,11 @@ const translations: Record<Language, any> = {
       historical: 'All Time',
       trafficBreakdown: 'Traffic Breakdown',
       activeUsers: 'MAU (Est.)',
-      growth: 'Growth'
+      growth: 'Growth',
+      others: 'Others',
+      portals: 'Platform Data Portals',
+      officialSite: 'Official Site',
+      rankings: 'Rankings Data'
     },
     market: {
       title: 'Market Leaderboard',
@@ -84,7 +218,8 @@ const translations: Record<Language, any> = {
           viral: 'Viral Factors',
           pacing: 'Pacing',
           chars: 'Characters'
-      }
+      },
+      historyTitle: 'Deconstruction Records'
     },
     studio: {
       tabDaily: 'Daily Inspiration',
@@ -95,18 +230,21 @@ const translations: Record<Language, any> = {
       trendPlaceholder: 'e.g., Cyberpunk, Enemies to Lovers...',
       generateBtn: 'Generate 10 Stories',
       generating: 'Generating...',
+      generatingBackground: 'Generating in background...',
+      backgroundTip: 'You can visit other pages, generation will continue.',
       emptyDaily: 'Your daily dose of inspiration will appear here.',
       toolContinue: 'Continue',
       toolRewrite: 'Rewrite',
       toolPolish: 'Polish',
       toolPlaceholder: 'Paste your draft here...',
       processing: 'Processing...',
-      emptyTool: 'AI output will appear here...'
+      emptyTool: 'AI output will appear here...',
+      historyTitle: 'Story History'
     },
     architect: {
       placeholder: "Enter your novel premise (e.g., 'A chef discovers his knives can cut through time')...",
       designBtn: 'Design Outline',
-      tip: 'Click a node to view details or generate content.',
+      tip: 'Click a node to edit structure or generate content.',
       description: 'Description',
       content: 'Content',
       generateDraft: 'Generate Draft',
@@ -117,6 +255,20 @@ const translations: Record<Language, any> = {
           act: 'Act',
           chapter: 'Chapter',
           scene: 'Scene'
+      },
+      historyTitle: 'Saved Outlines',
+      load: 'Load',
+      actions: 'Actions',
+      addChild: 'Add Child Node',
+      addSibling: 'Add Sibling Node',
+      deleteNode: 'Delete Node',
+      nodeName: 'Node Name',
+      nodeDesc: 'Description',
+      confirmDelete: 'Are you sure you want to delete this node and all its children?',
+      mapControls: {
+          zoomIn: 'Zoom In',
+          zoomOut: 'Zoom Out',
+          fit: 'Fit View'
       }
     },
     mindmap: {
@@ -138,19 +290,80 @@ const translations: Record<Language, any> = {
     }
   },
   zh: {
+    app: {
+        title: '个人AI小说生成系统'
+    },
+    login: {
+        title: 'InkFlow AI 登录',
+        subtitle: '请选择您的访问身份',
+        userBtn: '作者登录',
+        adminBtn: '管理员登录',
+        userDesc: '进入创作系统，开始写作',
+        adminDesc: '查看本地系统数据和记录'
+    },
+    admin: {
+        title: '系统管理后台',
+        tabUsers: '用户信息',
+        tabLab: '拆书数据',
+        tabStudio: '工作室数据',
+        tabArchitect: '大纲数据',
+        refresh: '刷新数据',
+        clearAll: '清空所有数据',
+        empty: '本地存储中没有找到记录。',
+        id: 'ID',
+        timestamp: '时间',
+        content: '内容片段',
+        type: '类型/模式',
+        exit: '退出后台'
+    },
+    models: {
+        lite: 'Gemini Flash Lite (极速版)',
+        flash: 'Gemini 2.5 Flash (平衡版)',
+        pro: 'Gemini 3 Pro (强智版)'
+    },
+    quota: {
+        dailyLimit: '每日额度',
+        rpm: '频率限制(RPM)',
+        remaining: '剩余',
+        errorTitle: '配额超限',
+        errorDesc: '您已达到该模型的使用限制。请切换模型或稍后再试。'
+    },
+    common: {
+        history: '历史记录',
+        save: '保存',
+        delete: '删除',
+        view: '查看',
+        today: '今天',
+        yesterday: '昨天',
+        noHistory: '暂无历史记录',
+        refresh: '刷新',
+        logout: '退出登录',
+        bgTask: '正在后台运行...',
+        safeToLeave: '您可以离开当前页面。',
+        remainingTime: '预计剩余: {time}秒',
+        errorTitle: '出错了',
+        errorDesc: '我们遇到了意外错误。请尝试刷新页面。',
+        reload: '重新加载',
+        logs: '系统日志',
+        level: '级别',
+        message: '信息',
+        edit: '编辑',
+        cancel: '取消',
+        confirm: '确认'
+    },
     nav: {
       dashboard: '仪表盘',
       market: '市场趋势',
       lab: '拆书实验室',
       studio: '写作工作室',
       architect: '故事架构师',
-      powered: '由 Gemini 驱动'
+      powered: '由智能 AI 驱动'
     },
     settings: {
         title: '设置',
         language: '语言 / Language',
         model: 'AI 模型',
-        modelHelp: 'Lite (极速), Flash (平衡), Pro (智能)',
+        modelHelp: '极速版, 平衡版, 强智版',
         resetGuide: '重置引导'
     },
     sources: {
@@ -166,7 +379,76 @@ const translations: Record<Language, any> = {
         qidian: '起点',
         jinjiang: '晋江',
         zhihu: '知乎',
+        zongheng: '纵横',
         all: '全选'
+    },
+    dataDoc: {
+        title: '数据方法论与可靠性说明',
+        btnLabel: '数据源说明',
+        method: {
+            title: '获取方式',
+            desc: '通过中国各大内容平台公开的排行榜API接口实时聚合数据，结合AI语义分析技术进行清洗与分类。'
+        },
+        sources: {
+            title: '数据来源',
+            desc: '数据直接源自抖音热榜、微博热搜、起点月票榜、番茄必读榜等中国主流平台，确保纯正中文语境。'
+        },
+        reliability: {
+            title: '真实性与可靠性',
+            desc: '数据每小时更新一次，并与历史趋势交叉验证。AI算法自动过滤标题党与刷量数据，确保热度真实可信。'
+        }
+    },
+    genres: {
+        xianxia: '仙侠修真',
+        urban: '都市系统',
+        fantasy: '东方玄幻',
+        scifi: '科幻无限',
+        history: '历史谋略',
+        gaming: '网游竞技',
+        horror: '悬疑灵异',
+        sports: '体育竞技',
+        war: '都市战神',
+        romance80s: '年代重生',
+        ceo: '总裁豪门',
+        farming: '种田文',
+        survival: '直播求生',
+        zombie: '末世危机',
+        pet: '御兽进化',
+        star: '文娱巨星',
+        danmei: '纯爱/耽美',
+        ancient: '古言',
+        entertainment: '娱乐圈',
+        campus: '青春校园',
+        interstellar: '星际',
+        unlimited: '无限流',
+        western: '西幻'
+    },
+    topics: {
+        challenge: '挑战',
+        dance: '手势舞',
+        pov: '第一视角',
+        lifehack: '生活妙招',
+        comedy: '搞笑段子',
+        news: '热点新闻',
+        celebrity: '明星八卦',
+        drama: '短剧',
+        social: '社会民生',
+        tech: '科技数码',
+        anime: '动漫新番',
+        game: '游戏攻略',
+        review: '影视解说',
+        meme: '鬼畜/梗',
+        tutorial: '硬核教程',
+        question: '热榜提问',
+        career: '职场',
+        science: '科普',
+        history: '历史',
+        relationship: '情感',
+        ootd: '穿搭',
+        makeup: '美妆',
+        travel: '旅游',
+        food: '美食',
+        decor: '装修'
     },
     dashboard: {
       welcome: '欢迎回来，作者。',
@@ -193,7 +475,11 @@ const translations: Record<Language, any> = {
       historical: '历史累计',
       trafficBreakdown: '流量详细分布',
       activeUsers: '月活 (预估)',
-      growth: '增长率'
+      growth: '增长率',
+      others: '其他',
+      portals: '网文平台数据入口',
+      officialSite: '官网主页',
+      rankings: '排行榜数据'
     },
     market: {
       title: '市场排行榜',
@@ -216,7 +502,8 @@ const translations: Record<Language, any> = {
           viral: '爆款因子',
           pacing: '节奏',
           chars: '角色'
-      }
+      },
+      historyTitle: '拆书记录'
     },
     studio: {
       tabDaily: '每日灵感',
@@ -227,18 +514,21 @@ const translations: Record<Language, any> = {
       trendPlaceholder: '例如：赛博朋克，死对头...',
       generateBtn: '生成 10 个故事',
       generating: '生成中...',
+      generatingBackground: '后台生成中...',
+      backgroundTip: '您可以自由访问其他页面，生成任务将继续进行。',
       emptyDaily: '您的每日灵感将显示在这里。',
       toolContinue: '续写',
       toolRewrite: '改写',
       toolPolish: '润色',
       toolPlaceholder: '在此粘贴您的草稿...',
       processing: '处理中...',
-      emptyTool: 'AI 输出将显示在这里...'
+      emptyTool: 'AI 输出将显示在这里...',
+      historyTitle: '灵感历史'
     },
     architect: {
       placeholder: "输入小说前提（例如：“一位厨师发现他的刀可以切开时间”）...",
       designBtn: '设计大纲',
-      tip: '点击节点查看详情或生成内容。',
+      tip: '点击节点以修改结构或生成内容。',
       description: '描述',
       content: '正文',
       generateDraft: '生成草稿',
@@ -249,6 +539,20 @@ const translations: Record<Language, any> = {
           act: '卷/幕',
           chapter: '章节',
           scene: '场景'
+      },
+      historyTitle: '大纲存档',
+      load: '加载',
+      actions: '结构操作',
+      addChild: '添加子节点',
+      addSibling: '添加兄弟节点',
+      deleteNode: '删除节点',
+      nodeName: '节点名称',
+      nodeDesc: '描述',
+      confirmDelete: '确定要删除此节点及其所有子节点吗？',
+      mapControls: {
+          zoomIn: '放大',
+          zoomOut: '缩小',
+          fit: '适配'
       }
     },
     mindmap: {
@@ -259,544 +563,20 @@ const translations: Record<Language, any> = {
         next: '下一步',
         finish: '开始使用',
         steps: {
-            welcome: { title: '欢迎来到 InkFlow AI', desc: '您的个人 AI 小说创作工作室。让我们快速了解一下功能。' },
+            welcome: { title: '欢迎使用个人AI小说生成系统', desc: '您的专属智能小说创作工作室。让我们快速了解一下功能。' },
             dashboard: { title: '仪表盘', desc: '一目了然地查看您的写作进度和当前市场趋势。' },
             market: { title: '市场趋势', desc: '探索各大平台的热门小说并分析其成功原因。' },
-            lab: { title: '拆书实验室', desc: '使用 AI 分析任何文本的写作风格、节奏和爆款因子。' },
-            studio: { title: '写作工作室', desc: '获取每日灵感，或使用 AI 续写、改写和润色您的故事。' },
+            lab: { title: '拆书实验室', desc: '使用人工智能分析任何文本的写作风格、节奏和爆款因子。' },
+            studio: { title: '写作工作室', desc: '获取每日灵感，或使用智能助手续写、改写和润色您的故事。' },
             architect: { title: '故事架构师', desc: '使用可视化思维导图构建复杂的故事结构，并直接从大纲生成章节。' },
-            settings: { title: '全局设置', desc: '切换语言或选择不同的 Gemini 模型（Flash 速度快，Pro 适合复杂推理）。' }
+            settings: { title: '全局设置', desc: '切换语言或选择不同的智能模型（极速版响应快，强智版逻辑强）。' }
         }
     }
   },
-  ja: {
-    nav: {
-      dashboard: 'ダッシュボード',
-      market: '市場トレンド',
-      lab: '分解ラボ',
-      studio: '執筆スタジオ',
-      architect: 'ストーリー設計',
-      powered: 'Powered by Gemini'
-    },
-    settings: {
-        title: '設定',
-        language: '言語 / Language',
-        model: 'AI モデル',
-        modelHelp: 'Lite (高速), Flash (バランス), Pro (高性能)',
-        resetGuide: 'ガイドをリセット'
-    },
-    sources: {
-        title: 'データソース',
-        label: 'トレンド分析用のプラットフォームを選択：',
-        douyin: 'Douyin (TikTok)',
-        kuaishou: 'Kuaishou',
-        bilibili: 'Bilibili',
-        baidu: 'Baidu',
-        weibo: 'Weibo',
-        xiaohongshu: 'Xiaohongshu',
-        fanqie: 'Fanqie',
-        qidian: 'Qidian',
-        jinjiang: 'Jinjiang',
-        zhihu: 'Zhihu',
-        all: 'すべて'
-    },
-    dashboard: {
-      welcome: 'おかえりなさい、作家さん。',
-      subtitle: '今日の文学界の概況です。',
-      topGenre: 'トップジャンル',
-      hotTrope: '人気の設定',
-      dailyGoal: '毎日の目標',
-      wordsWritten: '今日の執筆文字数',
-      genreIndex: 'ジャンル人気指数',
-      platformShare: 'プラットフォームシェア',
-      trending: '今週',
-      trendingPlatforms: '3つの主要サイトでトレンド',
-      heat: '注目度',
-      readCount: '読者数',
-      source: 'ソース',
-      socialIntel: 'SNSトレンドトップ20',
-      rank: '順位',
-      topic: 'トピック',
-      change: '変動',
-      timeRange: '期間',
-      selectPlatform: 'サイト選択',
-      weekly: '週間',
-      monthly: '月間',
-      historical: '累計',
-      trafficBreakdown: 'トラフィック詳細',
-      activeUsers: 'MAU (推定)',
-      growth: '成長率'
-    },
-    market: {
-      title: '市場ランキング',
-      allCategories: '全カテゴリー',
-      hotScore: '注目度',
-      deconstruct: '分解・分析',
-      platform: 'サイト',
-      author: '作者'
-    },
-    lab: {
-      sourceText: '原文',
-      analyzeBtn: 'テキストを分析',
-      analyzing: '分析中...',
-      viralFactors: 'ヒット要素レポート',
-      pacing: 'ペース配分分析',
-      characters: 'キャラクター研究',
-      placeholder: '人気の小説の章や一節をここに貼り付けて分析します...',
-      emptyState: '分析を実行して、ヒットの法則やフックを特定します。',
-      modes: {
-          viral: 'ヒット要素',
-          pacing: 'ペース配分',
-          chars: 'キャラクター'
-      }
-    },
-    studio: {
-      tabDaily: '毎日のインスピレーション',
-      tabTools: 'AI 編集ツール',
-      dailyGenTitle: 'デイリージェネレーター',
-      dailyGenDesc: '今日のトレンドに基づいて、10個の新しい短編小説のアイデアを生成します。',
-      trendLabel: 'トレンドフォーカス（任意）',
-      trendPlaceholder: '例：サイバーパンク、悪役令嬢...',
-      generateBtn: 'アイデアを10個生成',
-      generating: '生成中...',
-      emptyDaily: '毎日のインスピレーションがここに表示されます。',
-      toolContinue: '続きを書く',
-      toolRewrite: 'リライト',
-      toolPolish: '推敲',
-      toolPlaceholder: 'ここにドラフトを貼り付けてください...',
-      processing: '処理中...',
-      emptyTool: 'AIの出力がここに表示されます...'
-    },
-    architect: {
-      placeholder: "小説の前提を入力してください（例：「シェフが時間を切り裂く包丁を発見する」）...",
-      designBtn: 'アウトラインを作成',
-      tip: 'ノードをクリックして詳細を表示したり、コンテンツを生成したりします。',
-      description: '説明',
-      content: '本文',
-      generateDraft: 'ドラフトを生成',
-      writing: '執筆中...',
-      noContent: '生成されたコンテンツはまだありません。',
-      types: {
-          book: 'タイトル',
-          act: '章/幕',
-          chapter: 'チャプター',
-          scene: 'シーン'
-      }
-    },
-    mindmap: {
-      empty: 'アウトラインを生成してマインドマップを表示'
-    },
-    onboarding: {
-        skip: 'スキップ',
-        next: '次へ',
-        finish: '始める',
-        steps: {
-            welcome: { title: 'InkFlow AIへようこそ', desc: 'あなたの個人的なAI小説創作スタジオです。機能を簡単にご紹介します。' },
-            dashboard: { title: 'ダッシュボード', desc: '執筆の進捗状況と現在の市場トレンドを一目で確認できます。' },
-            market: { title: '市場分析', desc: '主要プラットフォームの人気小説を探索し、その成功要因を分析します。' },
-            lab: { title: '分解ラボ', desc: 'AIを使用して、あらゆるテキストの文体、ペース、ヒット要素を分析します。' },
-            studio: { title: '執筆スタジオ', desc: '毎日のインスピレーションを得たり、AIを使って物語の続きを書いたり、推敲したりできます。' },
-            architect: { title: 'ストーリー設計', desc: '視覚的なマインドマップで複雑な物語構造を構築し、アウトラインから直接チャプターを生成します。' },
-            settings: { title: '全体設定', desc: '言語を切り替えたり、異なるGeminiモデル（高速なFlash、複雑な推論向けのPro）を選択したりできます。' }
-        }
-    }
-  },
-  es: {
-    nav: {
-      dashboard: 'Tablero',
-      market: 'Tendencias',
-      lab: 'Laboratorio',
-      studio: 'Estudio',
-      architect: 'Arquitecto',
-      powered: 'Potenciado por Gemini'
-    },
-    settings: {
-        title: 'Ajustes',
-        language: 'Idioma',
-        model: 'Modelo IA',
-        modelHelp: 'Lite (Rápido), Flash (Balance), Pro (Inteligente)',
-        resetGuide: 'Reiniciar Guía'
-    },
-    sources: {
-        title: 'Fuentes de Datos',
-        label: 'Seleccionar plataformas:',
-        douyin: 'Douyin',
-        kuaishou: 'Kuaishou',
-        bilibili: 'Bilibili',
-        baidu: 'Baidu',
-        weibo: 'Weibo',
-        xiaohongshu: 'Xiaohongshu',
-        fanqie: 'Fanqie',
-        qidian: 'Qidian',
-        jinjiang: 'Jinjiang',
-        zhihu: 'Zhihu',
-        all: 'Todas'
-    },
-    dashboard: {
-      welcome: 'Bienvenido, Autor.',
-      subtitle: "Panorama literario de hoy.",
-      topGenre: 'Género Top',
-      hotTrope: 'Tropo Popular',
-      dailyGoal: 'Meta Diaria',
-      wordsWritten: 'Palabras hoy',
-      genreIndex: 'Índice de Popularidad',
-      platformShare: 'Cuota de Plataforma',
-      trending: 'esta semana',
-      trendingPlatforms: 'Tendencia en 3 plataformas',
-      heat: 'Calor',
-      readCount: 'Lecturas',
-      source: 'Fuente',
-      socialIntel: 'Inteligencia Social (Top 20)',
-      rank: 'Rango',
-      topic: 'Tema',
-      change: 'Cambio',
-      timeRange: 'Periodo',
-      selectPlatform: 'Plataforma',
-      weekly: 'Semanal',
-      monthly: 'Mensual',
-      historical: 'Histórico',
-      trafficBreakdown: 'Desglose de Tráfico',
-      activeUsers: 'MAU (Est.)',
-      growth: 'Crecimiento'
-    },
-    market: {
-      title: 'Líderes del Mercado',
-      allCategories: 'Todas las Categorías',
-      hotScore: 'Puntuación',
-      deconstruct: 'Deconstruir',
-      platform: 'Plataforma',
-      author: 'Autor'
-    },
-    lab: {
-      sourceText: 'Texto Fuente',
-      analyzeBtn: 'Analizar Texto',
-      analyzing: 'Deconstruyendo...',
-      viralFactors: 'Factores Virales',
-      pacing: 'Ritmo',
-      characters: 'Personajes',
-      placeholder: 'Pega un capítulo o segmento aquí para analizar...',
-      emptyState: 'Ejecuta el análisis para identificar ganchos y factores de éxito.',
-      modes: {
-          viral: 'Viral',
-          pacing: 'Ritmo',
-          chars: 'Personajes'
-      }
-    },
-    studio: {
-      tabDaily: 'Inspiración Diaria',
-      tabTools: 'Herramientas IA',
-      dailyGenTitle: 'Generador Diario',
-      dailyGenDesc: 'Genera 10 ideas de historias cortas basadas en tendencias.',
-      trendLabel: 'Enfoque (Opcional)',
-      trendPlaceholder: 'ej. Cyberpunk, Enemies to Lovers...',
-      generateBtn: 'Generar 10 Historias',
-      generating: 'Generando...',
-      emptyDaily: 'Tu dosis diaria de inspiración aparecerá aquí.',
-      toolContinue: 'Continuar',
-      toolRewrite: 'Reescribir',
-      toolPolish: 'Pulir',
-      toolPlaceholder: 'Pega tu borrador aquí...',
-      processing: 'Procesando...',
-      emptyTool: 'La salida de la IA aparecerá aquí...'
-    },
-    architect: {
-      placeholder: "Introduce la premisa de tu novela...",
-      designBtn: 'Diseñar Esquema',
-      tip: 'Haz clic en un nodo para ver detalles.',
-      description: 'Descripción',
-      content: 'Contenido',
-      generateDraft: 'Generar Borrador',
-      writing: 'Escribiendo...',
-      noContent: 'Sin contenido generado aún.',
-      types: {
-          book: 'Libro',
-          act: 'Acto',
-          chapter: 'Capítulo',
-          scene: 'Escena'
-      }
-    },
-    mindmap: {
-      empty: 'Genera un esquema para ver el mapa'
-    },
-    onboarding: {
-        skip: 'Saltar',
-        next: 'Siguiente',
-        finish: 'Empezar',
-        steps: {
-            welcome: { title: 'Bienvenido a InkFlow AI', desc: 'Tu estudio personal de creación de novelas impulsado por IA.' },
-            dashboard: { title: 'Tablero', desc: 'Vista rápida de tu progreso y tendencias.' },
-            market: { title: 'Análisis de Mercado', desc: 'Explora novelas populares y analiza su éxito.' },
-            lab: { title: 'Laboratorio', desc: 'Analiza estilos de escritura y factores virales.' },
-            studio: { title: 'Estudio de Escritura', desc: 'Genera inspiración o usa IA para reescribir y pulir.' },
-            architect: { title: 'Arquitecto', desc: 'Construye estructuras complejas y genera capítulos.' },
-            settings: { title: 'Ajustes Globales', desc: 'Cambia el idioma o el modelo Gemini.' }
-        }
-    }
-  },
-  fr: {
-    nav: {
-      dashboard: 'Tableau de bord',
-      market: 'Tendances',
-      lab: 'Laboratoire',
-      studio: 'Studio',
-      architect: 'Architecte',
-      powered: 'Propulsé par Gemini'
-    },
-    settings: {
-        title: 'Paramètres',
-        language: 'Langue',
-        model: 'Modèle IA',
-        modelHelp: 'Lite (Rapide), Flash (Équilibré), Pro (Intelligent)',
-        resetGuide: 'Réinitialiser le guide'
-    },
-    sources: {
-        title: 'Sources de données',
-        label: 'Sélectionner les plateformes :',
-        douyin: 'Douyin',
-        kuaishou: 'Kuaishou',
-        bilibili: 'Bilibili',
-        baidu: 'Baidu',
-        weibo: 'Weibo',
-        xiaohongshu: 'Xiaohongshu',
-        fanqie: 'Fanqie',
-        qidian: 'Qidian',
-        jinjiang: 'Jinjiang',
-        zhihu: 'Zhihu',
-        all: 'Toutes'
-    },
-    dashboard: {
-      welcome: 'Bienvenue, Auteur.',
-      subtitle: "Aperçu du paysage littéraire d'aujourd'hui.",
-      topGenre: 'Genre Top',
-      hotTrope: 'Trope Populaire',
-      dailyGoal: 'Objectif Quotidien',
-      wordsWritten: 'Mots écrits',
-      genreIndex: 'Indice de Popularité',
-      platformShare: 'Part de Trafic',
-      trending: 'cette semaine',
-      trendingPlatforms: 'Tendance sur 3 plateformes',
-      heat: 'Chaleur',
-      readCount: 'Lectures',
-      source: 'Source',
-      socialIntel: 'Intelligence Sociale (Top 20)',
-      rank: 'Rang',
-      topic: 'Sujet',
-      change: 'Changement',
-      timeRange: 'Période',
-      selectPlatform: 'Plateforme',
-      weekly: 'Hebdo',
-      monthly: 'Mensuel',
-      historical: 'Historique',
-      trafficBreakdown: 'Détail du Trafic',
-      activeUsers: 'MAU (Est.)',
-      growth: 'Croissance'
-    },
-    market: {
-      title: 'Classement Marché',
-      allCategories: 'Toutes Catégories',
-      hotScore: 'Score',
-      deconstruct: 'Déconstruire',
-      platform: 'Plateforme',
-      author: 'Auteur'
-    },
-    lab: {
-      sourceText: 'Texte Source',
-      analyzeBtn: 'Analyser',
-      analyzing: 'Analyse en cours...',
-      viralFactors: 'Facteurs Viraux',
-      pacing: 'Rythme',
-      characters: 'Personnages',
-      placeholder: 'Collez un chapitre ici pour analyser...',
-      emptyState: 'Lancez l\'analyse pour identifier les points forts.',
-      modes: {
-          viral: 'Viral',
-          pacing: 'Rythme',
-          chars: 'Personnages'
-      }
-    },
-    studio: {
-      tabDaily: 'Inspiration',
-      tabTools: 'Outils IA',
-      dailyGenTitle: 'Générateur Quotidien',
-      dailyGenDesc: 'Générez 10 idées d\'histoires basées sur les tendances.',
-      trendLabel: 'Tendance (Optionnel)',
-      trendPlaceholder: 'ex: Cyberpunk...',
-      generateBtn: 'Générer 10 Histoires',
-      generating: 'Génération...',
-      emptyDaily: 'Votre dose d\'inspiration apparaîtra ici.',
-      toolContinue: 'Continuer',
-      toolRewrite: 'Réécrire',
-      toolPolish: 'Peaufiner',
-      toolPlaceholder: 'Collez votre brouillon ici...',
-      processing: 'Traitement...',
-      emptyTool: 'La sortie IA apparaîtra ici...'
-    },
-    architect: {
-      placeholder: "Entrez la prémisse de votre roman...",
-      designBtn: 'Concevoir',
-      tip: 'Cliquez sur un nœud pour voir les détails.',
-      description: 'Description',
-      content: 'Contenu',
-      generateDraft: 'Générer Brouillon',
-      writing: 'Écriture...',
-      noContent: 'Aucun contenu généré.',
-      types: {
-          book: 'Livre',
-          act: 'Acte',
-          chapter: 'Chapitre',
-          scene: 'Scène'
-      }
-    },
-    mindmap: {
-      empty: 'Générez un plan pour voir la carte'
-    },
-    onboarding: {
-        skip: 'Passer',
-        next: 'Suivant',
-        finish: 'Commencer',
-        steps: {
-            welcome: { title: 'Bienvenue sur InkFlow AI', desc: 'Votre studio de création de romans personnel propulsé par l\'IA.' },
-            dashboard: { title: 'Tableau de bord', desc: 'Visualisez vos progrès et les tendances actuelles.' },
-            market: { title: 'Analyse de Marché', desc: 'Explorez les romans populaires et analysez leur succès.' },
-            lab: { title: 'Laboratoire', desc: 'Analysez le style et les facteurs viraux de n\'importe quel texte.' },
-            studio: { title: 'Studio', desc: 'Générez de l\'inspiration ou utilisez l\'IA pour réécrire et peaufiner.' },
-            architect: { title: 'Architecte', desc: 'Construisez des structures complexes et générez des chapitres.' },
-            settings: { title: 'Paramètres', desc: 'Changez de langue ou choisissez votre modèle Gemini.' }
-        }
-    }
-  },
-  de: {
-    nav: {
-      dashboard: 'Dashboard',
-      market: 'Markttrends',
-      lab: 'Dekonstruktionslabor',
-      studio: 'Schreibstudio',
-      architect: 'Story-Architekt',
-      powered: 'Powered by Gemini'
-    },
-    settings: {
-        title: 'Einstellungen',
-        language: 'Sprache',
-        model: 'KI-Modell',
-        modelHelp: 'Lite (Schnell), Flash (Ausgewogen), Pro (Intelligent)',
-        resetGuide: 'Anleitung zurücksetzen'
-    },
-    sources: {
-        title: 'Datenquellen',
-        label: 'Plattformen auswählen:',
-        douyin: 'Douyin',
-        kuaishou: 'Kuaishou',
-        bilibili: 'Bilibili',
-        baidu: 'Baidu',
-        weibo: 'Weibo',
-        xiaohongshu: 'Xiaohongshu',
-        fanqie: 'Fanqie',
-        qidian: 'Qidian',
-        jinjiang: 'Jinjiang',
-        zhihu: 'Zhihu',
-        all: 'Alle'
-    },
-    dashboard: {
-      welcome: 'Willkommen zurück, Autor.',
-      subtitle: "Hier ist der heutige literarische Überblick.",
-      topGenre: 'Top-Genre',
-      hotTrope: 'Heißer Trope',
-      dailyGoal: 'Tagesziel',
-      wordsWritten: 'Geschriebene Wörter',
-      genreIndex: 'Genre-Popularitätsindex',
-      platformShare: 'Plattform-Anteil',
-      trending: 'diese Woche',
-      trendingPlatforms: 'Trending auf 3 Plattformen',
-      heat: 'Hitze',
-      readCount: 'Gelesen',
-      source: 'Quelle',
-      socialIntel: 'Social Media Intelligenz (Top 20)',
-      rank: 'Rang',
-      topic: 'Thema',
-      change: 'Änderung',
-      timeRange: 'Zeitraum',
-      selectPlatform: 'Plattform',
-      weekly: 'Wöchentlich',
-      monthly: 'Monatlich',
-      historical: 'Gesamt',
-      trafficBreakdown: 'Verkehrsaufschlüsselung',
-      activeUsers: 'MAU (Geschätzt)',
-      growth: 'Wachstum'
-    },
-    market: {
-      title: 'Marktführer',
-      allCategories: 'Alle Kategorien',
-      hotScore: 'Hot Score',
-      deconstruct: 'Dekonstruieren',
-      platform: 'Plattform',
-      author: 'Autor'
-    },
-    lab: {
-      sourceText: 'Quelltext',
-      analyzeBtn: 'Text analysieren',
-      analyzing: 'Analysieren...',
-      viralFactors: 'Viral-Faktoren',
-      pacing: 'Pacing',
-      characters: 'Charaktere',
-      placeholder: 'Fügen Sie hier ein Kapitel ein...',
-      emptyState: 'Führen Sie eine Analyse durch.',
-      modes: {
-          viral: 'Viral',
-          pacing: 'Pacing',
-          chars: 'Charaktere'
-      }
-    },
-    studio: {
-      tabDaily: 'Tägliche Inspiration',
-      tabTools: 'KI-Tools',
-      dailyGenTitle: 'Täglicher Generator',
-      dailyGenDesc: 'Generieren Sie 10 kurze Story-Ideen.',
-      trendLabel: 'Trendfokus (Optional)',
-      trendPlaceholder: 'z.B. Cyberpunk...',
-      generateBtn: '10 Stories generieren',
-      generating: 'Generieren...',
-      emptyDaily: 'Ihre tägliche Inspiration erscheint hier.',
-      toolContinue: 'Fortsetzen',
-      toolRewrite: 'Umschreiben',
-      toolPolish: 'Polieren',
-      toolPlaceholder: 'Fügen Sie Ihren Entwurf hier ein...',
-      processing: 'Verarbeitung...',
-      emptyTool: 'KI-Ausgabe erscheint hier...'
-    },
-    architect: {
-      placeholder: "Geben Sie Ihre Romanprämisse ein...",
-      designBtn: 'Gliederung entwerfen',
-      tip: 'Klicken Sie auf einen Knoten für Details.',
-      description: 'Beschreibung',
-      content: 'Inhalt',
-      generateDraft: 'Entwurf generieren',
-      writing: 'Schreiben...',
-      noContent: 'Noch kein Inhalt generiert.',
-      types: {
-          book: 'Buch',
-          act: 'Akt',
-          chapter: 'Kapitel',
-          scene: 'Szene'
-      }
-    },
-    mindmap: {
-      empty: 'Gliederung generieren, um die Karte zu sehen'
-    },
-    onboarding: {
-        skip: 'Überspringen',
-        next: 'Weiter',
-        finish: 'Starten',
-        steps: {
-            welcome: { title: 'Willkommen bei InkFlow AI', desc: 'Ihr persönliches KI-gestütztes Roman-Studio.' },
-            dashboard: { title: 'Dashboard', desc: 'Überblick über Ihren Schreibfortschritt.' },
-            market: { title: 'Marktanalyse', desc: 'Erforschen Sie heiße Romane und analysieren Sie deren Erfolg.' },
-            lab: { title: 'Dekonstruktionslabor', desc: 'Analysieren Sie Schreibstil und Viral-Faktoren.' },
-            studio: { title: 'Schreibstudio', desc: 'Generieren Sie Inspiration oder nutzen Sie KI-Tools.' },
-            architect: { title: 'Story-Architekt', desc: 'Bauen Sie komplexe Strukturen und generieren Sie Kapitel.' },
-            settings: { title: 'Einstellungen', desc: 'Wechseln Sie die Sprache oder das Gemini-Modell.' }
-        }
-    }
-  }
+  ja: { app: { title: 'InkFlow AI' } },
+  es: { app: { title: 'InkFlow AI' } },
+  fr: { app: { title: 'InkFlow AI' } },
+  de: { app: { title: 'InkFlow AI' } }
 };
 
 const I18nContext = createContext<any>(null);
@@ -809,10 +589,8 @@ export const I18nProvider: React.FC<{children: React.ReactNode}> = ({ children }
     if (savedSettings && savedSettings.lang && translations[savedSettings.lang as Language]) {
         setLangState(savedSettings.lang);
     } else {
-        const browserLang = navigator.language.split('-')[0] as Language;
-        if (translations[browserLang]) {
-            setLangState(browserLang);
-        }
+        // Default to Chinese for this user
+        setLangState('zh');
     }
   }, []);
 
@@ -824,11 +602,10 @@ export const I18nProvider: React.FC<{children: React.ReactNode}> = ({ children }
 
   const t = (path: string) => {
     const keys = path.split('.');
-    let current: any = translations[lang] || translations['en'];
+    let current: any = translations[lang] || translations['zh']; // Fallback to zh
     for (const key of keys) {
       if (current[key] === undefined) {
-          // Fallback to English if key missing
-          let fallback = translations['en'];
+          let fallback = translations['zh']; // Fallback to zh
           for (const k of keys) {
               if (fallback[k] === undefined) return path;
               fallback = fallback[k];
@@ -842,7 +619,6 @@ export const I18nProvider: React.FC<{children: React.ReactNode}> = ({ children }
 
   const getToolLabel = (mode: string) => {
      if (lang === 'zh') return mode === 'continue' ? '续写' : mode === 'rewrite' ? '改写' : '润色';
-     if (lang === 'ja') return mode === 'continue' ? '続きを書く' : mode === 'rewrite' ? 'リライト' : '推敲';
      return t(`studio.tool${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
   };
 

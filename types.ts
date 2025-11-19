@@ -23,6 +23,7 @@ export interface GeneratedStory {
 }
 
 export interface OutlineNode {
+  id?: string; // Unique ID for editing
   name: string;
   type: 'book' | 'act' | 'chapter' | 'scene';
   description?: string;
@@ -40,3 +41,77 @@ export const AVAILABLE_SOURCES = [
     'douyin', 'kuaishou', 'bilibili', 'baidu', 'weibo', 
     'xiaohongshu', 'fanqie', 'qidian', 'jinjiang', 'zhihu'
 ];
+
+// --- Logging Types ---
+
+export enum LogLevel {
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  DEBUG = 'DEBUG'
+}
+
+export interface LogEntry {
+  id: string;
+  sessionId: string;
+  timestamp: number;
+  level: LogLevel;
+  category: string;
+  message: string;
+  data?: any;
+}
+
+// --- Global State ---
+
+export interface StudioGlobalState {
+    isGenerating: boolean;
+    progress: number; // 0 - 100
+    remainingTime: number; // seconds
+    generatedContent: string;
+    trendFocus: string;
+    lastUpdated: number;
+}
+
+export interface ArchitectGlobalState {
+    isGenerating: boolean;
+    progress: number;
+    remainingTime: number; // seconds
+    premise: string;
+    outline: OutlineNode | null;
+    lastUpdated: number;
+}
+
+export interface LabGlobalState {
+    isAnalyzing: boolean;
+    progress: number;
+    remainingTime: number; // seconds
+    inputText: string;
+    mode: 'viral_factors' | 'pacing' | 'characters';
+    analysisResult: string;
+    lastUpdated: number;
+}
+
+// --- History Records ---
+
+export interface BaseHistoryRecord {
+    id: string;
+    timestamp: number;
+}
+
+export interface LabRecord extends BaseHistoryRecord {
+    inputText: string;
+    mode: 'viral_factors' | 'pacing' | 'characters';
+    analysis: string;
+    snippet: string; // Short preview of text
+}
+
+export interface StudioRecord extends BaseHistoryRecord {
+    trendFocus: string;
+    content: string;
+    sources: string[];
+}
+
+export interface ArchitectRecord extends BaseHistoryRecord {
+    premise: string;
+    outline: OutlineNode;
+}

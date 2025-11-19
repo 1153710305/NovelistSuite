@@ -8,7 +8,8 @@ import {
   Network,
   Feather,
   Settings,
-  HelpCircle
+  HelpCircle,
+  LogOut
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
@@ -18,9 +19,10 @@ interface LayoutProps {
   children: React.ReactNode;
   currentView: string;
   setView: (view: string) => void;
+  onLogout: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, onLogout }) => {
   const { t, lang, setLang } = useI18n();
   const { model, setModel, showOnboarding, completeOnboarding, resetOnboarding } = useApp();
 
@@ -40,7 +42,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20">
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
           <Feather className="text-teal-400 h-8 w-8" />
-          <h1 className="text-xl font-bold text-white tracking-tight">InkFlow AI</h1>
+          <h1 className="text-xl font-bold text-white tracking-tight">{t('app.title')}</h1>
         </div>
         
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -93,19 +95,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                         onChange={(e) => setModel(e.target.value)}
                         className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded p-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
                     >
-                        <option value="gemini-flash-lite-latest">Gemini Flash Lite (Fastest)</option>
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced)</option>
-                        <option value="gemini-3-pro-preview">Gemini 3 Pro (Brain)</option>
+                        <option value="gemini-flash-lite-latest">{t('models.lite')}</option>
+                        <option value="gemini-2.5-flash">{t('models.flash')}</option>
+                        <option value="gemini-3-pro-preview">{t('models.pro')}</option>
                     </select>
                     <p className="text-[10px] text-slate-500">{t('settings.modelHelp')}</p>
                 </div>
 
-                <button 
-                    onClick={resetOnboarding}
-                    className="flex items-center gap-2 text-xs text-teal-500 hover:text-teal-400 mt-2 px-1"
-                >
-                    <HelpCircle size={12} /> {t('settings.resetGuide')}
-                </button>
+                <div className="flex justify-between mt-2 px-1">
+                    <button 
+                        onClick={resetOnboarding}
+                        className="flex items-center gap-2 text-xs text-teal-500 hover:text-teal-400"
+                    >
+                        <HelpCircle size={12} /> {t('settings.resetGuide')}
+                    </button>
+                    <button 
+                        onClick={onLogout}
+                        className="flex items-center gap-2 text-xs text-red-500 hover:text-red-400"
+                    >
+                        <LogOut size={12} /> {t('common.logout')}
+                    </button>
+                </div>
             </div>
         </div>
 

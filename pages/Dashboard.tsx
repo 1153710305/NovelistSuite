@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, Users } from 'lucide-react';
+import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, Users, Info, ExternalLink, Globe, BarChart2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { AVAILABLE_SOURCES } from '../types';
+import { DataMethodologyModal } from '../components/DataMethodologyModal';
 
 // --- MOCK DATA TYPES ---
 
@@ -27,72 +28,6 @@ type SocialTrend = {
     rank: number;
     topic: string;
     heat: number;
-};
-
-// --- MOCK DATA GENERATORS ---
-
-const generatePlatformData = (): PlatformShare[] => [
-  { name: 'Qidian', value: 42, mau: '145M', growth: '+5.2%', color: '#ef4444' },
-  { name: 'Fanqie', value: 28, mau: '98M', growth: '+12.8%', color: '#f97316' },
-  { name: 'Jinjiang', value: 18, mau: '62M', growth: '+2.1%', color: '#10b981' },
-  { name: 'Zongheng', value: 8, mau: '24M', growth: '-1.5%', color: '#3b82f6' },
-  { name: 'Others', value: 4, mau: '15M', growth: '+0.5%', color: '#94a3b8' },
-];
-
-const generateGenreData = (platform: string, range: string): GenreTrend[] => {
-    // Simulate different data based on selection
-    const base = platform === 'Qidian' ? [
-        { rank: 1, name: 'Xianxia (Immortal Hero)', heat: 9800, change: 0 },
-        { rank: 2, name: 'Urban System', heat: 8500, change: 2 },
-        { rank: 3, name: 'Eastern Fantasy', heat: 8200, change: -1 },
-        { rank: 4, name: 'Sci-Fi Infinite', heat: 7400, change: 1 },
-        { rank: 5, name: 'Historical Strategy', heat: 6900, change: -1 },
-        { rank: 6, name: 'Gaming', heat: 6200, change: 3 },
-        { rank: 7, name: 'Horror/Thriller', heat: 5800, change: 0 },
-        { rank: 8, name: 'Sports', heat: 4500, change: -2 },
-    ] : platform === 'Fanqie' ? [
-        { rank: 1, name: 'Urban God of War', heat: 9900, change: 0 },
-        { rank: 2, name: 'Reborn in 80s', heat: 9100, change: 1 },
-        { rank: 3, name: 'CEO Romance', heat: 8800, change: -1 },
-        { rank: 4, name: 'System Farming', heat: 7600, change: 4 },
-        { rank: 5, name: 'Live Stream Survival', heat: 7200, change: 2 },
-        { rank: 6, name: 'Zombie Apocalypse', heat: 6500, change: -2 },
-        { rank: 7, name: 'Pet Evolution', heat: 5900, change: -1 },
-        { rank: 8, name: 'Entertainment Star', heat: 5100, change: 0 },
-    ] : [
-        { rank: 1, name: 'Danmei (BL)', heat: 9500, change: 0 },
-        { rank: 2, name: 'Ancient Romance', heat: 8900, change: 0 },
-        { rank: 3, name: 'Entertainment Circle', heat: 7800, change: 2 },
-        { rank: 4, name: 'Campus Love', heat: 7100, change: -1 },
-        { rank: 5, name: 'Interstellar', heat: 6800, change: 1 },
-        { rank: 6, name: 'Unlimited Flow', heat: 6400, change: 3 },
-        { rank: 7, name: 'Farming', heat: 5900, change: -2 },
-        { rank: 8, name: 'Western Fantasy', heat: 4800, change: -1 },
-    ];
-
-    if (range === 'monthly') return base.map(i => ({ ...i, heat: i.heat * 4 }));
-    if (range === 'historical') return base.map(i => ({ ...i, heat: i.heat * 48 }));
-    
-    return base;
-};
-
-const generateSocialData = (source: string): SocialTrend[] => {
-    const prefixes = {
-        douyin: ['Challenge', 'Dance', 'POV', 'LifeHack', 'Comedy'],
-        weibo: ['News', 'Celebrity', 'Drama', 'Social', 'Tech'],
-        bilibili: ['Anime', 'Game', 'Review', 'Meme', 'Tutorial'],
-        zhihu: ['Question', 'Career', 'Science', 'History', 'Relationship'],
-        xiaohongshu: ['OOTD', 'Makeup', 'Travel', 'Food', 'Decor'],
-        default: ['Topic']
-    };
-
-    const pool = (prefixes as any)[source] || prefixes.default;
-    
-    return Array.from({ length: 20 }, (_, i) => ({
-        rank: i + 1,
-        topic: `${pool[i % pool.length]} #${i + 1} - Trending Topic`,
-        heat: Math.floor(10000000 / (i + 1))
-    }));
 };
 
 // --- SUB-COMPONENTS ---
@@ -157,8 +92,32 @@ const PlatformTraffic: React.FC<{ data: PlatformShare[] }> = ({ data }) => {
 }
 
 const SocialTrendList: React.FC<{ source: string }> = ({ source }) => {
-    const data = generateSocialData(source);
     const { t } = useI18n();
+
+    const generateSocialData = (source: string): SocialTrend[] => {
+        const prefixes = {
+            douyin: ['challenge', 'dance', 'pov', 'lifehack', 'comedy'],
+            weibo: ['news', 'celebrity', 'drama', 'social', 'tech'],
+            bilibili: ['anime', 'game', 'review', 'meme', 'tutorial'],
+            zhihu: ['question', 'career', 'science', 'history', 'relationship'],
+            xiaohongshu: ['ootd', 'makeup', 'travel', 'food', 'decor'],
+            default: ['news']
+        };
+    
+        const pool = (prefixes as any)[source] || prefixes.default;
+        
+        return Array.from({ length: 20 }, (_, i) => {
+            const key = pool[i % pool.length];
+            const localizedTopic = t(`topics.${key}`);
+            return {
+                rank: i + 1,
+                topic: `${localizedTopic} #${i + 1}`,
+                heat: Math.floor(10000000 / (i + 1))
+            };
+        });
+    };
+
+    const data = generateSocialData(source);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
@@ -184,13 +143,122 @@ const SocialTrendList: React.FC<{ source: string }> = ({ source }) => {
     );
 };
 
+const ExternalPortals: React.FC = () => {
+    const { t } = useI18n();
+    
+    const portals = [
+        { 
+            name: t('sources.fanqie'), 
+            color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
+            site: 'https://fanqienovel.com/',
+            rank: 'https://fanqienovel.com/rank'
+        },
+        { 
+            name: t('sources.qidian'), 
+            color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
+            site: 'https://www.qidian.com/',
+            rank: 'https://www.qidian.com/rank/'
+        },
+        { 
+            name: t('sources.jinjiang'), 
+            color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
+            site: 'https://www.jjwxc.net/',
+            rank: 'https://www.jjwxc.net/fenzhan/rank'
+        },
+        {
+            name: t('sources.douyin'),
+            color: 'bg-slate-900 text-white border-slate-700 hover:bg-slate-800',
+            site: 'https://www.douyin.com/',
+            rank: 'https://www.douyin.com/hot'
+        }
+    ];
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {portals.map((p) => (
+                <div key={p.name} className={`p-4 rounded-xl border transition-all shadow-sm flex flex-col gap-3 ${p.color}`}>
+                    <div className="font-bold flex items-center justify-between">
+                        <span>{p.name}</span>
+                        <ExternalLink size={16} />
+                    </div>
+                    <div className="flex gap-2 mt-auto">
+                         <a 
+                            href={p.site} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex-1 py-1.5 bg-white/50 hover:bg-white/80 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                         >
+                            <Globe size={12} /> {t('dashboard.officialSite')}
+                         </a>
+                         <a 
+                            href={p.rank} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex-1 py-1.5 bg-white/50 hover:bg-white/80 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                         >
+                            <BarChart2 size={12} /> {t('dashboard.rankings')}
+                         </a>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export const Dashboard: React.FC = () => {
   const { t } = useI18n();
   const { sources, toggleSource } = useApp();
+  const [isDocOpen, setIsDocOpen] = useState(false);
 
   const [selectedGenrePlatform, setSelectedGenrePlatform] = useState('Qidian');
   const [selectedTimeRange, setSelectedTimeRange] = useState('weekly');
   const [socialTab, setSocialTab] = useState('douyin');
+
+  // Generators inside component to access t()
+  const generatePlatformData = (): PlatformShare[] => [
+    { name: t('sources.qidian'), value: 42, mau: '145M', growth: '+5.2%', color: '#ef4444' },
+    { name: t('sources.fanqie'), value: 28, mau: '98M', growth: '+12.8%', color: '#f97316' },
+    { name: t('sources.jinjiang'), value: 18, mau: '62M', growth: '+2.1%', color: '#10b981' },
+    { name: t('sources.zongheng'), value: 8, mau: '24M', growth: '-1.5%', color: '#3b82f6' },
+    { name: t('dashboard.others'), value: 4, mau: '15M', growth: '+0.5%', color: '#94a3b8' },
+  ];
+
+  const generateGenreData = (platform: string, range: string): GenreTrend[] => {
+    // Simulate different data based on selection
+    const base = platform === 'Qidian' ? [
+        { rank: 1, name: t('genres.xianxia'), heat: 9800, change: 0 },
+        { rank: 2, name: t('genres.urban'), heat: 8500, change: 2 },
+        { rank: 3, name: t('genres.fantasy'), heat: 8200, change: -1 },
+        { rank: 4, name: t('genres.scifi'), heat: 7400, change: 1 },
+        { rank: 5, name: t('genres.history'), heat: 6900, change: -1 },
+        { rank: 6, name: t('genres.gaming'), heat: 6200, change: 3 },
+        { rank: 7, name: t('genres.horror'), heat: 5800, change: 0 },
+        { rank: 8, name: t('genres.sports'), heat: 4500, change: -2 },
+    ] : platform === 'Fanqie' ? [
+        { rank: 1, name: t('genres.war'), heat: 9900, change: 0 },
+        { rank: 2, name: t('genres.romance80s'), heat: 9100, change: 1 },
+        { rank: 3, name: t('genres.ceo'), heat: 8800, change: -1 },
+        { rank: 4, name: t('genres.farming'), heat: 7600, change: 4 },
+        { rank: 5, name: t('genres.survival'), heat: 7200, change: 2 },
+        { rank: 6, name: t('genres.zombie'), heat: 6500, change: -2 },
+        { rank: 7, name: t('genres.pet'), heat: 5900, change: -1 },
+        { rank: 8, name: t('genres.star'), heat: 5100, change: 0 },
+    ] : [
+        { rank: 1, name: t('genres.danmei'), heat: 9500, change: 0 },
+        { rank: 2, name: t('genres.ancient'), heat: 8900, change: 0 },
+        { rank: 3, name: t('genres.entertainment'), heat: 7800, change: 2 },
+        { rank: 4, name: t('genres.campus'), heat: 7100, change: -1 },
+        { rank: 5, name: t('genres.interstellar'), heat: 6800, change: 1 },
+        { rank: 6, name: t('genres.unlimited'), heat: 6400, change: 3 },
+        { rank: 7, name: t('genres.farming'), heat: 5900, change: -2 },
+        { rank: 8, name: t('genres.western'), heat: 4800, change: -1 },
+    ];
+
+    if (range === 'monthly') return base.map(i => ({ ...i, heat: i.heat * 4 }));
+    if (range === 'historical') return base.map(i => ({ ...i, heat: i.heat * 48 }));
+    
+    return base;
+  };
 
   const genreData = generateGenreData(selectedGenrePlatform, selectedTimeRange);
   const platformTraffic = generatePlatformData();
@@ -199,13 +267,20 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
-      
+      <DataMethodologyModal isOpen={isDocOpen} onClose={() => setIsDocOpen(false)} />
+
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
             <h2 className="text-3xl font-bold text-slate-800">{t('dashboard.welcome')}</h2>
             <p className="text-slate-500 mt-2">{t('dashboard.subtitle')}</p>
         </div>
+        <button 
+            onClick={() => setIsDocOpen(true)}
+            className="flex items-center gap-2 text-slate-500 hover:text-teal-600 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 transition-all text-sm font-medium"
+        >
+            <Info size={16} /> {t('dataDoc.btnLabel')}
+        </button>
       </div>
 
       {/* Top Stats Row (Quick Glance) */}
@@ -216,7 +291,7 @@ export const Dashboard: React.FC = () => {
             <h3 className="text-sm font-medium text-slate-500">{t('dashboard.topGenre')}</h3>
             <Trophy className="text-yellow-500 h-5 w-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-800 relative z-10">Xianxia (Immortal)</p>
+          <p className="text-2xl font-bold text-slate-800 relative z-10">{t('genres.xianxia')}</p>
           <p className="text-xs text-green-500 mt-1 flex items-center relative z-10"><TrendingUp size={12} className="mr-1"/> +12% {t('dashboard.trending')}</p>
         </div>
         
@@ -226,7 +301,7 @@ export const Dashboard: React.FC = () => {
             <h3 className="text-sm font-medium text-slate-500">{t('dashboard.hotTrope')}</h3>
             <Flame className="text-red-500 h-5 w-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-800 relative z-10">Reborn Villain</p>
+          <p className="text-2xl font-bold text-slate-800 relative z-10">{t('genres.romance80s')}</p>
           <p className="text-xs text-slate-400 mt-1 relative z-10">{t('dashboard.trendingPlatforms')}</p>
         </div>
 
@@ -239,6 +314,14 @@ export const Dashboard: React.FC = () => {
           <p className="text-2xl font-bold text-slate-800 relative z-10">0 / 2000</p>
           <p className="text-xs text-slate-400 mt-1 relative z-10">{t('dashboard.wordsWritten')}</p>
         </div>
+      </div>
+
+      {/* New Section: External Data Portals */}
+      <div>
+         <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+             <ExternalLink className="text-slate-500" size={20} /> {t('dashboard.portals')}
+         </h3>
+         <ExternalPortals />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -254,9 +337,9 @@ export const Dashboard: React.FC = () => {
                         value={selectedGenrePlatform}
                         onChange={(e) => setSelectedGenrePlatform(e.target.value)}
                     >
-                        <option value="Qidian">Qidian</option>
-                        <option value="Fanqie">Fanqie</option>
-                        <option value="Jinjiang">Jinjiang</option>
+                        <option value="Qidian">{t('sources.qidian')}</option>
+                        <option value="Fanqie">{t('sources.fanqie')}</option>
+                        <option value="Jinjiang">{t('sources.jinjiang')}</option>
                     </select>
                     <select 
                         className="bg-slate-50 border border-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-teal-500"
