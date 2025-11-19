@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, Users, Info, ExternalLink, Globe, BarChart2 } from 'lucide-react';
+import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, Users, Info } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { AVAILABLE_SOURCES } from '../types';
@@ -143,68 +143,6 @@ const SocialTrendList: React.FC<{ source: string }> = ({ source }) => {
     );
 };
 
-const ExternalPortals: React.FC = () => {
-    const { t } = useI18n();
-    
-    const portals = [
-        { 
-            name: t('sources.fanqie'), 
-            color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
-            site: 'https://fanqienovel.com/',
-            rank: 'https://fanqienovel.com/rank'
-        },
-        { 
-            name: t('sources.qidian'), 
-            color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
-            site: 'https://www.qidian.com/',
-            rank: 'https://www.qidian.com/rank/'
-        },
-        { 
-            name: t('sources.jinjiang'), 
-            color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
-            site: 'https://www.jjwxc.net/',
-            rank: 'https://www.jjwxc.net/fenzhan/rank'
-        },
-        {
-            name: t('sources.douyin'),
-            color: 'bg-slate-900 text-white border-slate-700 hover:bg-slate-800',
-            site: 'https://www.douyin.com/',
-            rank: 'https://www.douyin.com/hot'
-        }
-    ];
-
-    return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {portals.map((p) => (
-                <div key={p.name} className={`p-4 rounded-xl border transition-all shadow-sm flex flex-col gap-3 ${p.color}`}>
-                    <div className="font-bold flex items-center justify-between">
-                        <span>{p.name}</span>
-                        <ExternalLink size={16} />
-                    </div>
-                    <div className="flex gap-2 mt-auto">
-                         <a 
-                            href={p.site} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex-1 py-1.5 bg-white/50 hover:bg-white/80 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
-                         >
-                            <Globe size={12} /> {t('dashboard.officialSite')}
-                         </a>
-                         <a 
-                            href={p.rank} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex-1 py-1.5 bg-white/50 hover:bg-white/80 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
-                         >
-                            <BarChart2 size={12} /> {t('dashboard.rankings')}
-                         </a>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};
-
 export const Dashboard: React.FC = () => {
   const { t } = useI18n();
   const { sources, toggleSource } = useApp();
@@ -314,14 +252,6 @@ export const Dashboard: React.FC = () => {
           <p className="text-2xl font-bold text-slate-800 relative z-10">0 / 2000</p>
           <p className="text-xs text-slate-400 mt-1 relative z-10">{t('dashboard.wordsWritten')}</p>
         </div>
-      </div>
-
-      {/* New Section: External Data Portals */}
-      <div>
-         <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-             <ExternalLink className="text-slate-500" size={20} /> {t('dashboard.portals')}
-         </h3>
-         <ExternalPortals />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -37,13 +37,6 @@ const translations: Record<Language, any> = {
         flash: 'Gemini 2.5 Flash (Balanced)',
         pro: 'Gemini 3 Pro (Brain)'
     },
-    quota: {
-        dailyLimit: 'Daily Limit',
-        rpm: 'Requests/Min',
-        remaining: 'Remaining',
-        errorTitle: 'Quota Exceeded',
-        errorDesc: 'You have reached your usage limit for this model. Please switch models or try again later.'
-    },
     common: {
         history: 'History',
         save: 'Save',
@@ -56,16 +49,7 @@ const translations: Record<Language, any> = {
         logout: 'Logout',
         bgTask: 'Working in background...',
         safeToLeave: 'You can leave this page.',
-        remainingTime: 'Est. remaining: {time}s',
-        errorTitle: 'Something went wrong',
-        errorDesc: 'We encountered an unexpected error. Please try refreshing the page.',
-        reload: 'Reload Application',
-        logs: 'System Logs',
-        level: 'Level',
-        message: 'Message',
-        edit: 'Edit',
-        cancel: 'Cancel',
-        confirm: 'Confirm'
+        remainingTime: 'Est. remaining: {time}s'
     },
     nav: {
       dashboard: 'Dashboard',
@@ -192,10 +176,7 @@ const translations: Record<Language, any> = {
       trafficBreakdown: 'Traffic Breakdown',
       activeUsers: 'MAU (Est.)',
       growth: 'Growth',
-      others: 'Others',
-      portals: 'Platform Data Portals',
-      officialSite: 'Official Site',
-      rankings: 'Rankings Data'
+      others: 'Others'
     },
     market: {
       title: 'Market Leaderboard',
@@ -244,7 +225,7 @@ const translations: Record<Language, any> = {
     architect: {
       placeholder: "Enter your novel premise (e.g., 'A chef discovers his knives can cut through time')...",
       designBtn: 'Design Outline',
-      tip: 'Click a node to edit structure or generate content.',
+      tip: 'Click a node to view details or generate content.',
       description: 'Description',
       content: 'Content',
       generateDraft: 'Generate Draft',
@@ -257,19 +238,7 @@ const translations: Record<Language, any> = {
           scene: 'Scene'
       },
       historyTitle: 'Saved Outlines',
-      load: 'Load',
-      actions: 'Actions',
-      addChild: 'Add Child Node',
-      addSibling: 'Add Sibling Node',
-      deleteNode: 'Delete Node',
-      nodeName: 'Node Name',
-      nodeDesc: 'Description',
-      confirmDelete: 'Are you sure you want to delete this node and all its children?',
-      mapControls: {
-          zoomIn: 'Zoom In',
-          zoomOut: 'Zoom Out',
-          fit: 'Fit View'
-      }
+      load: 'Load'
     },
     mindmap: {
       empty: 'Generate an outline to view the map'
@@ -321,13 +290,6 @@ const translations: Record<Language, any> = {
         flash: 'Gemini 2.5 Flash (平衡版)',
         pro: 'Gemini 3 Pro (强智版)'
     },
-    quota: {
-        dailyLimit: '每日额度',
-        rpm: '频率限制(RPM)',
-        remaining: '剩余',
-        errorTitle: '配额超限',
-        errorDesc: '您已达到该模型的使用限制。请切换模型或稍后再试。'
-    },
     common: {
         history: '历史记录',
         save: '保存',
@@ -340,16 +302,7 @@ const translations: Record<Language, any> = {
         logout: '退出登录',
         bgTask: '正在后台运行...',
         safeToLeave: '您可以离开当前页面。',
-        remainingTime: '预计剩余: {time}秒',
-        errorTitle: '出错了',
-        errorDesc: '我们遇到了意外错误。请尝试刷新页面。',
-        reload: '重新加载',
-        logs: '系统日志',
-        level: '级别',
-        message: '信息',
-        edit: '编辑',
-        cancel: '取消',
-        confirm: '确认'
+        remainingTime: '预计剩余: {time}秒'
     },
     nav: {
       dashboard: '仪表盘',
@@ -476,10 +429,7 @@ const translations: Record<Language, any> = {
       trafficBreakdown: '流量详细分布',
       activeUsers: '月活 (预估)',
       growth: '增长率',
-      others: '其他',
-      portals: '网文平台数据入口',
-      officialSite: '官网主页',
-      rankings: '排行榜数据'
+      others: '其他'
     },
     market: {
       title: '市场排行榜',
@@ -528,7 +478,7 @@ const translations: Record<Language, any> = {
     architect: {
       placeholder: "输入小说前提（例如：“一位厨师发现他的刀可以切开时间”）...",
       designBtn: '设计大纲',
-      tip: '点击节点以修改结构或生成内容。',
+      tip: '点击节点查看详情或生成内容。',
       description: '描述',
       content: '正文',
       generateDraft: '生成草稿',
@@ -541,19 +491,7 @@ const translations: Record<Language, any> = {
           scene: '场景'
       },
       historyTitle: '大纲存档',
-      load: '加载',
-      actions: '结构操作',
-      addChild: '添加子节点',
-      addSibling: '添加兄弟节点',
-      deleteNode: '删除节点',
-      nodeName: '节点名称',
-      nodeDesc: '描述',
-      confirmDelete: '确定要删除此节点及其所有子节点吗？',
-      mapControls: {
-          zoomIn: '放大',
-          zoomOut: '缩小',
-          fit: '适配'
-      }
+      load: '加载'
     },
     mindmap: {
       empty: '生成大纲以查看思维导图'

@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Search, Zap, BookOpen, Users, History, Trash2, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
@@ -169,9 +171,7 @@ export const Lab: React.FC = () => {
 
         {labState.analysisResult ? (
           <div className="prose prose-slate max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-700">
-                {labState.analysisResult}
-            </div>
+            <ReactMarkdown>{labState.analysisResult}</ReactMarkdown>
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-400">

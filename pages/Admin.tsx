@@ -1,10 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storageService';
-import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal } from 'lucide-react';
-import { LogEntry, LogLevel } from '../types';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network } from 'lucide-react';
 
 interface AdminProps {
     onLogout: () => void;
@@ -12,40 +10,31 @@ interface AdminProps {
 
 export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const { t } = useI18n();
-    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs'>('lab');
+    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect'>('lab');
     const [data, setData] = useState<any[]>([]);
-    const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
-        if (activeTab === 'logs') {
-            setLogs(Logger.getLogs());
-        } else {
-            let key = '';
-            switch(activeTab) {
-                case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
-                case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
-                case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
-            }
-            setData(loadFromStorage(key) || []);
+        let key = '';
+        switch(activeTab) {
+            case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
+            case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
+            case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
         }
+        setData(loadFromStorage(key) || []);
     }, [activeTab, refreshKey]);
 
     const handleRefresh = () => setRefreshKey(prev => prev + 1);
 
     const handleClearAll = () => {
         if(confirm('Are you sure you want to wipe this category?')) {
-            if (activeTab === 'logs') {
-                Logger.clearLogs();
-            } else {
-                let key = '';
-                switch(activeTab) {
-                    case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
-                    case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
-                    case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
-                }
-                saveToStorage(key, []);
+            let key = '';
+            switch(activeTab) {
+                case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
+                case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
+                case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
             }
+            saveToStorage(key, []);
             handleRefresh();
         }
     };
@@ -56,7 +45,6 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         { id: 'lab', label: t('admin.tabLab'), icon: FileText },
         { id: 'studio', label: t('admin.tabStudio'), icon: PenTool },
         { id: 'architect', label: t('admin.tabArchitect'), icon: Network },
-        { id: 'logs', label: t('common.logs'), icon: Terminal },
     ];
 
     return (
@@ -70,7 +58,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-slate-900">{t('admin.title')}</h1>
-                            <p className="text-slate-500 text-sm">System Monitor & Storage Inspector</p>
+                            <p className="text-slate-500 text-sm">Local Storage Inspector</p>
                         </div>
                     </div>
                     <button 
@@ -109,94 +97,47 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                         </div>
                     </div>
 
-                    <div className="p-0 overflow-x-auto flex-1">
-                        {activeTab === 'logs' ? (
-                            // --- LOGS VIEW ---
-                            <div className="h-full overflow-y-auto">
-                                <table className="w-full text-left text-xs font-mono border-collapse">
-                                    <thead className="bg-slate-900 text-slate-400 sticky top-0 z-10">
-                                        <tr>
-                                            <th className="p-3 w-32">{t('admin.timestamp')}</th>
-                                            <th className="p-3 w-20">{t('common.level')}</th>
-                                            <th className="p-3 w-24">Category</th>
-                                            <th className="p-3">{t('common.message')}</th>
-                                            <th className="p-3 w-20">Session</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {logs.map((log) => (
-                                            <tr key={log.id} className={`hover:bg-slate-50 ${log.level === LogLevel.ERROR ? 'bg-red-50' : ''}`}>
-                                                <td className="p-3 text-slate-500 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</td>
-                                                <td className="p-3">
-                                                    <span className={`px-1.5 py-0.5 rounded font-bold ${
-                                                        log.level === LogLevel.INFO ? 'text-blue-600 bg-blue-50' :
-                                                        log.level === LogLevel.WARN ? 'text-amber-600 bg-amber-50' :
-                                                        log.level === LogLevel.ERROR ? 'text-red-600 bg-red-100' : 'text-purple-600'
-                                                    }`}>
-                                                        {log.level}
-                                                    </span>
-                                                </td>
-                                                <td className="p-3 text-slate-600 font-semibold">{log.category}</td>
-                                                <td className="p-3 text-slate-800 break-all">
-                                                    {log.message}
-                                                    {log.data && (
-                                                        <pre className="mt-1 text-[10px] text-slate-500 bg-slate-100 p-1 rounded overflow-x-auto max-h-20">
-                                                            {JSON.stringify(log.data, null, 2)}
-                                                        </pre>
-                                                    )}
-                                                </td>
-                                                <td className="p-3 text-slate-400 text-[10px]">{log.sessionId.slice(0,6)}</td>
-                                            </tr>
-                                        ))}
-                                        {logs.length === 0 && (
-                                             <tr><td colSpan={5} className="p-8 text-center text-slate-400">No logs found.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                    <div className="p-0 overflow-x-auto">
+                        {data.length === 0 ? (
+                            <div className="p-12 text-center text-slate-400 italic">
+                                {t('admin.empty')}
                             </div>
                         ) : (
-                            // --- DATA VIEW ---
-                            data.length === 0 ? (
-                                <div className="p-12 text-center text-slate-400 italic">
-                                    {t('admin.empty')}
-                                </div>
-                            ) : (
-                                <table className="w-full text-left text-sm border-collapse">
-                                    <thead className="bg-slate-50 text-slate-500">
-                                        <tr>
-                                            <th className="p-4 font-medium border-b border-slate-200 w-24">{t('admin.id')}</th>
-                                            <th className="p-4 font-medium border-b border-slate-200 w-48">{t('admin.timestamp')}</th>
-                                            <th className="p-4 font-medium border-b border-slate-200">{t('admin.content')}</th>
-                                            <th className="p-4 font-medium border-b border-slate-200 w-32">{t('admin.type')}</th>
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-50 text-slate-500">
+                                    <tr>
+                                        <th className="p-4 font-medium border-b border-slate-200 w-24">{t('admin.id')}</th>
+                                        <th className="p-4 font-medium border-b border-slate-200 w-48">{t('admin.timestamp')}</th>
+                                        <th className="p-4 font-medium border-b border-slate-200">{t('admin.content')}</th>
+                                        <th className="p-4 font-medium border-b border-slate-200 w-32">{t('admin.type')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {data.map((item) => (
+                                        <tr key={item.id} className="hover:bg-slate-50">
+                                            <td className="p-4 font-mono text-xs text-slate-400">{item.id ? item.id.slice(-6) : '---'}</td>
+                                            <td className="p-4 text-slate-600">{formatDate(item.timestamp)}</td>
+                                            <td className="p-4">
+                                                <div className="max-w-lg truncate text-slate-800 font-medium">
+                                                    {activeTab === 'lab' ? item.inputText : 
+                                                     activeTab === 'studio' ? (item.trendFocus || 'No Topic') : 
+                                                     item.premise}
+                                                </div>
+                                                <div className="max-w-lg truncate text-slate-400 text-xs mt-1">
+                                                     {activeTab === 'lab' ? (item.snippet || '') : 
+                                                     activeTab === 'studio' ? (item.content ? item.content.substring(0, 50) : '') : 
+                                                     item.outline?.name}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-medium border border-slate-200">
+                                                     {activeTab === 'lab' ? item.mode : 'General'}
+                                                </span>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {data.map((item) => (
-                                            <tr key={item.id} className="hover:bg-slate-50">
-                                                <td className="p-4 font-mono text-xs text-slate-400">{item.id ? item.id.slice(-6) : '---'}</td>
-                                                <td className="p-4 text-slate-600">{formatDate(item.timestamp)}</td>
-                                                <td className="p-4">
-                                                    <div className="max-w-lg truncate text-slate-800 font-medium">
-                                                        {activeTab === 'lab' ? item.inputText : 
-                                                         activeTab === 'studio' ? (item.trendFocus || 'No Topic') : 
-                                                         item.premise}
-                                                    </div>
-                                                    <div className="max-w-lg truncate text-slate-400 text-xs mt-1">
-                                                         {activeTab === 'lab' ? (item.snippet || '') : 
-                                                         activeTab === 'studio' ? (item.content ? item.content.substring(0, 50) : '') : 
-                                                         item.outline?.name}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-medium border border-slate-200">
-                                                         {activeTab === 'lab' ? item.mode : 'General'}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )
+                                    ))}
+                                </tbody>
+                            </table>
                         )}
                     </div>
                 </div>

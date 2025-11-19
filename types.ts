@@ -23,7 +23,6 @@ export interface GeneratedStory {
 }
 
 export interface OutlineNode {
-  id?: string; // Unique ID for editing
   name: string;
   type: 'book' | 'act' | 'chapter' | 'scene';
   description?: string;
@@ -41,25 +40,6 @@ export const AVAILABLE_SOURCES = [
     'douyin', 'kuaishou', 'bilibili', 'baidu', 'weibo', 
     'xiaohongshu', 'fanqie', 'qidian', 'jinjiang', 'zhihu'
 ];
-
-// --- Logging Types ---
-
-export enum LogLevel {
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-  DEBUG = 'DEBUG'
-}
-
-export interface LogEntry {
-  id: string;
-  sessionId: string;
-  timestamp: number;
-  level: LogLevel;
-  category: string;
-  message: string;
-  data?: any;
-}
 
 // --- Global State ---
 
