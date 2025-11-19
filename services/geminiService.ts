@@ -94,7 +94,6 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
  */
 export const analyzeText = async (text: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
   const ai = getAiClient();
-  const safeText = text || "";
 
   let instruction = "";
   switch (focus) {
@@ -114,7 +113,7 @@ export const analyzeText = async (text: string, focus: 'pacing' | 'characters' |
     ${getLangInstruction(lang)}
     
     TEXT TO ANALYZE:
-    ${safeText.substring(0, 10000)} 
+    ${text.substring(0, 10000)} 
   `; // 限制长度以防止 Token 溢出
 
   const response = await ai.models.generateContent({

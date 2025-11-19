@@ -1,58 +1,62 @@
 
 import React, { useState, useEffect } from 'react';
+import { analyzeText } from '../services/geminiService';
 import { Search, Zap, BookOpen, Users, History, Trash2, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
+import { STORAGE_KEYS, addHistoryItem, getHistory, deleteHistoryItem } from '../services/storageService';
 import { LabRecord } from '../types';
 
 export const Lab: React.FC = () => {
-  // Local UI state
   const [inputText, setInputText] = useState('');
+  const [analysis, setAnalysis] = useState('');
+  const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'viral_factors' | 'pacing' | 'characters'>('viral_factors');
   const [history, setHistory] = useState<LabRecord[]>([]);
   
-  // Global state
   const { t, lang } = useI18n();
-  const { labState, setLabState, startLabAnalysis } = useApp();
+  const { model } = useApp();
 
   const loadHistory = () => {
-      setTimeout(() => {
-          setHistory(getHistory<LabRecord>(STORAGE_KEYS.HISTORY_LAB));
-      }, 100);
+      setHistory(getHistory<LabRecord>(STORAGE_KEYS.HISTORY_LAB));
   };
 
   useEffect(() => {
       loadHistory();
   }, []);
 
-  // Sync Global State to Local UI
-  useEffect(() => {
-      if (labState.inputText) setInputText(labState.inputText);
-      if (labState.mode) setMode(labState.mode);
-  }, [labState.inputText, labState.mode]);
-
-  // Update history when analysis finishes
-  useEffect(() => {
-      if (!labState.isAnalyzing && labState.analysisResult) {
-          loadHistory();
-      }
-  }, [labState.isAnalyzing, labState.analysisResult]);
-
   const handleAnalyze = async () => {
     if (!inputText) return;
-    startLabAnalysis(inputText, mode, lang);
+    setLoading(true);
+    setAnalysis('');
+    try {
+      const result = await analyzeText(inputText, mode, lang, model);
+      setAnalysis(result);
+      
+      // Auto-save to history
+      const record: LabRecord = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          inputText: inputText,
+          mode: mode,
+          analysis: result,
+          snippet: inputText.substring(0, 60) + '...'
+      };
+      const updated = addHistoryItem(STORAGE_KEYS.HISTORY_LAB, record);
+      setHistory(updated);
+
+    } catch (error) {
+      setAnalysis('Error analyzing text.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadRecord = (record: LabRecord) => {
-      setLabState(prev => ({
-          ...prev,
-          isAnalyzing: false,
-          inputText: record.inputText,
-          mode: record.mode as any,
-          analysisResult: record.analysis
-      }));
+      setInputText(record.inputText);
+      setAnalysis(record.analysis);
+      setMode(record.mode as any);
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
@@ -125,14 +129,13 @@ export const Lab: React.FC = () => {
           placeholder={t('lab.placeholder')}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          disabled={labState.isAnalyzing}
         ></textarea>
         <button
           onClick={handleAnalyze}
-          disabled={labState.isAnalyzing || !inputText}
+          disabled={loading || !inputText}
           className="mt-4 w-full py-3 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition-all"
         >
-          {labState.isAnalyzing ? (
+          {loading ? (
              <span className="animate-pulse">{t('lab.analyzing')}</span>
           ) : (
              <>
@@ -143,35 +146,14 @@ export const Lab: React.FC = () => {
       </div>
 
       {/* Right: Output */}
-      <div className="flex-1 p-6 h-full overflow-y-auto bg-white relative">
+      <div className="flex-1 p-6 h-full overflow-y-auto bg-white">
         <h2 className="text-xl font-bold text-slate-800 mb-4">
           {mode === 'viral_factors' ? t('lab.viralFactors') : mode === 'pacing' ? t('lab.pacing') : t('lab.characters')}
         </h2>
         
-        {labState.isAnalyzing && (
-             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 z-10">
-                <div className="w-64">
-                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
-                        <span>{t('common.bgTask')}</span>
-                        <span>{Math.round(labState.progress)}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div 
-                            className="bg-teal-500 h-full rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${labState.progress}%` }}
-                        ></div>
-                    </div>
-                    <div className="flex justify-between mt-2">
-                        <p className="text-xs text-slate-400">{t('common.safeToLeave')}</p>
-                        <p className="text-xs font-mono text-teal-600">{t('common.remainingTime').replace('{time}', labState.remainingTime.toString())}</p>
-                    </div>
-                </div>
-             </div>
-        )}
-
-        {labState.analysisResult ? (
+        {analysis ? (
           <div className="prose prose-slate max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <ReactMarkdown>{labState.analysisResult}</ReactMarkdown>
+            <ReactMarkdown>{analysis}</ReactMarkdown>
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-400">

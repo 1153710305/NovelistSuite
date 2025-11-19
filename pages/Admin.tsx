@@ -115,7 +115,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                 <tbody className="divide-y divide-slate-100">
                                     {data.map((item) => (
                                         <tr key={item.id} className="hover:bg-slate-50">
-                                            <td className="p-4 font-mono text-xs text-slate-400">{item.id ? item.id.slice(-6) : '---'}</td>
+                                            <td className="p-4 font-mono text-xs text-slate-400">{item.id.slice(-6)}</td>
                                             <td className="p-4 text-slate-600">{formatDate(item.timestamp)}</td>
                                             <td className="p-4">
                                                 <div className="max-w-lg truncate text-slate-800 font-medium">
@@ -124,8 +124,8 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                                      item.premise}
                                                 </div>
                                                 <div className="max-w-lg truncate text-slate-400 text-xs mt-1">
-                                                     {activeTab === 'lab' ? (item.snippet || '') : 
-                                                     activeTab === 'studio' ? (item.content ? item.content.substring(0, 50) : '') : 
+                                                     {activeTab === 'lab' ? item.snippet : 
+                                                     activeTab === 'studio' ? item.content.substring(0, 50) : 
                                                      item.outline?.name}
                                                 </div>
                                             </td>

@@ -217,10 +217,7 @@ export const Studio: React.FC = () => {
                                         style={{ width: `${studioState.progress}%` }}
                                     ></div>
                                 </div>
-                                <div className="flex justify-between mt-2">
-                                    <p className="text-xs text-slate-400">{t('studio.backgroundTip')}</p>
-                                    <p className="text-xs font-mono text-teal-600">{t('common.remainingTime').replace('{time}', studioState.remainingTime.toString())}</p>
-                                </div>
+                                <p className="text-xs text-slate-400 mt-4 text-center">{t('studio.backgroundTip')}</p>
                             </div>
                         </div>
                     ) : null}

@@ -1,73 +1,79 @@
 
 import React, { useState, useEffect } from 'react';
-import { generateChapterContent } from '../services/geminiService';
+import { generateOutline, generateChapterContent } from '../services/geminiService';
 import { OutlineNode, ArchitectRecord } from '../types';
 import { MindMap } from '../components/MindMap';
-import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, Save } from 'lucide-react';
+import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem } from '../services/storageService';
+import { saveToStorage, loadFromStorage, STORAGE_KEYS, addHistoryItem, getHistory, deleteHistoryItem } from '../services/storageService';
 
 export const Architect: React.FC = () => {
-  // Local state for inputs and selection
   const [premise, setPremise] = useState('');
+  const [outline, setOutline] = useState<OutlineNode | null>(null);
+  const [loading, setLoading] = useState(false);
   const [selectedNode, setSelectedNode] = useState<OutlineNode | null>(null);
-  
-  // Chapter generation is still local (fast enough usually, or can be extended later)
   const [generatedChapter, setGeneratedChapter] = useState('');
   const [generatingChapter, setGeneratingChapter] = useState(false);
-  
   const [history, setHistory] = useState<ArchitectRecord[]>([]);
   
-  // Global State (Background Process)
-  const { model, architectState, setArchitectState, startArchitectGeneration } = useApp();
   const { t, lang } = useI18n();
+  const { model } = useApp();
 
   const loadHistory = () => {
-      setTimeout(() => {
-          setHistory(getHistory<ArchitectRecord>(STORAGE_KEYS.HISTORY_ARCHITECT));
-      }, 100);
+      setHistory(getHistory<ArchitectRecord>(STORAGE_KEYS.HISTORY_ARCHITECT));
   };
 
-  // Sync Global State to Local UI when Global changes (e.g. generation finished or page load)
+  // Load Data & History
   useEffect(() => {
-      if (architectState.premise) setPremise(architectState.premise);
-      // If not generating and we have an outline in global state, we use it.
-      // Note: We don't use a local 'outline' state anymore, we read directly from global to support background updates.
-  }, [architectState.premise, architectState.outline]);
-
-  // Initial Load
-  useEffect(() => {
-      loadHistory();
-      // If global state is empty, try to load persistence
-      if (!architectState.outline && !architectState.isGenerating) {
-           const savedData = loadFromStorage(STORAGE_KEYS.ARCHITECT);
-           if (savedData) {
-               setArchitectState(prev => ({
-                   ...prev,
-                   premise: savedData.premise || '',
-                   outline: savedData.outline || null
-               }));
-           }
+      const savedData = loadFromStorage(STORAGE_KEYS.ARCHITECT);
+      if (savedData) {
+          if (savedData.premise) setPremise(savedData.premise);
+          if (savedData.outline) setOutline(savedData.outline);
       }
+      loadHistory();
   }, []);
 
-  // Update history when generation finishes
+  // Save Active State
   useEffect(() => {
-      if (!architectState.isGenerating && architectState.outline) {
-          loadHistory();
-      }
-  }, [architectState.isGenerating, architectState.outline]);
+      const timeoutId = setTimeout(() => {
+        saveToStorage(STORAGE_KEYS.ARCHITECT, {
+            premise,
+            outline
+        });
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+  }, [premise, outline]);
 
-  const handleGenerateOutline = () => {
+  const handleGenerateOutline = async () => {
     if (!premise) return;
+    setLoading(true);
+    setOutline(null);
     setSelectedNode(null);
-    startArchitectGeneration(premise, lang);
+    try {
+      const result = await generateOutline(premise, lang, model);
+      if (result) {
+        setOutline(result);
+        // Save to History
+        const record: ArchitectRecord = {
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            premise: premise,
+            outline: result
+        };
+        const updated = addHistoryItem(STORAGE_KEYS.HISTORY_ARCHITECT, record);
+        setHistory(updated);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClear = () => {
       setPremise('');
-      setArchitectState(prev => ({ ...prev, outline: null, premise: '' }));
+      setOutline(null);
       setSelectedNode(null);
   }
 
@@ -78,12 +84,8 @@ export const Architect: React.FC = () => {
   };
 
   const loadRecord = (record: ArchitectRecord) => {
-      setArchitectState(prev => ({
-          ...prev,
-          isGenerating: false,
-          premise: record.premise,
-          outline: record.outline
-      }));
+      setPremise(record.premise);
+      setOutline(record.outline);
       setSelectedNode(null);
   }
 
@@ -91,7 +93,7 @@ export const Architect: React.FC = () => {
       if(!selectedNode) return;
       setGeneratingChapter(true);
       try {
-          const context = `Book Title: ${architectState.outline?.name}. Description: ${architectState.outline?.description}`;
+          const context = `Book Title: ${outline?.name}. Description: ${outline?.description}`;
           const result = await generateChapterContent(selectedNode, context, lang, model);
           setGeneratedChapter(result);
       } catch(e) {
@@ -125,9 +127,7 @@ export const Architect: React.FC = () => {
                      <div 
                          key={item.id}
                          onClick={() => loadRecord(item)}
-                         className={`p-3 rounded-lg cursor-pointer group transition-all border ${
-                             architectState.outline === item.outline ? 'bg-white border-teal-200 shadow-sm' : 'hover:bg-white border-transparent hover:border-slate-200'
-                         }`}
+                         className="p-3 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 cursor-pointer group transition-all"
                      >
                          <div className="flex justify-between items-start">
                              <span className="text-xs font-bold text-slate-700 truncate w-4/5">{item.premise}</span>
@@ -146,59 +146,34 @@ export const Architect: React.FC = () => {
 
       {/* Main Workspace */}
       <div className={`flex flex-col h-full flex-1 transition-all duration-300 ${selectedNode ? 'mr-[33%]' : ''}`}>
-         <div className="p-6 border-b border-slate-200 bg-white flex items-center gap-4 justify-between">
-             <div className="flex-1 flex gap-2 max-w-3xl">
+         <div className="p-6 border-b border-slate-200 bg-white flex items-center gap-4">
+             <div className="flex-1 flex gap-2">
                  <input 
                     type="text" 
                     value={premise}
                     onChange={(e) => setPremise(e.target.value)}
                     placeholder={t('architect.placeholder')}
                     className="flex-1 p-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    disabled={architectState.isGenerating}
                  />
                  <button 
                     onClick={handleGenerateOutline}
-                    disabled={architectState.isGenerating || !premise}
+                    disabled={loading || !premise}
                     className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
                  >
-                    {architectState.isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Network size={16} />}
+                    {loading ? <Loader2 className="animate-spin" size={16} /> : <Network size={16} />}
                     {t('architect.designBtn')}
                  </button>
-                 {architectState.outline && !architectState.isGenerating && (
+                 {outline && (
                      <button onClick={handleClear} className="p-2 text-slate-400 hover:text-red-500 border border-slate-200 rounded-md">
                          <Trash2 size={16} />
                      </button>
                  )}
              </div>
-             <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Save size={12} /> <span>Auto-saved</span>
-             </div>
          </div>
          
          <div className="flex-1 bg-slate-50 p-6 overflow-hidden flex flex-col relative">
-            {architectState.isGenerating ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/90 z-10">
-                    <div className="w-64">
-                        <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
-                            <span>{t('common.bgTask')}</span>
-                            <span>{Math.round(architectState.progress)}%</span>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                            <div 
-                                className="bg-teal-500 h-full rounded-full transition-all duration-500 ease-out"
-                                style={{ width: `${architectState.progress}%` }}
-                            ></div>
-                        </div>
-                        <div className="flex justify-between mt-2">
-                            <p className="text-xs text-slate-400">{t('common.safeToLeave')}</p>
-                            <p className="text-xs font-mono text-teal-600">{t('common.remainingTime').replace('{time}', architectState.remainingTime.toString())}</p>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
-
-            <MindMap data={architectState.outline} onNodeClick={setSelectedNode} />
-            {!architectState.outline && !architectState.isGenerating && <p className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none opacity-50">{t('mindmap.empty')}</p>}
+            <MindMap data={outline} onNodeClick={setSelectedNode} />
+            {!outline && <p className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none opacity-50">{t('mindmap.empty')}</p>}
             <p className="text-xs text-slate-400 mt-2 text-center">{t('architect.tip')}</p>
          </div>
       </div>

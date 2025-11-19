@@ -46,28 +46,8 @@ export const AVAILABLE_SOURCES = [
 export interface StudioGlobalState {
     isGenerating: boolean;
     progress: number; // 0 - 100
-    remainingTime: number; // seconds
     generatedContent: string;
     trendFocus: string;
-    lastUpdated: number;
-}
-
-export interface ArchitectGlobalState {
-    isGenerating: boolean;
-    progress: number;
-    remainingTime: number; // seconds
-    premise: string;
-    outline: OutlineNode | null;
-    lastUpdated: number;
-}
-
-export interface LabGlobalState {
-    isAnalyzing: boolean;
-    progress: number;
-    remainingTime: number; // seconds
-    inputText: string;
-    mode: 'viral_factors' | 'pacing' | 'characters';
-    analysisResult: string;
     lastUpdated: number;
 }
 
