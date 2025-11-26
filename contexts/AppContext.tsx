@@ -1,8 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS, addHistoryItem } from '../services/storageService';
-import { AVAILABLE_SOURCES, StudioGlobalState, ArchitectGlobalState, LabGlobalState, PromptTemplate } from '../types';
-import { generateDailyStories, generateOutline, analyzeText } from '../services/geminiService';
+import { AVAILABLE_SOURCES, StudioGlobalState, ArchitectGlobalState, LabGlobalState, PromptTemplate, GenerationConfig } from '../types';
+import { generateDailyStories, generateOutline, analyzeText, generateStoryFromIdea } from '../services/geminiService';
 import { useI18n } from '../i18n';
 
 // Default Prompts
@@ -25,6 +25,7 @@ interface AppContextType {
   studioState: StudioGlobalState;
   setStudioState: React.Dispatch<React.SetStateAction<StudioGlobalState>>;
   startStudioGeneration: (trendFocus: string, sources: string[], lang: string) => Promise<void>;
+  startStoryGeneration: (idea: string, config: GenerationConfig, lang: string) => Promise<void>;
 
   architectState: ArchitectGlobalState;
   setArchitectState: React.Dispatch<React.SetStateAction<ArchitectGlobalState>>;
@@ -74,7 +75,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (savedSettings.sources) setSources(savedSettings.sources);
     }
 
-    // Load Prompts
     const savedPrompts = loadFromStorage(STORAGE_KEYS.PROMPT_LIB);
     if (savedPrompts && savedPrompts.length > 0) {
         setPromptLibrary(savedPrompts);
@@ -83,7 +83,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveToStorage(STORAGE_KEYS.PROMPT_LIB, DEFAULT_PROMPTS);
     }
 
-    // Restore persistence
     const savedStudio = loadFromStorage(STORAGE_KEYS.STUDIO);
     if (savedStudio && !studioState.isGenerating) {
         setStudioState(prev => ({ ...prev, trendFocus: savedStudio.trendFocus || '', generatedContent: savedStudio.generatedContent || '' }));
@@ -154,7 +153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetOnboarding = () => setShowOnboarding(true);
 
-  // --- Background Task: Studio ---
+  // --- Background Task: Studio Inspiration ---
   const startStudioGeneration = async (trendFocus: string, selectedSources: string[], lang: string) => {
       if (studioState.isGenerating) return;
       const activeSources = selectedSources.length > 0 ? selectedSources : sourcesRef.current;
@@ -172,10 +171,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const result = await generateDailyStories(trendFocus, activeSources, lang, modelRef.current);
           clearInterval(timer);
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, generatedContent: result, lastUpdated: Date.now() }));
-          addHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, { id: Date.now().toString(), timestamp: Date.now(), trendFocus: trendFocus || 'General', content: result, sources: activeSources });
+          
+          addHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, { 
+              id: Date.now().toString(), 
+              timestamp: Date.now(), 
+              recordType: 'inspiration',
+              trendFocus: trendFocus || 'General', 
+              content: result, 
+              sources: activeSources 
+          });
       } catch (error: any) {
           clearInterval(timer);
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, generatedContent: "Generation failed." }));
+      }
+  };
+
+  // --- Background Task: Studio Story ---
+  const startStoryGeneration = async (idea: string, config: GenerationConfig, lang: string) => {
+      if (studioState.isGenerating) return;
+      
+      // Update state to show we are generating outline first
+      setStudioState(prev => ({ ...prev, isGenerating: true, progress: 5, remainingTime: 90, generatedContent: '' }));
+
+      // Custom progress simulation for longer task
+      const timer = setInterval(() => {
+          setStudioState(prev => {
+              if (!prev.isGenerating) { clearInterval(timer); return prev; }
+              const newProgress = prev.progress + (prev.progress < 50 ? 5 : 1); // Fast start for outline, slow for writing
+              return { ...prev, progress: Math.min(newProgress, 99), remainingTime: Math.max(1, prev.remainingTime - 1) };
+          });
+      }, 1000);
+
+      try {
+          // Resolve prompt template
+          const stylePrompt = config.styleId ? promptLibrary.find(p => p.id === config.styleId)?.content : undefined;
+
+          const result = await generateStoryFromIdea(idea, config, lang, modelRef.current, stylePrompt);
+          clearInterval(timer);
+          
+          const contentToShow = config.type === 'short' ? result.content : result.chapters?.[0]?.content || "Outline Generated.";
+          
+          setStudioState(prev => ({ 
+              ...prev, 
+              isGenerating: false, 
+              progress: 100, 
+              remainingTime: 0, 
+              generatedContent: contentToShow, 
+              lastUpdated: Date.now() 
+          }));
+          
+          // Save Story Record with Outline
+          addHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, { 
+              id: Date.now().toString(), 
+              timestamp: Date.now(), 
+              recordType: 'story',
+              title: result.title,
+              storyType: config.type,
+              config: config,
+              content: result.content,
+              chapters: result.chapters,
+              architecture: result.architecture || undefined
+          });
+
+      } catch (error: any) {
+          clearInterval(timer);
+          setStudioState(prev => ({ ...prev, isGenerating: false, progress: 0, remainingTime: 0, generatedContent: "Story Generation failed. Check logs." }));
       }
   };
 
@@ -204,12 +264,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   remainingTime: 0, 
                   outline: result.outline, 
                   synopsis: result.synopsis,
-                  coverImage: '', // Reset cover for new story
+                  coverImage: '', 
                   activeRecordId: newId,
                   lastUpdated: Date.now() 
               }));
               
-              // Add to history list
               addHistoryItem(STORAGE_KEYS.HISTORY_ARCHITECT, { 
                   id: newId, 
                   timestamp: Date.now(), 
@@ -251,7 +310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
         model, setModel, showOnboarding, completeOnboarding, resetOnboarding, sources, toggleSource,
-        studioState, setStudioState, startStudioGeneration,
+        studioState, setStudioState, startStudioGeneration, startStoryGeneration,
         architectState, setArchitectState, startArchitectGeneration,
         labState, setLabState, startLabAnalysis,
         promptLibrary, addPrompt, deletePrompt
@@ -263,6 +322,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
   return context;
 };

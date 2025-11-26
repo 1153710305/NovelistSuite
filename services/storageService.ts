@@ -6,7 +6,8 @@ export const STORAGE_KEYS = {
   HISTORY_LAB: 'inkflow_history_lab',
   HISTORY_STUDIO: 'inkflow_history_studio',
   HISTORY_ARCHITECT: 'inkflow_history_architect',
-  HISTORY_COVERS: 'inkflow_history_covers', // New Key for Art Studio
+  HISTORY_COVERS: 'inkflow_history_covers',
+  HISTORY_CHAT: 'inkflow_history_chat', // New Key
   PROMPT_LIB: 'inkflow_prompt_library'
 };
 

@@ -1,20 +1,12 @@
-
 import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
-import { OutlineNode } from '../types';
+import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap } from '../types';
 
 /**
  * 获取 AI 客户端实例
  */
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    // Fallback for browser env if process.env is not polyfilled automatically
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        return new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
-    throw new Error("API Key not found.");
-  }
-  return new GoogleGenAI({ apiKey });
+  // Strictly follow guidelines: Use process.env.API_KEY directly.
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 const getLangInstruction = (lang: string) => {
@@ -29,11 +21,51 @@ const getLangInstruction = (lang: string) => {
 }
 
 /**
- * Generate a Novel Cover Image
+ * Chat Streamer
  */
+export const streamChatResponse = async (
+    messages: ChatMessage[], 
+    newMessage: string, 
+    model: string,
+    onChunk: (text: string) => void
+): Promise<string> => {
+    const ai = getAiClient();
+    
+    // Convert history to Gemini format
+    const history = messages.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.text }]
+    }));
+
+    const chat = ai.chats.create({
+        model: model,
+        history: history
+    });
+
+    let fullResponse = '';
+    try {
+        const result = await chat.sendMessageStream({ message: newMessage });
+        for await (const chunk of result) {
+            const text = chunk.text;
+            if (text) {
+                fullResponse += text;
+                onChunk(fullResponse);
+            }
+        }
+        return fullResponse;
+    } catch (error) {
+        console.error("Chat Stream Error:", error);
+        throw error;
+    }
+}
+
 export const generateCover = async (prompt: string, model: string = 'imagen-4.0-generate-001'): Promise<string> => {
+    return generateImage(prompt, model, '3:4');
+}
+
+export const generateImage = async (prompt: string, model: string = 'imagen-4.0-generate-001', aspectRatio: string = '1:1'): Promise<string> => {
     const reqId = Math.random().toString(36).substring(7);
-    console.log('GeminiService', `[${reqId}] Request: generateCover`, { prompt, model });
+    console.log('GeminiService', `[${reqId}] Request: generateImage`, { prompt, model });
     
     const ai = getAiClient();
 
@@ -41,50 +73,80 @@ export const generateCover = async (prompt: string, model: string = 'imagen-4.0-
         let base64Image: string | undefined;
 
         if (model.includes('flash-image')) {
-            // Strategy A: Gemini Flash Image (generateContent with Modality)
             const response = await ai.models.generateContent({
                 model: model,
-                contents: {
-                    parts: [{ text: prompt }]
-                },
+                contents: { parts: [{ text: prompt }] },
                 config: {
-                    responseModalities: [Modality.IMAGE],
+                    imageConfig: { aspectRatio: aspectRatio as any } 
                 }
             });
-            
-            // Extract image from candidates
-            const part = response.candidates?.[0]?.content?.parts?.[0];
-            if (part && part.inlineData) {
-                base64Image = part.inlineData.data;
+            // Iterate through parts to find image
+            if (response.candidates?.[0]?.content?.parts) {
+                for (const part of response.candidates[0].content.parts) {
+                    if (part.inlineData) {
+                        base64Image = part.inlineData.data;
+                        break;
+                    }
+                }
             }
         } else {
-            // Strategy B: Imagen (generateImages)
             const response = await ai.models.generateImages({
                 model: model,
                 prompt: prompt,
-                config: {
-                    numberOfImages: 1,
-                    aspectRatio: '3:4', 
-                    outputMimeType: 'image/jpeg'
-                }
+                config: { numberOfImages: 1, aspectRatio: aspectRatio as any, outputMimeType: 'image/jpeg' }
             });
             base64Image = response.generatedImages?.[0]?.image?.imageBytes;
         }
 
-        if (base64Image) {
-             return `data:image/jpeg;base64,${base64Image}`;
-        }
+        if (base64Image) return `data:image/jpeg;base64,${base64Image}`;
         throw new Error("No image data returned from API.");
-
     } catch (error: any) {
-        console.error('GeminiService', `[${reqId}] Failed: generateCover`, error);
+        console.error('GeminiService', `[${reqId}] Failed: generateImage`, error);
         throw error;
     }
 }
 
-/**
- * Generate Daily Stories
- */
+export const generateIllustrationPrompt = async (context: string, lang: string, model: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+        Based on the following story segment, describe a vivid, artistic illustration that captures the mood and key elements. 
+        Keep the description visual and specific (lighting, composition, style). 
+        Output ONLY the visual description in English (as it works best for image generators).
+        
+        STORY CONTEXT:
+        "${context.substring(0, 2000)}"
+    `;
+
+    try {
+        const response = await ai.models.generateContent({ model, contents: prompt });
+        return response.text?.trim() || "A fantasy scene";
+    } catch (error) {
+        console.error("Failed to generate illustration prompt", error);
+        return "A detailed illustration of the scene";
+    }
+}
+
+export const analyzeTrendKeywords = async (sources: string[], lang: string, model: string): Promise<string> => {
+  const ai = getAiClient();
+  const sourceText = sources.join(', ');
+  // Updated prompt to focus on New Book Lists
+  const prompt = `Analyze the current hottest trends on these platforms: ${sourceText}. 
+  Specifically focus on the "New Book Rank" (新书榜) and "Potential Hit List" (潜力榜) from these sources.
+  Identify what kinds of themes or 'golden fingers' are appearing in the newest popular novels.
+  Provide a SINGLE, CONCISE keyword phrase (max 10 words) that represents a high-potential trend focus for writing a new web novel today. 
+  Example: "Cyberpunk Immortal Cultivation" or "Streamer Survival in Wasteland".
+  Output ONLY the phrase.
+  ${getLangInstruction(lang)}`;
+
+  try {
+    const response = await ai.models.generateContent({ model, contents: prompt });
+    return response.text?.trim() || "Viral Trend";
+  } catch (error) {
+    console.error('Failed to analyze trend', error);
+    return "Viral Trend";
+  }
+}
+
 export const generateDailyStories = async (trendFocus: string, sources: string[], lang: string, model: string): Promise<string> => {
   const reqId = Math.random().toString(36).substring(7);
   const ai = getAiClient();
@@ -94,17 +156,31 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
     : `Use trending topics from major Chinese web novel and social media platforms.`;
 
   const prompt = `
-    You are a creative writing assistant specializing in the Chinese web novel market.
-    TASK: Generate 10 short story ideas based on current popular tropes.
+    You are a senior creative writing assistant specializing in the Chinese web novel market.
+    TASK: Generate 10 high-quality, viral-potential short story concepts.
     ${sourceContext}
-    CONSTRAINTS: Focus on ${trendFocus || 'viral trends'}.
+    CONSTRAINTS: Focus on "${trendFocus || 'viral trends'}".
+    
     OUTPUT FORMAT (Markdown):
+    Use the exact following key-value format for each item. Do not wrap in JSON or code blocks.
+    
     ### 1. [Title]
-    *   **Source**: [Platform]
-    *   **Genre**: [Genre]
-    *   **Hook**: [High concept]
-    *   **Synopsis**: [Summary]
+    Source: [Platform Name]
+    Gender: [Male/Female Frequency]
+    Category: [Major Category]
+    SubCategory: [Minor Category]
+    Trope: [Main Trope]
+    Golden Finger: [The specific cheat/advantage]
+    Cool Point System: [How the character gains satisfaction/power]
+    Memory Anchor: [A memorable specific scene or object]
+    Cool Point: [What makes it satisfying?]
+    Burst Point: [Opening conflict/twist]
+    Synopsis: [Compelling summary...]
+    
+    ... (repeat for 10 items)
+    
     ${getLangInstruction(lang)}
+    Ensure all content is in Simplified Chinese.
   `;
 
   try {
@@ -116,52 +192,15 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
   }
 };
 
-/**
- * Analyze Text
- */
-export const analyzeText = async (text: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
-  const ai = getAiClient();
-  const instruction = focus === 'viral_factors' ? "Identify 'Golden 3 Chapters' hooks." : focus === 'pacing' ? "Analyze pacing." : "Analyze characters.";
-  
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: `${instruction} ${getLangInstruction(lang)}\nTEXT: ${text.substring(0, 10000)}`
-    });
-    return response.text || "No analysis.";
-  } catch (error) {
-    console.error('GeminiService', 'Failed: analyzeText', error);
-    throw error;
-  }
-};
-
-/**
- * Manipulate Text (Tools)
- */
-export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' | 'polish', lang: string, model: string): Promise<string> => {
-  const ai = getAiClient();
-  const prompt = `${mode.toUpperCase()} this text. ${getLangInstruction(lang)}\nTEXT: ${text}`;
-  try {
-      const response = await ai.models.generateContent({ model, contents: prompt });
-      return response.text || "Failed.";
-  } catch(error) {
-      console.error('GeminiService', 'Failed: manipulateText', error);
-      throw error;
-  }
-};
-
 const assignIds = (node: OutlineNode): OutlineNode => {
     if (!node.id) node.id = Math.random().toString(36).substring(2, 11);
     if (node.children) node.children = node.children.map(assignIds);
     return node;
 }
 
-/**
- * Generate Outline (Recursive)
- */
+// Legacy function for simple outline
 export const generateOutline = async (premise: string, lang: string, model: string): Promise<{outline: OutlineNode, synopsis: string} | null> => {
   const ai = getAiClient();
-
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -178,7 +217,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
                 type: Type.OBJECT,
                 properties: {
                     name: { type: Type.STRING },
-                    type: { type: Type.STRING, enum: ["character", "setting", "act"] },
+                    type: { type: Type.STRING },
                     description: { type: Type.STRING },
                     children: {
                         type: Type.ARRAY,
@@ -202,15 +241,7 @@ export const generateOutline = async (premise: string, lang: string, model: stri
     required: ["synopsis", "root"]
   };
 
-  // Updated prompt to ask for characters and settings
-  const prompt = `
-    Create a novel outline based on premise: "${premise}".
-    Structure Requirements:
-    1. Root node is 'book'.
-    2. Direct children of 'book' MUST include several 'character' nodes (Protagonist, Antagonist), 'setting' nodes (World, Key Locations), and then 'act' nodes.
-    3. 'act' nodes contain 'chapter' nodes.
-    ${getLangInstruction(lang)}
-  `;
+  const prompt = `Create a novel structure for: "${premise}". ${getLangInstruction(lang)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -227,14 +258,317 @@ export const generateOutline = async (premise: string, lang: string, model: stri
   }
 };
 
-/**
- * Generate Child Nodes
- */
+// New function for 8-part architecture
+export const generateNovelArchitecture = async (idea: string, lang: string, model: string): Promise<ArchitectureMap & { synopsis: string }> => {
+    const ai = getAiClient();
+
+    // Define a simplified recursive schema for nodes
+    const nodeSchema: Schema = {
+        type: Type.OBJECT,
+        properties: {
+            name: { type: Type.STRING },
+            type: { type: Type.STRING },
+            description: { type: Type.STRING },
+            children: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        type: { type: Type.STRING },
+                        description: { type: Type.STRING }
+                    }
+                }
+            }
+        },
+        required: ["name", "type", "description"]
+    };
+
+    const schema: Schema = {
+        type: Type.OBJECT,
+        properties: {
+            synopsis: { type: Type.STRING },
+            world: nodeSchema,
+            system: nodeSchema,
+            mission: nodeSchema,
+            character: nodeSchema,
+            anchor: nodeSchema,
+            structure: nodeSchema,
+            events: nodeSchema,
+            chapters: {
+                 type: Type.OBJECT,
+                 properties: {
+                    name: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    children: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                name: { type: Type.STRING },
+                                type: { type: Type.STRING },
+                                description: { type: Type.STRING },
+                                children: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            name: { type: Type.STRING },
+                                            type: { type: Type.STRING },
+                                            description: { type: Type.STRING }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                required: ["name", "type", "description"]
+            }
+        },
+        required: ["synopsis", "world", "system", "mission", "character", "anchor", "structure", "events", "chapters"]
+    };
+
+    const prompt = `
+        Based on the idea: "${idea}", create a comprehensive novel architecture with 8 distinct mind map structures.
+        
+        Requirements:
+        1. World Setting (world): Worldview, power system, geography.
+        2. Cool Point System (system): The hierarchy of satisfaction/upgrades.
+        3. Mission Archives (mission): Main quest and side quests.
+        4. Character Status (character): Protagonist stats/state and key relationships.
+        5. Memory Anchors (anchor): Key distinctive items, phrases, or scenes.
+        6. Work Outline (structure): High-level structure (Volumes/Acts).
+        7. Major Events (events): The key turning points.
+        8. Chapter Outline (chapters): Detailed list of chapters for the first volume (at least 10 chapters).
+
+        ${getLangInstruction(lang)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: schema }
+        });
+        const json = JSON.parse(response.text || "null");
+        if (!json) throw new Error("Empty JSON");
+
+        return {
+            synopsis: json.synopsis || "",
+            world: assignIds(json.world),
+            system: assignIds(json.system),
+            mission: assignIds(json.mission),
+            character: assignIds(json.character),
+            anchor: assignIds(json.anchor),
+            structure: assignIds(json.structure),
+            events: assignIds(json.events),
+            chapters: assignIds(json.chapters)
+        };
+    } catch (error) {
+        console.error('GeminiService', 'Failed: generateNovelArchitecture', error);
+        throw error;
+    }
+}
+
+export const extractContextFromTree = (root: OutlineNode): string => {
+    let context = '';
+    const traverse = (node: OutlineNode) => {
+        if (node.type === 'character') context += `[Character] ${node.name}: ${node.description}\n`;
+        if (node.type === 'setting') context += `[Setting] ${node.name}: ${node.description}\n`;
+        if (node.children) node.children.forEach(traverse);
+    }
+    traverse(root);
+    return context;
+}
+
+export const generateStoryFromIdea = async (
+    idea: string, 
+    config: GenerationConfig, 
+    lang: string, 
+    model: string,
+    stylePrompt?: string
+): Promise<{ title: string, content: string, architecture: ArchitectureMap | null, chapters?: {title:string, content:string, nodeId?: string}[] }> => {
+    
+    // Idea might contain markdown block, just use the first line or cleaned version
+    const cleanPremise = idea.replace(/### \d+\./, '').split('\n')[0].trim();
+    const cleanTitle = cleanPremise.length > 20 ? "Generated Novel" : cleanPremise;
+
+    console.log("Step 1: Generating Architecture for", cleanTitle);
+    
+    // Use the new 8-map generation
+    const architecture = await generateNovelArchitecture(idea, lang, model);
+    
+    const context = extractContextFromTree(architecture.world) + extractContextFromTree(architecture.character);
+    const synopsis = architecture.synopsis;
+
+    if (config.type === 'short') {
+        const ai = getAiClient();
+        let styleInstruction = "";
+        if (stylePrompt) styleInstruction = `\nSTYLE: ${stylePrompt}\n`;
+
+        const prompt = `
+            Write a complete short story.
+            Title: ${cleanTitle}
+            Synopsis: ${synopsis}
+            WORLD & CHARACTER SETTINGS:
+            ${context}
+            Length: Approx ${config.wordCount || 2000} words.
+            ${styleInstruction}
+            ${getLangInstruction(lang)}
+        `;
+        
+        const response = await ai.models.generateContent({ model, contents: prompt });
+        return {
+            title: cleanTitle,
+            architecture: architecture,
+            content: response.text || "Failed to generate text."
+        };
+    } else {
+        // Serial Novel: Generate first chapter from the "chapters" map
+        let firstChapterNode: OutlineNode | null = null;
+        if (architecture.chapters && architecture.chapters.children && architecture.chapters.children.length > 0) {
+            firstChapterNode = architecture.chapters.children[0];
+        }
+
+        let firstChapterContent = "";
+        let chapterTitle = "Chapter 1";
+
+        if (firstChapterNode) {
+            chapterTitle = firstChapterNode.name;
+            firstChapterContent = await generateChapterContent(firstChapterNode, context, lang, model, stylePrompt);
+        } else {
+            const ai = getAiClient();
+            const prompt = `
+                Write Chapter 1 for novel: ${cleanTitle}.
+                Synopsis: ${synopsis}
+                Context: ${context}
+                Length: ${config.wordsPerChapter || 2000} words.
+                Style: ${stylePrompt || 'Standard'}
+                ${getLangInstruction(lang)}
+            `;
+            const res = await ai.models.generateContent({ model, contents: prompt });
+            firstChapterContent = res.text || "";
+        }
+
+        return {
+            title: cleanTitle,
+            architecture: architecture,
+            content: "Serial Novel Project",
+            chapters: [
+                { 
+                    title: chapterTitle, 
+                    content: firstChapterContent,
+                    nodeId: firstChapterNode?.id
+                }
+            ]
+        };
+    }
+};
+
+export const generateChapterContent = async (
+    node: OutlineNode, 
+    context: string, 
+    lang: string, 
+    model: string,
+    stylePrompt?: string 
+): Promise<string> => {
+    const ai = getAiClient();
+    
+    let styleInstruction = "";
+    if (stylePrompt) {
+        styleInstruction = `\nWRITING STYLE/GUIDELINE:\n${stylePrompt}\n\nApply this style strictly.`;
+    }
+
+    const prompt = `
+    Write content for chapter: ${node.name}
+    Description: ${node.description}
+    GLOBAL CONTEXT (World/Characters):
+    ${context}
+    ${styleInstruction}
+    ${getLangInstruction(lang)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({ model, contents: prompt });
+        return response.text || "Failed to generate chapter.";
+    } catch(error) {
+        console.error('GeminiService', 'Failed: generateChapterContent', error);
+        throw error;
+    }
+}
+
+export const rewriteChapterWithContext = async (
+    currentContent: string,
+    updatedContext: string,
+    lang: string, 
+    model: string,
+    stylePrompt?: string
+): Promise<string> => {
+    const ai = getAiClient();
+    
+    let styleInstruction = "";
+    if (stylePrompt) {
+        styleInstruction = `\nWRITING STYLE/GUIDELINE:\n${stylePrompt}\n\nApply this style strictly.`;
+    }
+
+    const prompt = `
+        REWRITE the following chapter content.
+        CONTEXT (World/Characters):
+        ${updatedContext}
+        ORIGINAL CONTENT:
+        ${currentContent}
+        Task: Improve the writing, adjust dialogue, behavior, and descriptions.
+        ${styleInstruction}
+        ${getLangInstruction(lang)}
+    `;
+    
+    try {
+        const response = await ai.models.generateContent({ model, contents: prompt });
+        return response.text || "Failed to rewrite.";
+    } catch(error) {
+        console.error('GeminiService', 'Failed: rewriteChapterWithContext', error);
+        throw error;
+    }
+}
+
+export const analyzeText = async (textOrUrl: string, focus: 'pacing' | 'characters' | 'viral_factors', lang: string, model: string): Promise<string> => {
+  const ai = getAiClient();
+  const instruction = focus === 'viral_factors' ? "Identify 'Golden 3 Chapters' hooks, tropes, and engagement factors." : focus === 'pacing' ? "Analyze pacing and plot progression." : "Analyze characters and arcs.";
+  
+  const isUrl = textOrUrl.startsWith('http');
+  const context = isUrl 
+    ? `The user has provided a link: ${textOrUrl}. Please simulate a reading of the content at this link (or assume it is a well-known story if recognizable, otherwise analyze the intent of analyzing such a story structure) and provide an analysis.` 
+    : `TEXT: ${textOrUrl.substring(0, 10000)}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: `${instruction} ${getLangInstruction(lang)}\n${context}`
+    });
+    return response.text || "No analysis.";
+  } catch (error) {
+    console.error('GeminiService', 'Failed: analyzeText', error);
+    throw error;
+  }
+};
+
+export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' | 'polish', lang: string, model: string): Promise<string> => {
+  const ai = getAiClient();
+  const prompt = `${mode.toUpperCase()} this text. ${getLangInstruction(lang)}\nTEXT: ${text}`;
+  try {
+      const response = await ai.models.generateContent({ model, contents: prompt });
+      return response.text || "Failed.";
+  } catch(error) {
+      console.error('GeminiService', 'Failed: manipulateText', error);
+      throw error;
+  }
+};
+
 export const generateChildNodes = async (parentNode: OutlineNode, context: string, lang: string, model: string): Promise<OutlineNode[]> => {
     const ai = getAiClient();
     let targetType = parentNode.type === 'act' ? 'chapter' : parentNode.type === 'chapter' ? 'scene' : 'act';
-    
-    // Override for book root to allow adding chars/settings
     if (parentNode.type === 'book') targetType = 'act';
 
     const schema: Schema = {
@@ -246,7 +580,7 @@ export const generateChildNodes = async (parentNode: OutlineNode, context: strin
                     type: Type.OBJECT,
                     properties: {
                         name: { type: Type.STRING },
-                        type: { type: Type.STRING, enum: [targetType, 'character', 'setting'] },
+                        type: { type: Type.STRING, enum: [targetType, 'character', 'setting', 'item', 'event'] },
                         description: { type: Type.STRING }
                     },
                     required: ["name", "type", "description"]
@@ -268,40 +602,6 @@ export const generateChildNodes = async (parentNode: OutlineNode, context: strin
         return json && json.children ? json.children.map((child: OutlineNode) => assignIds(child)) : [];
     } catch (error) {
         console.error('GeminiService', 'Failed: generateChildNodes', error);
-        throw error;
-    }
-}
-
-/**
- * Generate Chapter Content with Style
- */
-export const generateChapterContent = async (
-    node: OutlineNode, 
-    context: string, 
-    lang: string, 
-    model: string,
-    stylePrompt?: string // New parameter for Prompt Library
-): Promise<string> => {
-    const ai = getAiClient();
-    
-    let styleInstruction = "";
-    if (stylePrompt) {
-        styleInstruction = `\nWRITING STYLE/GUIDELINE:\n${stylePrompt}\n\nApply this style strictly.`;
-    }
-
-    const prompt = `
-    Write content for chapter: ${node.name}
-    Description: ${node.description}
-    Context from Outline (Characters/Settings/Plot): ${context}
-    ${styleInstruction}
-    ${getLangInstruction(lang)}
-    `;
-
-    try {
-        const response = await ai.models.generateContent({ model, contents: prompt });
-        return response.text || "Failed to generate chapter.";
-    } catch(error) {
-        console.error('GeminiService', 'Failed: generateChapterContent', error);
         throw error;
     }
 }

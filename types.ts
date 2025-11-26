@@ -25,7 +25,7 @@ export interface GeneratedStory {
 export interface OutlineNode {
   id?: string; // Unique ID for editing
   name: string;
-  type: 'book' | 'act' | 'chapter' | 'scene' | 'character' | 'setting'; // Added character and setting
+  type: 'book' | 'act' | 'chapter' | 'scene' | 'character' | 'setting' | 'system' | 'item' | 'event'; 
   description?: string;
   content?: string; // Stores the generated chapter draft
   children?: OutlineNode[];
@@ -64,6 +64,21 @@ export enum ImageModel {
     GEMINI_FLASH_IMAGE = 'gemini-2.5-flash-image'
 }
 
+// --- Chat Types ---
+export interface ChatMessage {
+    role: 'user' | 'model';
+    text: string;
+    timestamp: number;
+}
+
+export interface ChatSession {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    model: string;
+    timestamp: number; // Last updated
+}
+
 // --- Global State ---
 
 export interface StudioGlobalState {
@@ -97,6 +112,16 @@ export interface LabGlobalState {
     lastUpdated: number;
 }
 
+// --- Generation Config ---
+
+export interface GenerationConfig {
+    type: 'short' | 'long';
+    wordCount?: number; // For short
+    chapterCount?: number; // For long
+    wordsPerChapter?: number; // For long
+    styleId?: string; // Selected prompt template ID
+}
+
 // --- History Records ---
 
 export interface BaseHistoryRecord {
@@ -111,16 +136,57 @@ export interface LabRecord extends BaseHistoryRecord {
     snippet: string; 
 }
 
+export interface InspirationMetadata {
+    source: string;
+    gender: string; // Male/Female Freq
+    majorCategory: string;
+    minorCategory: string;
+    trope: string; // Hook/Burn point
+    coolPoint?: string;
+    burstPoint?: string;
+    // New fields
+    goldenFinger?: string; // 金手指
+    coolSystem?: string; // 爽点体系
+    memoryAnchor?: string; // 记忆锚点
+}
+
+// The 8-part architecture structure
+export type ArchitectureMap = {
+    world: OutlineNode;       // 世界设定
+    system: OutlineNode;      // 爽点体系
+    mission: OutlineNode;     // 任务档案
+    character: OutlineNode;   // 角色状态
+    anchor: OutlineNode;      // 记忆锚点
+    structure: OutlineNode;   // 作品大纲
+    events: OutlineNode;      // 大事件简纲
+    chapters: OutlineNode;    // 章节细纲
+}
+
 export interface StudioRecord extends BaseHistoryRecord {
-    trendFocus: string;
-    content: string;
-    sources: string[];
+    recordType: 'inspiration' | 'story'; 
+    title?: string; 
+    storyType?: 'short' | 'long';
+    config?: GenerationConfig;
+    
+    // For Inspiration:
+    trendFocus?: string;
+    sources?: string[];
+    metadata?: InspirationMetadata; 
+    
+    // For Story:
+    content: string; 
+    chapters?: { title: string, content: string, nodeId?: string }[]; 
+    
+    // Updated: Supports 8 distinct maps
+    architecture?: ArchitectureMap;
+    // Legacy support
+    outline?: OutlineNode; 
 }
 
 export interface ArchitectRecord extends BaseHistoryRecord {
     premise: string;
     synopsis: string;
-    coverImage?: string; // New
+    coverImage?: string; 
     outline: OutlineNode;
 }
 

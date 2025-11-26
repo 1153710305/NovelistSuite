@@ -11,17 +11,23 @@ export const CoverStudio: React.FC = () => {
     const { t } = useI18n();
     const { model } = useApp(); // Use general model context if needed, but we have local state for image model
     
+    const styleOptions = [
+        { id: 'epic', value: 'Epic Fantasy (Xianxia), ethereal, majestic, chinese traditional art' },
+        { id: 'cyberpunk', value: 'Cyberpunk, neon lights, high tech low life, futuristic city' },
+        { id: 'watercolor', value: 'Watercolor painting, soft artistic, fluid, dreamy' },
+        { id: 'oil', value: 'Oil painting, textured, classic, rich colors' },
+        { id: 'anime', value: 'Anime style, vibrant, cel shaded, japanese animation' },
+        { id: 'horror', value: 'Realistic Horror, dark, cinematic lighting, eerie' },
+        { id: 'vector', value: 'Minimalist Vector, flat design, clean lines, simple' },
+        { id: 'gothic', value: 'Gothic, dark fantasy, ornate, mysterious' }
+    ];
+    
     const [prompt, setPrompt] = useState('');
-    const [style, setStyle] = useState('Epic Fantasy');
+    const [style, setStyle] = useState(styleOptions[0].value);
     const [selectedModel, setSelectedModel] = useState<string>(ImageModel.IMAGEN);
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentImage, setCurrentImage] = useState<string>('');
     const [history, setHistory] = useState<CoverRecord[]>([]);
-
-    const styles = [
-        'Epic Fantasy (Xianxia)', 'Cyberpunk', 'Watercolor', 'Oil Painting', 
-        'Anime', 'Realistic Horror', 'Minimalist Vector', 'Gothic'
-    ];
 
     useEffect(() => {
         loadHistory();
@@ -99,13 +105,13 @@ export const CoverStudio: React.FC = () => {
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t('architect.cover.styleLabel')}</label>
                         <div className="grid grid-cols-2 gap-2">
-                            {styles.map(s => (
+                            {styleOptions.map(s => (
                                 <button 
-                                    key={s} 
-                                    onClick={() => setStyle(s)}
-                                    className={`p-2 text-xs rounded border text-left transition-all ${style === s ? 'bg-teal-50 border-teal-500 text-teal-700 ring-1 ring-teal-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'}`}
+                                    key={s.id} 
+                                    onClick={() => setStyle(s.value)}
+                                    className={`p-2 text-xs rounded border text-left transition-all ${style === s.value ? 'bg-teal-50 border-teal-500 text-teal-700 ring-1 ring-teal-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'}`}
                                 >
-                                    {s}
+                                    {t(`architect.cover.styles.${s.id}`)}
                                 </button>
                             ))}
                         </div>
