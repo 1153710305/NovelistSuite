@@ -24,7 +24,7 @@ interface AppContextType {
   
   studioState: StudioGlobalState;
   setStudioState: React.Dispatch<React.SetStateAction<StudioGlobalState>>;
-  startStudioGeneration: (trendFocus: string, sources: string[], lang: string) => Promise<void>;
+  startStudioGeneration: (trendFocus: string, sources: string[], targetAudience: string, lang: string) => Promise<void>;
   startStoryGeneration: (idea: string, config: GenerationConfig, lang: string) => Promise<void>;
 
   architectState: ArchitectGlobalState;
@@ -154,7 +154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetOnboarding = () => setShowOnboarding(true);
 
   // --- Background Task: Studio Inspiration ---
-  const startStudioGeneration = async (trendFocus: string, selectedSources: string[], lang: string) => {
+  const startStudioGeneration = async (trendFocus: string, selectedSources: string[], targetAudience: string, lang: string) => {
       if (studioState.isGenerating) return;
       const activeSources = selectedSources.length > 0 ? selectedSources : sourcesRef.current;
       
@@ -168,7 +168,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }, 1000);
 
       try {
-          const result = await generateDailyStories(trendFocus, activeSources, lang, modelRef.current);
+          const result = await generateDailyStories(trendFocus, activeSources, targetAudience, lang, modelRef.current);
           clearInterval(timer);
           setStudioState(prev => ({ ...prev, isGenerating: false, progress: 100, remainingTime: 0, generatedContent: result, lastUpdated: Date.now() }));
           

@@ -138,9 +138,11 @@ export interface LabRecord extends BaseHistoryRecord {
 
 export interface InspirationMetadata {
     source: string;
-    gender: string; // Male/Female Freq
-    majorCategory: string;
-    minorCategory: string;
+    gender: string; // Male/Female Freq (Target Audience)
+    majorCategory: string; // e.g. Western Fantasy
+    theme?: string; // e.g. Derivative, Officialdom
+    characterArchetype?: string; // e.g. Multi-female, Emperor
+    plotType?: string; // e.g. God-slaying
     trope: string; // Hook/Burn point
     coolPoint?: string;
     burstPoint?: string;

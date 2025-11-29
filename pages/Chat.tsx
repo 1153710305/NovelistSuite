@@ -151,7 +151,11 @@ export const Chat: React.FC = () => {
                             <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 {msg.role === 'model' && <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white flex-shrink-0"><Bot size={16}/></div>}
                                 <div className={`max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-slate-900 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'}`}>
-                                    {msg.role === 'user' ? msg.text : <ReactMarkdown className="prose prose-sm prose-slate max-w-none">{msg.text}</ReactMarkdown>}
+                                    {msg.role === 'user' ? msg.text : (
+                                        <div className="prose prose-sm prose-slate max-w-none">
+                                            <ReactMarkdown>{msg.text}</ReactMarkdown>
+                                        </div>
+                                    )}
                                 </div>
                                 {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0"><User size={16}/></div>}
                             </div>

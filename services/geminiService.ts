@@ -1,14 +1,20 @@
+
 import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
 import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap } from '../types';
 
 /**
  * 获取 AI 客户端实例
+ * Initialize the Google GenAI client using the API key from environment variables.
  */
 const getAiClient = () => {
   // Strictly follow guidelines: Use process.env.API_KEY directly.
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
+/**
+ * Helper to inject language-specific instructions into prompts.
+ * Ensuring the model outputs in the user's preferred language.
+ */
 const getLangInstruction = (lang: string) => {
   switch (lang) {
     case 'zh': return "IMPORTANT: Provide the output in Simplified Chinese.";
@@ -22,6 +28,8 @@ const getLangInstruction = (lang: string) => {
 
 /**
  * Chat Streamer
+ * Handles real-time chat interaction.
+ * Converts app-specific ChatMessage types to Gemini API history format.
  */
 export const streamChatResponse = async (
     messages: ChatMessage[], 
@@ -59,10 +67,19 @@ export const streamChatResponse = async (
     }
 }
 
+/**
+ * Generates a novel cover image.
+ * Uses the dedicated Imagen model or Gemini Flash Image model depending on configuration.
+ */
 export const generateCover = async (prompt: string, model: string = 'imagen-4.0-generate-001'): Promise<string> => {
     return generateImage(prompt, model, '3:4');
 }
 
+/**
+ * core Image Generation function.
+ * Supports different models and aspect ratios.
+ * Handles response parsing for both Image generation models and Multimodal generation models.
+ */
 export const generateImage = async (prompt: string, model: string = 'imagen-4.0-generate-001', aspectRatio: string = '1:1'): Promise<string> => {
     const reqId = Math.random().toString(36).substring(7);
     console.log('GeminiService', `[${reqId}] Request: generateImage`, { prompt, model });
@@ -73,6 +90,7 @@ export const generateImage = async (prompt: string, model: string = 'imagen-4.0-
         let base64Image: string | undefined;
 
         if (model.includes('flash-image')) {
+            // Logic for Gemini Flash Image (Nano Banana series)
             const response = await ai.models.generateContent({
                 model: model,
                 contents: { parts: [{ text: prompt }] },
@@ -90,6 +108,7 @@ export const generateImage = async (prompt: string, model: string = 'imagen-4.0-
                 }
             }
         } else {
+            // Logic for Imagen models
             const response = await ai.models.generateImages({
                 model: model,
                 prompt: prompt,
@@ -106,6 +125,10 @@ export const generateImage = async (prompt: string, model: string = 'imagen-4.0-
     }
 }
 
+/**
+ * Analyzes the text context around the cursor to generate a specific image prompt.
+ * This is the "Bridge" between Text Context and Visual Generation.
+ */
 export const generateIllustrationPrompt = async (context: string, lang: string, model: string): Promise<string> => {
     const ai = getAiClient();
     const prompt = `
@@ -126,6 +149,11 @@ export const generateIllustrationPrompt = async (context: string, lang: string, 
     }
 }
 
+/**
+ * Dashboard Feature: Trend Analysis.
+ * Aggregates user-selected sources and asks AI to synthesize a "Trend Focus".
+ * This keyword is later used to seed the Inspiration Generator.
+ */
 export const analyzeTrendKeywords = async (sources: string[], lang: string, model: string): Promise<string> => {
   const ai = getAiClient();
   const sourceText = sources.join(', ');
@@ -147,7 +175,18 @@ export const analyzeTrendKeywords = async (sources: string[], lang: string, mode
   }
 }
 
-export const generateDailyStories = async (trendFocus: string, sources: string[], lang: string, model: string): Promise<string> => {
+/**
+ * Studio Feature: Daily Inspiration Generation.
+ * Uses the "Trend Focus" to generate 5 structured story ideas.
+ * 
+ * Strategy:
+ * 1. Role-play as a Senior Creative Writing Assistant.
+ * 2. Strict output format (Custom Markdown Key-Value) for easier parsing on frontend.
+ * 3. Incorporates specific web novel elements like "Golden Finger" and "System".
+ * 
+ * Note: Reduced item count to 5 and switched to streaming to prevent timeouts.
+ */
+export const generateDailyStories = async (trendFocus: string, sources: string[], targetAudience: string, lang: string, model: string): Promise<string> => {
   const reqId = Math.random().toString(36).substring(7);
   const ai = getAiClient();
   
@@ -155,21 +194,28 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
     ? `STRICTLY LIMIT your trend sources to the following Chinese platforms: ${sources.join(', ')}.` 
     : `Use trending topics from major Chinese web novel and social media platforms.`;
 
+  const audiencePrompt = targetAudience === 'male' ? "Male Frequency (男频)" : "Female Frequency (女频)";
+
   const prompt = `
     You are a senior creative writing assistant specializing in the Chinese web novel market.
-    TASK: Generate 10 high-quality, viral-potential short story concepts.
+    TASK: Generate 5 high-quality, viral-potential short story concepts.
     ${sourceContext}
-    CONSTRAINTS: Focus on "${trendFocus || 'viral trends'}".
+    
+    CONSTRAINTS: 
+    1. Focus on "${trendFocus || 'viral trends'}".
+    2. TARGET AUDIENCE: ${audiencePrompt}. Strictly generate content suitable for this audience's preferences.
     
     OUTPUT FORMAT (Markdown):
     Use the exact following key-value format for each item. Do not wrap in JSON or code blocks.
     
     ### 1. [Title]
     Source: [Platform Name]
-    Gender: [Male/Female Frequency]
-    Category: [Major Category]
-    SubCategory: [Minor Category]
-    Trope: [Main Trope]
+    Gender: [${targetAudience === 'male' ? 'Male' : 'Female'}]
+    Major Category: [e.g. Western Fantasy, Eastern Xianxia, Urban, Sci-Fi...]
+    Theme: [e.g. Derivative, Officialdom, Urban Superpowers, Rebirth...]
+    Character Archetype: [e.g. Multi-female/Harem, Emperor, CEO, Villain...]
+    Plot Type: [e.g. God-slaying, Journey to West, Revenge, System...]
+    Trope: [Main Trope/Hook]
     Golden Finger: [The specific cheat/advantage]
     Cool Point System: [How the character gains satisfaction/power]
     Memory Anchor: [A memorable specific scene or object]
@@ -177,18 +223,27 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
     Burst Point: [Opening conflict/twist]
     Synopsis: [Compelling summary...]
     
-    ... (repeat for 10 items)
+    ... (repeat for 5 items)
     
     ${getLangInstruction(lang)}
     Ensure all content is in Simplified Chinese.
   `;
 
   try {
-    const response = await ai.models.generateContent({ model, contents: prompt });
-    return response.text || "Failed to generate stories.";
+    // Use stream to prevent timeout on long generations
+    const result = await ai.models.generateContentStream({ 
+        model, 
+        contents: { role: 'user', parts: [{ text: prompt }] }
+    });
+    
+    let fullText = '';
+    for await (const chunk of result) {
+        fullText += chunk.text;
+    }
+    return fullText || "Failed to generate stories.";
   } catch (error: any) {
     console.error('GeminiService', `[${reqId}] Failed: generateDailyStories`, error);
-    return "Error generating stories.";
+    return "Error generating stories. Please reduce complexity or try again.";
   }
 };
 
@@ -258,7 +313,12 @@ export const generateOutline = async (premise: string, lang: string, model: stri
   }
 };
 
-// New function for 8-part architecture
+/**
+ * Architect Core: 8-Map Generation.
+ * Instead of a single flat outline, this function generates 8 distinct interconnected trees (Mind Maps).
+ * This structure allows for "Retrieval Augmented Generation" within the editor, 
+ * where the AI can look up "World" or "Character" details when writing a specific "Chapter".
+ */
 export const generateNovelArchitecture = async (idea: string, lang: string, model: string): Promise<ArchitectureMap & { synopsis: string }> => {
     const ai = getAiClient();
 
@@ -284,6 +344,7 @@ export const generateNovelArchitecture = async (idea: string, lang: string, mode
         required: ["name", "type", "description"]
     };
 
+    // The Mega-Schema for the 8-Map System
     const schema: Schema = {
         type: Type.OBJECT,
         properties: {
@@ -372,6 +433,10 @@ export const generateNovelArchitecture = async (idea: string, lang: string, mode
     }
 }
 
+/**
+ * Extracts a flattened text context from the hierarchical outline tree.
+ * Used to feed relevant "World" or "Character" settings into the drafting AI.
+ */
 export const extractContextFromTree = (root: OutlineNode): string => {
     let context = '';
     const traverse = (node: OutlineNode) => {
@@ -383,6 +448,12 @@ export const extractContextFromTree = (root: OutlineNode): string => {
     return context;
 }
 
+/**
+ * High-level orchestration function to convert a simple text Idea into a full project.
+ * 1. Generates Architecture (8-Map).
+ * 2. Extracts Context.
+ * 3. Generates the first chapter/content based on that architecture.
+ */
 export const generateStoryFromIdea = async (
     idea: string, 
     config: GenerationConfig, 
@@ -467,6 +538,10 @@ export const generateStoryFromIdea = async (
     }
 };
 
+/**
+ * Generates content for a specific chapter node.
+ * CRITICAL: Injects the "World/Character" context to ensure consistency.
+ */
 export const generateChapterContent = async (
     node: OutlineNode, 
     context: string, 
@@ -499,6 +574,10 @@ export const generateChapterContent = async (
     }
 }
 
+/**
+ * Rewrites content with context awareness.
+ * Used in the Editor for "AI Modify" features.
+ */
 export const rewriteChapterWithContext = async (
     currentContent: string,
     updatedContext: string,

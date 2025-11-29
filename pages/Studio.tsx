@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { manipulateText, rewriteChapterWithContext, extractContextFromTree, analyzeTrendKeywords, generateChapterContent, generateImage, generateIllustrationPrompt } from '../services/geminiService';
 import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Database, History, Trash2, Clock, Loader2, ChevronDown, ChevronUp, Check, BookOpen, Tag, Globe, Sliders, ChevronRight, GripHorizontal, Layout as LayoutIcon, Zap, Library, Plus, FileText, FolderOpen, Network, Pencil, Wrench, Sidebar, Image as ImageIcon, Upload, Eye } from 'lucide-react';
@@ -18,67 +19,80 @@ const useIsMobile = () => {
     return isMobile;
 };
 
+/**
+ * Studio Component
+ * The central hub for creative writing. It integrates multiple AI agents:
+ * 1. Trend Analysis Agent (via Dashboard/Service)
+ * 2. Inspiration Generator (Daily Gen)
+ * 3. Architect Agent (8-Map System)
+ * 4. Drafting Agent (Chapter Writer)
+ * 5. Illustrator Agent (Cover/Scene Gen)
+ */
 export const Studio: React.FC = () => {
+  // --- UI State: Tabs & Views ---
   const [activeTab, setActiveTab] = useState<'daily' | 'tools'>('daily');
   
+  // 'quick-tools': Simple text input for quick AI rewrites
+  // 'story-map': The visual mind map architecture of a novel
+  // 'story-files': The folder/file view of the manuscript
+  // 'story-editor': The dedicated text editor for writing chapters
+  const [mainViewMode, setMainViewMode] = useState<'quick-tools' | 'story-map' | 'story-files' | 'story-editor'>('quick-tools');
+
+  // --- Context & Global State ---
   const { model, studioState, setStudioState, startStudioGeneration, startStoryGeneration, promptLibrary, addPrompt, deletePrompt } = useApp();
   const { t, lang, getToolLabel, getProcessLabel } = useI18n();
   const isMobile = useIsMobile();
 
+  // --- Data Management ---
   const [history, setHistory] = useState<StudioRecord[]>([]);
-  // Default source is Fanqie
+  // Daily Gen Sources
   const [selectedSources, setSelectedSources] = useState<string[]>(['fanqie']);
+  const [targetAudience, setTargetAudience] = useState<string>('male');
   const [showSourceSelector, setShowSourceSelector] = useState(false);
   const [isAnalyzingTrend, setIsAnalyzingTrend] = useState(false);
 
-  // Tool Mode State
+  // --- Tool Mode State ---
   const [editorText, setEditorText] = useState('');
   const [toolMode, setToolMode] = useState<'continue' | 'rewrite' | 'polish'>('continue');
   const [toolLoading, setToolLoading] = useState(false);
   
-  // Editor AI Prompt
+  // --- Editor & Prompt State ---
   const [selectedPromptId, setSelectedPromptId] = useState<string>('');
-
-  // Story Gen Config State
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [selectedIdea, setSelectedIdea] = useState<string>('');
-  const [config, setConfig] = useState<GenerationConfig>({ type: 'short', wordCount: 2000, chapterCount: 10, wordsPerChapter: 3000, styleId: '' });
-
-  // Prompt Library State
   const [showPromptLib, setShowPromptLib] = useState(false);
   const [newPromptName, setNewPromptName] = useState('');
   const [newPromptContent, setNewPromptContent] = useState('');
 
-  // Illustration State
+  // --- Config Modal (for converting Idea to Story) ---
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [selectedIdea, setSelectedIdea] = useState<string>('');
+  const [config, setConfig] = useState<GenerationConfig>({ type: 'short', wordCount: 2000, chapterCount: 10, wordsPerChapter: 3000, styleId: '' });
+
+  // --- Illustration State ---
   const [showIlluModal, setShowIlluModal] = useState(false);
   const [illuMode, setIlluMode] = useState<'context' | 'prompt' | 'upload'>('context');
   const [illuPrompt, setIlluPrompt] = useState('');
   const [isGeneratingIllu, setIsGeneratingIllu] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  // View & Navigation State
-  // 'quick-tools': The generic text AI tool
-  // 'story-map': The mind map view for a story
-  // 'story-files': The folder view for manuscript
-  // 'story-editor': The text editor for a specific chapter
-  const [mainViewMode, setMainViewMode] = useState<'quick-tools' | 'story-map' | 'story-files' | 'story-editor'>('quick-tools');
-  
-  // Active Story Context
+  // --- Active Context ---
+  // The currently loaded story project
   const [activeStoryRecord, setActiveStoryRecord] = useState<StudioRecord | null>(null);
   const [expandedStoryId, setExpandedStoryId] = useState<string>('');
   
-  // Specific Contexts within a Story
+  // Navigation within a story
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number | null>(null);
   const [selectedMapType, setSelectedMapType] = useState<keyof ArchitectureMap>('world');
   const [selectedMapNode, setSelectedMapNode] = useState<OutlineNode | null>(null);
   
-  // Operation States
+  // Async Operation Flags
   const [isRewriting, setIsRewriting] = useState(false);
   const [isGeneratingChapter, setIsGeneratingChapter] = useState(false);
 
   // Node editing form
   const [editNodeName, setEditNodeName] = useState('');
   const [editNodeDesc, setEditNodeDesc] = useState('');
+
+  // --- Lifecycle & Persistence ---
 
   const loadHistory = () => {
       setTimeout(() => {
@@ -94,12 +108,14 @@ export const Studio: React.FC = () => {
       loadHistory();
   }, []);
 
+  // Poll for background generation updates (studioState global)
   useEffect(() => {
       if (!studioState.isGenerating && studioState.generatedContent) {
           loadHistory();
       }
   }, [studioState.isGenerating, studioState.generatedContent]);
 
+  // Auto-save Quick Tool text
   useEffect(() => {
       const timeoutId = setTimeout(() => {
           const currentSaved = loadFromStorage(STORAGE_KEYS.STUDIO) || {};
@@ -119,10 +135,19 @@ export const Studio: React.FC = () => {
       }
   }, [selectedMapNode]);
 
+  // --- Core Handlers ---
+
+  /**
+   * Trigger the Daily Inspiration Generator.
+   * Uses selected sources to find a trend, then asks AI to generate story ideas.
+   */
   const handleDailyGen = () => {
-    startStudioGeneration(studioState.trendFocus, selectedSources, lang);
+    startStudioGeneration(studioState.trendFocus, selectedSources, targetAudience, lang);
   };
 
+  /**
+   * Ask AI to analyze the "New Book Lists" of selected platforms to find a hot keyword.
+   */
   const handleAnalyzeTrend = async () => {
       if (selectedSources.length === 0) return;
       setIsAnalyzingTrend(true);
@@ -218,6 +243,10 @@ export const Studio: React.FC = () => {
       setSelectedMapNode({ ...selectedMapNode, name: editNodeName, description: editNodeDesc });
   }
 
+  /**
+   * Generates draft content for a specific node in the Architecture Map.
+   * CRITICAL: It extracts "World" and "Character" context from other maps to inform the draft.
+   */
   const handleGenerateNodeContent = async () => {
       if (!activeStoryRecord || !selectedMapNode || !selectedMapNode.id) return;
       setIsGeneratingChapter(true);
@@ -247,6 +276,10 @@ export const Studio: React.FC = () => {
       }
   }
 
+  /**
+   * Rewrites the current chapter in the Editor.
+   * It re-injects the current architecture context to ensure the rewrite stays consistent with the world settings.
+   */
   const handleRewriteWithContext = async () => {
       if (!activeStoryRecord || currentChapterIndex === null) return;
       
@@ -377,6 +410,7 @@ export const Studio: React.FC = () => {
       reader.readAsDataURL(file);
   };
 
+  // --- Parser for Inspiration Cards ---
   const parseInspirations = (text: string) => {
       if (!text) return [];
       const blocks = text.split(/### \d+\./g).filter(p => p.trim().length > 0);
@@ -384,14 +418,21 @@ export const Studio: React.FC = () => {
           const lines = block.split('\n').map(l => l.trim()).filter(l => l);
           const title = lines[0];
           const getVal = (key: string) => {
-              const line = lines.find(l => l.startsWith(key + ':') || l.startsWith('**' + key + '**:'));
+              const line = lines.find(l => l.toLowerCase().startsWith(key.toLowerCase() + ':') || l.toLowerCase().startsWith('**' + key.toLowerCase() + '**:'));
               return line ? line.split(':')[1].trim() : '';
           };
           let metadata: InspirationMetadata = {
-             source: getVal('Source'), gender: getVal('Gender'), majorCategory: getVal('Category'), 
-             minorCategory: getVal('SubCategory'), trope: getVal('Trope'), 
-             goldenFinger: getVal('Golden Finger'), coolSystem: getVal('Cool Point System'), 
-             memoryAnchor: getVal('Memory Anchor'), coolPoint: getVal('Cool Point'), 
+             source: getVal('Source'), 
+             gender: getVal('Gender'), 
+             majorCategory: getVal('Major Category') || getVal('Category'), 
+             theme: getVal('Theme'),
+             characterArchetype: getVal('Character Archetype'),
+             plotType: getVal('Plot Type'),
+             trope: getVal('Trope'), 
+             goldenFinger: getVal('Golden Finger'), 
+             coolSystem: getVal('Cool Point System'), 
+             memoryAnchor: getVal('Memory Anchor'), 
+             coolPoint: getVal('Cool Point'), 
              burstPoint: getVal('Burst Point')
           };
           const synopsis = getVal('Synopsis');
@@ -882,6 +923,17 @@ export const Studio: React.FC = () => {
                         {/* Control Panel */}
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm"><Sparkles className="text-yellow-500" size={16}/> {t('studio.dailyGenTitle')}</h3>
+                            
+                            <label className="block text-xs font-bold text-slate-700 uppercase mb-2">{t('studio.targetAudience')}</label>
+                            <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+                                <button onClick={() => setTargetAudience('male')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${targetAudience === 'male' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {t('studio.maleFreq')}
+                                </button>
+                                <button onClick={() => setTargetAudience('female')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${targetAudience === 'female' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {t('studio.femaleFreq')}
+                                </button>
+                            </div>
+
                             <label className="block text-xs font-bold text-slate-700 uppercase mb-2">{t('studio.trendLabel')}</label>
                             <div className="flex gap-2 mb-4">
                                 <input type="text" value={studioState.trendFocus} onChange={(e) => handleInputChange(e.target.value)} placeholder={t('studio.trendPlaceholder')} className="flex-1 p-2 text-xs border border-slate-300 rounded focus:ring-2 focus:ring-teal-500 focus:outline-none" disabled={studioState.isGenerating} />
@@ -954,8 +1006,33 @@ export const Studio: React.FC = () => {
                                         {card.metadata && (
                                             <div className="flex flex-wrap gap-2 mb-6">
                                                 {card.metadata.source && <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-white border border-slate-200 text-slate-600 flex items-center gap-1"><Globe size={10}/> {card.metadata.source}</span>}
+                                                {card.metadata.gender && <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-pink-50 border border-pink-100 text-pink-700">{card.metadata.gender}</span>}
                                                 {card.metadata.majorCategory && <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-indigo-50 border border-indigo-100 text-indigo-700">{card.metadata.majorCategory}</span>}
                                                 {card.metadata.trope && <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-orange-50 border border-orange-100 text-orange-700 flex items-center gap-1"><Tag size={10}/> {card.metadata.trope}</span>}
+                                            </div>
+                                        )}
+                                        
+                                        {/* New Metadata Grid */}
+                                        {card.metadata && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                                                {card.metadata.theme && (
+                                                    <div className="px-3 py-2 bg-slate-100 rounded text-xs">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('studio.meta.theme')}</span>
+                                                        <span className="font-medium text-slate-700">{card.metadata.theme}</span>
+                                                    </div>
+                                                )}
+                                                {card.metadata.characterArchetype && (
+                                                    <div className="px-3 py-2 bg-slate-100 rounded text-xs">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('studio.meta.character')}</span>
+                                                        <span className="font-medium text-slate-700">{card.metadata.characterArchetype}</span>
+                                                    </div>
+                                                )}
+                                                {card.metadata.plotType && (
+                                                    <div className="px-3 py-2 bg-slate-100 rounded text-xs">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('studio.meta.plot')}</span>
+                                                        <span className="font-medium text-slate-700">{card.metadata.plotType}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 

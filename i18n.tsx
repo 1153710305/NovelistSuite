@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { saveToStorage, loadFromStorage, STORAGE_KEYS } from './services/storageService';
 
@@ -27,9 +28,10 @@ const translations: Record<Language, any> = {
     },
     lab: { sourceText: 'Source Link', analyzeBtn: 'Analyze', analyzing: 'Analyzing...', viralFactors: 'Viral Factors', pacing: 'Pacing Analysis', characters: 'Character Analysis', placeholder: 'Paste text here...', emptyState: 'Run analysis to see results', modes: { viral: 'Viral', pacing: 'Pacing', chars: 'Chars' }, historyTitle: 'Records' },
     studio: { 
-        tabDaily: 'Inspiration', tabTools: 'Tools', dailyGenTitle: 'Daily Gen', dailyGenDesc: 'Generate Ideas', trendLabel: 'Trend Focus', trendPlaceholder: 'e.g., Cyberpunk...', generateBtn: 'Generate 10 Ideas', generating: 'Generating...', generatingBackground: 'Processing...', backgroundTip: 'Safe to leave', emptyDaily: 'Output Area', toolContinue: 'Continue', toolRewrite: 'Rewrite', toolPolish: 'Polish', toolPlaceholder: 'Paste draft...', processing: 'Working...', emptyTool: 'AI Output...', historyTitle: 'History',
+        tabDaily: 'Inspiration', tabTools: 'Tools', dailyGenTitle: 'Daily Gen', dailyGenDesc: 'Generate Ideas', trendLabel: 'Trend Focus', trendPlaceholder: 'e.g., Cyberpunk...', generateBtn: 'Generate 5 Ideas', generating: 'Generating...', generatingBackground: 'Processing...', backgroundTip: 'Safe to leave', emptyDaily: 'Output Area', toolContinue: 'Continue', toolRewrite: 'Rewrite', toolPolish: 'Polish', toolPlaceholder: 'Paste draft...', processing: 'Working...', emptyTool: 'AI Output...', historyTitle: 'History',
+        targetAudience: 'Target Audience', maleFreq: 'Male Frequency', femaleFreq: 'Female Frequency',
         genStory: 'Generate Story', config: { title: 'Configuration', type: 'Type', short: 'Short Story', long: 'Serial Novel', wordCount: 'Word Count', chapterCount: 'Est. Chapters', wordsPerChapter: 'Words/Chapter', style: 'Writing Style' }, records: { inspiration: 'Inspiration', story: 'Story' },
-        meta: { source: 'Source', gender: 'Gender', category: 'Category', trope: 'Trope', synopsis: 'Synopsis', coolPoint: 'Cool Point', burstPoint: 'Burst Point', goldenFinger: 'Cheat Code', coolSystem: 'Cool System', memoryAnchor: 'Memory Hook' },
+        meta: { source: 'Source', gender: 'Gender', category: 'Category', trope: 'Trope', synopsis: 'Synopsis', coolPoint: 'Cool Point', burstPoint: 'Burst Point', goldenFinger: 'Cheat Code', coolSystem: 'Cool System', memoryAnchor: 'Memory Hook', theme: 'Theme', character: 'Character', plot: 'Plot Type' },
         context: { title: 'Novel Architecture', edit: 'Edit Settings', apply: 'Apply (Rewrite)', applying: 'Rewriting...', manuscript: 'Manuscript Folder' },
         maps: { world: 'World Setting', system: 'Cool System', mission: 'Mission Archive', character: 'Character Status', anchor: 'Memory Anchors', structure: 'Outline', events: 'Major Events', chapters: 'Chapter Outline' },
         analyzeTrend: 'Get Trend (New Book List)', analyzingTrend: 'Analyzing...', promptLib: 'Prompt Library',
@@ -88,9 +90,10 @@ const translations: Record<Language, any> = {
     },
     lab: { sourceText: '小说链接', analyzeBtn: '开始分析', analyzing: 'AI 阅读中...', viralFactors: '爆款报告', pacing: '节奏分析', characters: '角色研究', placeholder: '粘贴文本...', emptyState: '粘贴链接并分析', modes: { viral: '爆款因子', pacing: '节奏', chars: '角色' }, historyTitle: '分析记录' },
     studio: { 
-        tabDaily: '每日灵感', tabTools: 'AI工具', dailyGenTitle: '每日生成', dailyGenDesc: '生成创意', trendLabel: '趋势焦点', trendPlaceholder: '例：赛博朋克...', generateBtn: '生成10个灵感', generating: '生成中...', generatingBackground: '后台生成中...', backgroundTip: '可离开页面', emptyDaily: '灵感展示区', toolContinue: '续写', toolRewrite: '改写', toolPolish: '润色', toolPlaceholder: '粘贴草稿...', processing: '处理中...', emptyTool: 'AI输出...', historyTitle: '历史',
+        tabDaily: '每日灵感', tabTools: 'AI工具', dailyGenTitle: '每日生成', dailyGenDesc: '生成创意', trendLabel: '趋势焦点', trendPlaceholder: '例：赛博朋克...', generateBtn: '生成5个灵感', generating: '生成中...', generatingBackground: '后台生成中...', backgroundTip: '可离开页面', emptyDaily: '灵感展示区', toolContinue: '续写', toolRewrite: '改写', toolPolish: '润色', toolPlaceholder: '粘贴草稿...', processing: '处理中...', emptyTool: 'AI输出...', historyTitle: '历史',
+        targetAudience: '目标读者', maleFreq: '男频', femaleFreq: '女频',
         genStory: '生成小说', config: { title: '生成配置', type: '类型', short: '短篇小说', long: '连载长篇', wordCount: '目标字数', chapterCount: '预估章数', wordsPerChapter: '每章字数', style: '文风预设' }, records: { inspiration: '灵感批次', story: '生成小说' },
-        meta: { source: '来源', gender: '频段', category: '分类', trope: '类型', synopsis: '简介', coolPoint: '爽点', burstPoint: '爆点', goldenFinger: '金手指', coolSystem: '爽点体系', memoryAnchor: '记忆锚点' },
+        meta: { source: '来源', gender: '频段', category: '主分类', trope: '梗/类型', synopsis: '简介', coolPoint: '爽点', burstPoint: '爆点', goldenFinger: '金手指', coolSystem: '爽点体系', memoryAnchor: '记忆锚点', theme: '主题', character: '角色原型', plot: '情节类型' },
         context: { title: '小说架构全景', edit: '修改设定', apply: '立即生效(重写)', applying: '重写中...', manuscript: '正文文件夹' },
         maps: { world: '世界设定', system: '爽点体系', mission: '任务档案', character: '角色状态', anchor: '记忆锚点', structure: '作品大纲', events: '大事件简纲', chapters: '章节细纲' },
         analyzeTrend: '获取焦点 (新书榜)', analyzingTrend: '爬取中...', promptLib: '提示词库',
