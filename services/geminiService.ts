@@ -177,14 +177,11 @@ export const analyzeTrendKeywords = async (sources: string[], lang: string, mode
 
 /**
  * Studio Feature: Daily Inspiration Generation.
- * Uses the "Trend Focus" to generate 5 structured story ideas.
+ * Uses the "Trend Focus" to generate structured story ideas.
  * 
- * Strategy:
- * 1. Role-play as a Senior Creative Writing Assistant.
- * 2. Strict output format (Custom Markdown Key-Value) for easier parsing on frontend.
- * 3. Incorporates specific web novel elements like "Golden Finger" and "System".
- * 
- * Note: Reduced item count to 5 and switched to streaming to prevent timeouts.
+ * Updated: Now accepts `targetAudience` to tailor content for Male/Female frequencies.
+ * Updated: Requests specific tags (Category, Theme, Character, Plot) as per user request.
+ * Updated: Reduced item count to 5 and uses streaming to prevent timeouts.
  */
 export const generateDailyStories = async (trendFocus: string, sources: string[], targetAudience: string, lang: string, model: string): Promise<string> => {
   const reqId = Math.random().toString(36).substring(7);
@@ -212,9 +209,9 @@ export const generateDailyStories = async (trendFocus: string, sources: string[]
     Source: [Platform Name]
     Gender: [${targetAudience === 'male' ? 'Male' : 'Female'}]
     Major Category: [e.g. Western Fantasy, Eastern Xianxia, Urban, Sci-Fi...]
-    Theme: [e.g. Derivative, Officialdom, Urban Superpowers, Rebirth...]
-    Character Archetype: [e.g. Multi-female/Harem, Emperor, CEO, Villain...]
-    Plot Type: [e.g. God-slaying, Journey to West, Revenge, System...]
+    Theme: [e.g. Derivative (同人), Officialdom (仕途), Urban Superpowers (都市异能), Rebirth (重生)...]
+    Character Archetype: [e.g. Multi-female/Harem (多女主), Emperor (皇帝), CEO, Villain...]
+    Plot Type: [e.g. God-slaying (斩神), Journey to West Derivative (西游衍生), Revenge, System...]
     Trope: [Main Trope/Hook]
     Golden Finger: [The specific cheat/advantage]
     Cool Point System: [How the character gains satisfaction/power]

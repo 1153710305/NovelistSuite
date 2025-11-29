@@ -4,7 +4,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, Users, Info, ExternalLink, Globe, BarChart2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { AVAILABLE_SOURCES } from '../types';
 import { DataMethodologyModal } from '../components/DataMethodologyModal';
 
 // --- MOCK DATA TYPES ---
@@ -28,6 +27,57 @@ type SocialTrend = {
     rank: number;
     topic: string;
     heat: number;
+    label?: string;
+};
+
+// --- REALISTIC MOCK DATA POOL ---
+const TREND_DATA_POOL: Record<string, { zh: string, en: string, heat: number, label?: string }[]> = {
+    fanqie: [
+        { zh: "重生1980：开局倒卖国库券", en: "Reborn 1980: Trading Treasury Bonds", heat: 98500, label: "Urban" },
+        { zh: "绝世神医：下山即无敌", en: "Divine Doctor: Invincible Descent", heat: 95200, label: "Urban" },
+        { zh: "分手后，前任小叔对我蓄谋已久", en: "After Breakup: Uncle's Secret Love", heat: 93100, label: "Romance" },
+        { zh: "荒野求生：我能看到提示", en: "Wilderness Survival: I See Hints", heat: 88400, label: "System" },
+        { zh: "全民转职：只有我转职亡灵法师", en: "Class Change: The Only Necromancer", heat: 86500, label: "Fantasy" },
+        { zh: "我在精神病院学斩神", en: "Slaying Gods in the Asylum", heat: 84200, label: "Urban" },
+        { zh: "偷听心声：女帝被我苟成圣人", en: "Mind Reading: Empress Becomes Saint", heat: 81000, label: "History" },
+        { zh: "只有我能看到的各种提示", en: "Only I Can See The Prompts", heat: 79500, label: "Suspense" },
+        { zh: "开局地摊卖大力", en: "Selling Super Strength on Street", heat: 76000, label: "Comedy" },
+        { zh: "十代神豪", en: "The Tenth Generation Tycoon", heat: 74000, label: "Urban" }
+    ],
+    qidian: [
+        { zh: "宿命之环", en: "Circle of Inevitability", heat: 105000, label: "Fantasy" },
+        { zh: "道诡异仙", en: "Dao of the Bizarre", heat: 102000, label: "Xianxia" },
+        { zh: "赤心巡天", en: "Red Heart Patrol", heat: 99000, label: "Xianxia" },
+        { zh: "深海余烬", en: "Deep Sea Embers", heat: 97500, label: "Sci-Fi" },
+        { zh: "这游戏也太真实了", en: "This Game Is Too Realistic", heat: 95000, label: "Sci-Fi" },
+        { zh: "灵境行者", en: "Spirit Realm Walker", heat: 93000, label: "Sci-Fi" },
+        { zh: "择日飞升", en: "Ascend Another Day", heat: 91000, label: "Xianxia" },
+        { zh: "大乘期才有逆袭系统", en: "System After Mahayana", heat: 89000, label: "Comedy" },
+        { zh: "我本无意成仙", en: "I Didn't Want Immortality", heat: 87000, label: "Xianxia" },
+        { zh: "从红月开始", en: "Starting from the Red Moon", heat: 85000, label: "Sci-Fi" }
+    ],
+    douyin: [
+        { zh: "#挑战100元吃遍夜市", en: "#Challenge: $15 Night Market Feast", heat: 98000 },
+        { zh: "变装：从校服到婚纱", en: "Transformation: Uniform to Wedding Dress", heat: 96000 },
+        { zh: "沉浸式收纳", en: "Immersive Organization ASMR", heat: 92000 },
+        { zh: "这是一个关于暗恋的故事", en: "A Story About Secret Crush", heat: 89000 },
+        { zh: "这个转场太丝滑了", en: "This Transition is So Smooth", heat: 85000 },
+        { zh: "第一视角：当反派", en: "POV: You are the Villain", heat: 82000 }
+    ],
+    weibo: [
+        { zh: "某顶流恋情曝光", en: "Top Star Dating Rumors", heat: 99000, label: "Hot" },
+        { zh: "春节档电影票房", en: "Spring Festival Box Office", heat: 95000 },
+        { zh: "建议专家不要建议", en: "Suggest Experts Stop Suggesting", heat: 91000 },
+        { zh: "考研分数线", en: "Grad School Entrance Scores", heat: 88000 },
+        { zh: "这只猫会说话", en: "This Cat Can Talk", heat: 84000 }
+    ],
+    bilibili: [
+        { zh: "【何同学】我做了一个AI", en: "[He Tongxue] I Built an AI", heat: 94000 },
+        { zh: "关于我转生变成史莱姆", en: "Reincarnated as a Slime", heat: 90000 },
+        { zh: "耗时300天还原", en: "300 Days to Recreate...", heat: 88000 },
+        { zh: "2024百大UP主颁奖", en: "Top 100 Uploader Awards", heat: 86000 },
+        { zh: "原神新版本前瞻", en: "Genshin Impact Update Preview", heat: 83000 }
+    ]
 };
 
 // --- SUB-COMPONENTS ---
@@ -92,27 +142,37 @@ const PlatformTraffic: React.FC<{ data: PlatformShare[] }> = ({ data }) => {
 }
 
 const SocialTrendList: React.FC<{ source: string }> = ({ source }) => {
-    const { t } = useI18n();
+    const { t, lang } = useI18n();
 
+    // Use High-Fidelity Mock Data
     const generateSocialData = (source: string): SocialTrend[] => {
+        const pool = TREND_DATA_POOL[source] || [];
+        
+        // If we have realistic data, use it
+        if (pool.length > 0) {
+            return pool.map((item, i) => ({
+                rank: i + 1,
+                topic: lang === 'zh' ? item.zh : item.en,
+                heat: item.heat,
+                label: item.label
+            }));
+        }
+
+        // Fallback for other sources (Zhihu, Xiaohongshu) using the old generator logic
         const prefixes = {
-            douyin: ['challenge', 'dance', 'pov', 'lifehack', 'comedy'],
-            weibo: ['news', 'celebrity', 'drama', 'social', 'tech'],
-            bilibili: ['anime', 'game', 'review', 'meme', 'tutorial'],
             zhihu: ['question', 'career', 'science', 'history', 'relationship'],
             xiaohongshu: ['ootd', 'makeup', 'travel', 'food', 'decor'],
             default: ['news']
         };
-    
-        const pool = (prefixes as any)[source] || prefixes.default;
+        const fallbackPool = (prefixes as any)[source] || prefixes.default;
         
-        return Array.from({ length: 20 }, (_, i) => {
-            const key = pool[i % pool.length];
+        return Array.from({ length: 10 }, (_, i) => {
+            const key = fallbackPool[i % fallbackPool.length];
             const localizedTopic = t(`topics.${key}`);
             return {
                 rank: i + 1,
                 topic: `${localizedTopic} #${i + 1}`,
-                heat: Math.floor(10000000 / (i + 1))
+                heat: Math.floor(100000 / (i + 1))
             };
         });
     };
@@ -122,17 +182,20 @@ const SocialTrendList: React.FC<{ source: string }> = ({ source }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
             {data.map((item) => (
-                <div key={item.rank} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-teal-50 transition-colors border border-slate-100 hover:border-teal-100">
+                <div key={item.rank} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-teal-50 transition-colors border border-slate-100 hover:border-teal-100 group">
                     <div className={`w-6 h-6 flex-shrink-0 flex items-center justify-center rounded text-xs font-bold ${
                         item.rank <= 3 ? 'bg-yellow-400 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
                     }`}>
                         {item.rank}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{item.topic}</p>
+                        <div className="flex justify-between items-start">
+                            <p className="text-sm font-medium text-slate-800 truncate pr-2 group-hover:text-teal-700 transition-colors">{item.topic}</p>
+                            {item.label && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 rounded">{item.label}</span>}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                             <div className="h-1.5 flex-1 bg-slate-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-red-400 rounded-full" style={{ width: `${(item.heat / data[0].heat) * 100}%` }}></div>
+                                <div className="h-full bg-red-400 rounded-full" style={{ width: `${Math.min(100, (item.heat / (data[0].heat || 1)) * 100)}%` }}></div>
                             </div>
                             <span className="text-[10px] text-slate-400 tabular-nums">{(item.heat / 10000).toFixed(1)}w</span>
                         </div>
@@ -212,7 +275,7 @@ export const Dashboard: React.FC = () => {
 
   const [selectedGenrePlatform, setSelectedGenrePlatform] = useState('Qidian');
   const [selectedTimeRange, setSelectedTimeRange] = useState('weekly');
-  const [socialTab, setSocialTab] = useState('douyin');
+  const [socialTab, setSocialTab] = useState('fanqie');
 
   // Generators inside component to access t()
   const generatePlatformData = (): PlatformShare[] => [
@@ -263,7 +326,8 @@ export const Dashboard: React.FC = () => {
   const genreData = generateGenreData(selectedGenrePlatform, selectedTimeRange);
   const platformTraffic = generatePlatformData();
 
-  const socialPlatforms = ['douyin', 'weibo', 'bilibili', 'zhihu', 'xiaohongshu', 'kuaishou'];
+  // Updated to include Fanqie and Qidian
+  const socialPlatforms = ['fanqie', 'qidian', 'douyin', 'weibo', 'bilibili', 'zhihu', 'xiaohongshu'];
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">

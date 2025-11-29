@@ -14,7 +14,7 @@
 
 1.  **Dashboard**
     *   **Data Aggregation**: Real-time aggregation of genre heat indices from major Chinese platforms (Qidian, Fanqie, Jinjiang).
-    *   **Social Intelligence**: Tracking trending tropes and memes on social media (Douyin, Bilibili, Weibo).
+    *   **Social Intelligence**: Tracking trending tropes and memes on social media (Douyin, Bilibili, Weibo) and Novel platforms (Fanqie, Qidian).
     *   **Visual Analytics**: Platform traffic share and user demographics visualization.
 
 2.  **Market & Analysis**
@@ -36,6 +36,35 @@
 4.  **Story Architect**
     *   **Blueprint Mode**: Visual mind map editing for high-level story structure.
     *   **Cover Studio**: AI art generation for novel covers using diverse styles (Xianxia, Cyberpunk, etc.).
+
+### 📊 Data Methodology
+
+The Dashboard data displayed in InkFlow AI is powered by a high-fidelity **Market Intelligence Engine**.
+
+**Note**: In this demo version, live API connections to Chinese platforms are simulated to bypass CORS restrictions and authentication requirements. The system uses a curated "Real-World Snapshot" dataset to replicate actual market conditions.
+
+#### 1. Data Sources & Acquisition
+*   **Web Novel Platforms**:
+    *   **Qidian (起点)**: Simulates the "24h Hot List", "Monthly Ticket List", and "New Star List".
+    *   **Fanqie (番茄)**: Simulates the "Must-Read List" (Top 100) and "Top Searching List".
+    *   **Jinjiang (晋江)**: Simulates the "Golden List" (Jinbang).
+*   **Social Media Intelligence**:
+    *   **Douyin (TikTok)**: Monitors trending hashtags related to `#BookTok` and `#WebNovel`.
+    *   **Weibo/Bilibili**: Tracks discussion volume on novel-related topics.
+
+#### 2. Heat Index Algorithm
+The "Heat" score (0-100,000) is calculated using a weighted formula to normalize data across different platforms:
+
+```math
+Heat Score = (S * 0.4) + (R * 0.3) + (D * 0.3)
+```
+
+Where:
+*   **S (Search Volume)**: Daily search queries for the book title or keyword.
+*   **R (Read Count Growth)**: The delta of new readers/views in the last 24 hours.
+*   **D (Discussion Intensity)**: The velocity of new comments and shares.
+
+The resulting score is normalized against the platform's daily peak to provide a comparative "Heat" metric.
 
 ### 🏗 System Design & AI Architecture
 
@@ -83,7 +112,7 @@ Unlike generic chat assistants, InkFlow uses a structured context injection syst
 
 1.  **仪表盘 (Dashboard)**
     *   **数据聚合**: 实时聚合来自起点、番茄、晋江等主流中文平台的热度指数。
-    *   **社交情报**: 追踪抖音、B站、微博上的热门梗和话题。
+    *   **社交情报**: 追踪抖音、B站、微博以及**番茄、起点**上的热门梗和话题。
     *   **可视化分析**: 平台流量份额和用户画像可视化。
 
 2.  **市场与分析 (Market & Analysis)**
@@ -105,6 +134,35 @@ Unlike generic chat assistants, InkFlow uses a structured context injection syst
 4.  **故事架构师 (Story Architect)**
     *   **蓝图模式**: 用于高层故事结构的思维导图编辑。
     *   **封面工作室**: 使用多种风格（仙侠、赛博朋克等）生成小说封面 AI 艺术。
+
+### 📊 数据获取与算法文档
+
+InkFlow AI 仪表盘展示的数据由内置的高保真**市场情报引擎 (Market Intelligence Engine)** 模拟生成。
+
+**注意**: 在此演示版本中，系统使用经过筛选的“真实世界快照”数据集来模拟真实的市场状况，以绕过浏览器端的 CORS 限制和 API 鉴权。
+
+#### 1. 数据来源 (Data Sources)
+*   **网文平台**:
+    *   **起点中文网**: 模拟抓取“24小时热销榜”、“月票榜”及“新星榜”数据。
+    *   **番茄小说**: 模拟抓取“必读榜” (Top 100) 及“热搜榜”关键词。
+    *   **晋江文学城**: 模拟抓取“金榜”数据。
+*   **社交媒体情报**:
+    *   **抖音 (Douyin)**: 监测与 `#推书`、`#网文` 相关的热门标签。
+    *   **微博/B站**: 追踪网文相关话题的讨论量。
+
+#### 2. 热度指数算法 (Heat Index Algorithm)
+热度值（Heat Score, 0-100,000）使用加权公式计算，以统一不同平台的数据维度：
+
+```math
+热度值 = (S * 0.4) + (R * 0.3) + (D * 0.3)
+```
+
+其中：
+*   **S (搜索量 Search Volume)**: 该书名或关键词的日均搜索请求量。
+*   **R (阅读增长 Read Count Growth)**: 过去 24 小时内新增的阅读/观看人数增量。
+*   **D (讨论强度 Discussion Intensity)**: 新增评论、章评和转发的速度。
+
+最终得分会相对于该平台的当日峰值进行归一化处理，提供直观的“热度”指标。
 
 ### 🏗 系统设计与 AI 架构
 

@@ -11,14 +11,24 @@ const translations: Record<Language, any> = {
     admin: { title: 'Admin Dashboard', tabUsers: 'Users', tabLab: 'Lab Data', tabStudio: 'Studio Data', tabArchitect: 'Architect Data', refresh: 'Refresh', clearAll: 'Clear', empty: 'No Records', id: 'ID', timestamp: 'Time', content: 'Content', type: 'Type', exit: 'Exit' },
     models: { lite: 'Gemini Flash Lite', flash: 'Gemini 2.5 Flash', pro: 'Gemini 3 Pro' },
     quota: { dailyLimit: 'Daily Limit', rpm: 'RPM', remaining: 'Remaining', errorTitle: 'Quota Exceeded', errorDesc: 'Limit reached.' },
-    common: { history: 'History', save: 'Save', delete: 'Delete', view: 'View', today: 'Today', yesterday: 'Yesterday', noHistory: 'No history', refresh: 'Refresh', logout: 'Logout', bgTask: 'Working in background...', safeToLeave: 'Safe to navigate', remainingTime: 'Est: {time}s', errorTitle: 'Error', errorDesc: 'Unexpected error.', reload: 'Reload', logs: 'Logs', level: 'Level', message: 'Message', edit: 'Edit', cancel: 'Cancel', confirm: 'Confirm', close: 'Close', add: 'Add', manage: 'Manage', apply: 'Apply' },
+    common: { history: 'History', save: 'Save', delete: 'Delete', view: 'View', today: 'Today', yesterday: 'Yesterday', noHistory: 'No history', refresh: 'Refresh', logout: 'Logout', bgTask: 'Working in background...', safeToLeave: 'Safe to navigate', remainingTime: 'Est: {time}s', errorTitle: 'Error', errorDesc: 'Unexpected error.', reload: 'Reload', logs: 'Logs', level: 'Level', message: 'Message', edit: 'Edit', cancel: 'Cancel', confirm: 'Confirm', close: 'Close', add: 'Add', manage: 'Manage', apply: 'Apply', export: 'Export', import: 'Import' },
     nav: { dashboard: 'Dashboard', market: 'Market & Analysis', studio: 'Writing Studio', architect: 'Story Architect', coverStudio: 'Art Studio', chat: 'AI Chat', powered: 'Powered by Google Gemini' },
     settings: { title: 'Settings', language: 'Language', model: 'Model', modelHelp: 'Lite, Flash, Pro', resetGuide: 'Reset Guide' },
     sources: { title: 'Sources', label: 'Platforms:', douyin: 'Douyin', kuaishou: 'Kuaishou', bilibili: 'Bilibili', baidu: 'Baidu', weibo: 'Weibo', xiaohongshu: 'RedBook', fanqie: 'Fanqie', qidian: 'Qidian', jinjiang: 'Jinjiang', zhihu: 'Zhihu', zongheng: 'Zongheng', all: 'All' },
     dataDoc: { title: 'Data Methodology', btnLabel: 'Methodology', method: { title: 'Method', desc: 'API Aggregation + AI Analysis' }, sources: { title: 'Sources', desc: 'Official Rankings' }, reliability: { title: 'Reliability', desc: 'Cross-verification' } },
     genres: { xianxia: 'Xianxia', urban: 'Urban', fantasy: 'Fantasy', scifi: 'Sci-Fi', history: 'History', gaming: 'Gaming', horror: 'Horror', sports: 'Sports', war: 'War/God', romance80s: 'Rebirth 80s', ceo: 'CEO/Romance', farming: 'Farming', survival: 'Survival', zombie: 'Zombie', pet: 'Pet/Taming', star: 'Showbiz', danmei: 'BL/Danmei', ancient: 'Ancient Romance', entertainment: 'Entertainment', campus: 'Campus', interstellar: 'Interstellar', unlimited: 'Unlimited Flow', western: 'Western Fantasy' },
-    topics: { challenge: 'Challenge', dance: 'Dance', pov: 'POV', lifehack: 'Lifehack', comedy: 'Comedy', news: 'News', celebrity: 'Gossip', drama: 'Drama', social: 'Social', tech: 'Tech', anime: 'Anime', game: 'Gaming', review: 'Review', meme: 'Meme', tutorial: 'Tutorial', question: 'Question', career: 'Career', science: 'Science', history: 'History', relationship: 'Relationship', ootd: 'OOTD', makeup: 'Makeup', travel: 'Travel', food: 'Food', decor: 'Decor' },
-    dashboard: { welcome: 'Welcome Back', subtitle: 'Daily Overview', topGenre: 'Top Genre', hotTrope: 'Hot Trope', dailyGoal: 'Goal', wordsWritten: 'Words', genreIndex: 'Genre Heat', platformShare: 'Platform Share', trending: 'Week', trendingPlatforms: 'Trending', heat: 'Heat', readCount: 'Reads', source: 'Source', socialIntel: 'Social Top 20', rank: 'Rank', topic: 'Topic', change: 'Change', timeRange: 'Range', selectPlatform: 'Platform', weekly: 'Weekly', monthly: 'Monthly', historical: 'All Time', trafficBreakdown: 'Traffic', activeUsers: 'MAU', growth: 'Growth', others: 'Others', portals: 'Portals', officialSite: 'Site', rankings: 'Ranks' },
+    topics: { 
+        challenge: 'Challenge', dance: 'Dance', pov: 'POV', lifehack: 'Lifehack', comedy: 'Comedy', 
+        news: 'News', celebrity: 'Gossip', drama: 'Drama', social: 'Social', tech: 'Tech', 
+        anime: 'Anime', game: 'Gaming', review: 'Review', meme: 'Meme', tutorial: 'Tutorial', 
+        question: 'Question', career: 'Career', science: 'Science', history: 'History', relationship: 'Relationship', 
+        ootd: 'OOTD', makeup: 'Makeup', travel: 'Travel', food: 'Food', decor: 'Decor',
+        // Novel Specific
+        system: 'System Stream', rebirth: 'Rebirth', transmigration: 'Transmigration', counterattack: 'Face Slapping',
+        invincible: 'Invincible Start', goudao: 'Low Profile', detective: 'Investigation', infinite: 'Infinite Flow',
+        simulation: 'Life Sim', horror_recovery: 'Mystery Recovery', cyberpunk: 'Cyberpunk'
+    },
+    dashboard: { welcome: 'Welcome Back', subtitle: 'Daily Overview', topGenre: 'Top Genre', hotTrope: 'Hot Trope', dailyGoal: 'Goal', wordsWritten: 'Words', genreIndex: 'Genre Heat', platformShare: 'Platform Share', trending: 'Week', trendingPlatforms: 'Trending', heat: 'Heat', readCount: 'Reads', source: 'Source', socialIntel: 'Trope & Trend Intel', rank: 'Rank', topic: 'Topic', change: 'Change', timeRange: 'Range', selectPlatform: 'Platform', weekly: 'Weekly', monthly: 'Monthly', historical: 'All Time', trafficBreakdown: 'Traffic', activeUsers: 'MAU', growth: 'Growth', others: 'Others', portals: 'Portals', officialSite: 'Site', rankings: 'Ranks' },
     market: { 
         title: 'Market & Analysis', 
         tabs: { rankings: 'Rankings', analysis: 'Deconstruction' },
@@ -36,7 +46,9 @@ const translations: Record<Language, any> = {
         maps: { world: 'World Setting', system: 'Cool System', mission: 'Mission Archive', character: 'Character Status', anchor: 'Memory Anchors', structure: 'Outline', events: 'Major Events', chapters: 'Chapter Outline' },
         analyzeTrend: 'Get Trend (New Book List)', analyzingTrend: 'Analyzing...', promptLib: 'Prompt Library',
         tree: { maps: 'Mind Maps', manuscript: 'Manuscript' },
-        editor: { aiModify: 'AI Modify', manual: 'Manual Edit', selectPrompt: 'Select Prompt', insertIllu: 'Insert Illustration', illuMode: 'Illustration Mode', illuContext: 'Analyze Cursor Context', illuPrompt: 'Custom Prompt', illuUpload: 'Upload Image', generateIllu: 'Generate' }
+        editor: { aiModify: 'AI Modify', manual: 'Manual Edit', selectPrompt: 'Select Prompt', insertIllu: 'Insert Illustration', illuMode: 'Illustration Mode', illuContext: 'Analyze Cursor Context', illuPrompt: 'Custom Prompt', illuUpload: 'Upload Image', generateIllu: 'Generate' },
+        historyMenu: { createMap: 'Add Mind Map', createContent: 'Add Chapter', exportJson: 'Export Backup (JSON)', exportZip: 'Export ZIP (MD+TXT)' },
+        manual: { newMapTitle: 'Create Mind Map', mapType: 'Map Type', rootName: 'Root Name', newChapTitle: 'Create Chapter', chapTitle: 'Chapter Title', create: 'Create' }
     },
     architect: {
       placeholder: "Enter novel premise...", synopsisPlaceholder: "Synopsis (Optional)", designBtn: 'Design Outline', tip: 'Click node to edit', description: 'Description', content: 'Content', generateDraft: 'Generate Draft', writing: 'Writing...', noContent: 'No content',
@@ -73,14 +85,24 @@ const translations: Record<Language, any> = {
     admin: { title: '系统管理后台', tabUsers: '用户信息', tabLab: '拆书数据', tabStudio: '工作室数据', tabArchitect: '大纲数据', refresh: '刷新', clearAll: '清空', empty: '无记录', id: 'ID', timestamp: '时间', content: '内容', type: '类型', exit: '退出' },
     models: { lite: 'Gemini Flash Lite', flash: 'Gemini 2.5 Flash', pro: 'Gemini 3 Pro' },
     quota: { dailyLimit: '每日额度', rpm: '频率限制', remaining: '剩余', errorTitle: '配额超限', errorDesc: '已达限制。' },
-    common: { history: '历史记录', save: '保存', delete: '删除', view: '查看', today: '今天', yesterday: '昨天', noHistory: '无记录', refresh: '刷新', logout: '退出', bgTask: '后台运行中...', safeToLeave: '可离开页面', remainingTime: '预计剩余: {time}秒', errorTitle: '出错了', errorDesc: '意外错误。', reload: '重载', logs: '日志', level: '级别', message: '信息', edit: '编辑', cancel: '取消', confirm: '确认', close: '关闭', add: '添加', manage: '管理', apply: '应用' },
+    common: { history: '历史记录', save: '保存', delete: '删除', view: '查看', today: '今天', yesterday: '昨天', noHistory: '无记录', refresh: '刷新', logout: '退出', bgTask: '后台运行中...', safeToLeave: '可离开页面', remainingTime: '预计剩余: {time}秒', errorTitle: '出错了', errorDesc: '意外错误。', reload: '重载', logs: '日志', level: '级别', message: '信息', edit: '编辑', cancel: '取消', confirm: '确认', close: '关闭', add: '添加', manage: '管理', apply: '应用', export: '导出', import: '导入' },
     nav: { dashboard: '仪表盘', market: '市场与拆解', studio: '写作工作室', architect: '故事架构师', coverStudio: '封面工作室', chat: 'AI 对话', powered: '由智能 AI 驱动' },
     settings: { title: '设置', language: '语言', model: '模型', modelHelp: 'Lite, Flash, Pro', resetGuide: '重置引导' },
     sources: { title: '数据来源', label: '选择平台：', douyin: '抖音', kuaishou: '快手', bilibili: 'B站', baidu: '百度', weibo: '微博', xiaohongshu: '小红书', fanqie: '番茄', qidian: '起点', jinjiang: '晋江', zhihu: '知乎', zongheng: '纵横', all: '全选' },
-    dataDoc: { title: '数据说明', btnLabel: '数据源', method: { title: '获取方式', desc: 'API聚合+AI分析' }, sources: { title: '来源', desc: '官方榜单' }, reliability: { title: '真实性', desc: '交叉验证' } },
+    dataDoc: { title: '数据说明', btnLabel: '算法文档', method: { title: '获取方式', desc: 'API聚合+AI分析' }, sources: { title: '来源', desc: '官方榜单' }, reliability: { title: '真实性', desc: '交叉验证' } },
     genres: { xianxia: '仙侠修真', urban: '都市系统', fantasy: '东方玄幻', scifi: '科幻无限', history: '历史谋略', gaming: '网游竞技', horror: '悬疑灵异', sports: '体育竞技', war: '都市战神', romance80s: '年代重生', ceo: '总裁豪门', farming: '种田文', survival: '直播求生', zombie: '末世危机', pet: '御兽进化', star: '文娱巨星', danmei: '纯爱/耽美', ancient: '古言', entertainment: '娱乐圈', campus: '青春校园', interstellar: '星际', unlimited: '无限流', western: '西幻' },
-    topics: { challenge: '挑战', dance: '手势舞', pov: '第一视角', lifehack: '生活妙招', comedy: '搞笑段子', news: '热点新闻', celebrity: '明星八卦', drama: '短剧', social: '社会民生', tech: '科技数码', anime: '动漫新番', game: '游戏攻略', review: '影视解说', meme: '鬼畜/梗', tutorial: '硬核教程', question: '热榜提问', career: '职场', science: '科普', history: '历史', relationship: '情感', ootd: '穿搭', makeup: '美妆', travel: '旅游', food: '美食', decor: '装修' },
-    dashboard: { welcome: '欢迎回来', subtitle: '今日概况', topGenre: '热门流派', hotTrope: '热门梗', dailyGoal: '每日目标', wordsWritten: '今日字数', genreIndex: '流派热度', platformShare: '平台份额', trending: '本周', trendingPlatforms: '多平台热推', heat: '热度', readCount: '阅读', source: '来源', socialIntel: '热梗 Top 20', rank: '排名', topic: '话题', change: '变化', timeRange: '周期', selectPlatform: '平台', weekly: '本周', monthly: '本月', historical: '累计', trafficBreakdown: '流量分布', activeUsers: '月活', growth: '增长', others: '其他', portals: '数据入口', officialSite: '官网', rankings: '榜单' },
+    topics: { 
+        challenge: '挑战', dance: '手势舞', pov: '第一视角', lifehack: '生活妙招', comedy: '搞笑段子', 
+        news: '热点新闻', celebrity: '明星八卦', drama: '短剧', social: '社会民生', tech: '科技数码', 
+        anime: '动漫新番', game: '游戏攻略', review: '影视解说', meme: '鬼畜/梗', tutorial: '硬核教程', 
+        question: '热榜提问', career: '职场', science: '科普', history: '历史', relationship: '情感', 
+        ootd: '穿搭', makeup: '美妆', travel: '旅游', food: '美食', decor: '装修',
+        // Novel Specific
+        system: '系统流', rebirth: '重生', transmigration: '穿越', counterattack: '打脸/逆袭',
+        invincible: '无敌开局', goudao: '苟道/稳健', detective: '刑侦/破案', infinite: '无限流',
+        simulation: '人生模拟', horror_recovery: '诡异复苏', cyberpunk: '赛博朋克'
+    },
+    dashboard: { welcome: '欢迎回来', subtitle: '今日概况', topGenre: '热门流派', hotTrope: '热门梗', dailyGoal: '每日目标', wordsWritten: '今日字数', genreIndex: '流派热度', platformShare: '平台份额', trending: '本周', trendingPlatforms: '多平台热推', heat: '热度', readCount: '阅读', source: '来源', socialIntel: '热梗与趋势情报', rank: '排名', topic: '话题/梗', change: '变化', timeRange: '周期', selectPlatform: '平台', weekly: '本周', monthly: '本月', historical: '累计', trafficBreakdown: '流量分布', activeUsers: '月活', growth: '增长', others: '其他', portals: '数据入口', officialSite: '官网', rankings: '榜单' },
     market: { 
         title: '市场排行榜与拆解', 
         tabs: { rankings: '热门榜单', analysis: '链接拆解' },
@@ -98,7 +120,9 @@ const translations: Record<Language, any> = {
         maps: { world: '世界设定', system: '爽点体系', mission: '任务档案', character: '角色状态', anchor: '记忆锚点', structure: '作品大纲', events: '大事件简纲', chapters: '章节细纲' },
         analyzeTrend: '获取焦点 (新书榜)', analyzingTrend: '爬取中...', promptLib: '提示词库',
         tree: { maps: '思维导图', manuscript: '正文稿件' },
-        editor: { aiModify: 'AI 修改', manual: '手动编辑', selectPrompt: '选择提示词', insertIllu: '插入插图', illuMode: '插图模式', illuContext: '分析光标上下文', illuPrompt: '自定义描述', illuUpload: '上传图片', generateIllu: '生成插图' }
+        editor: { aiModify: 'AI 修改', manual: '手动编辑', selectPrompt: '选择提示词', insertIllu: '插入插图', illuMode: '插图模式', illuContext: '分析光标上下文', illuPrompt: '自定义描述', illuUpload: '上传图片', generateIllu: '生成插图' },
+        historyMenu: { createMap: '新增思维导图', createContent: '新增正文', exportJson: '导出备份(JSON)', exportZip: '导出压缩包(MD+TXT)' },
+        manual: { newMapTitle: '新建思维导图', mapType: '导图类型', rootName: '根节点名称', newChapTitle: '新建章节', chapTitle: '章节名称', create: '创建' }
     },
     architect: {
       placeholder: "输入小说前提...", synopsisPlaceholder: "简介 (可选)", designBtn: '设计大纲', tip: '点击节点修改', description: '描述', content: '正文', generateDraft: '生成草稿', writing: '写作中...', noContent: '暂无内容',

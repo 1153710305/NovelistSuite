@@ -178,7 +178,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               recordType: 'inspiration',
               trendFocus: trendFocus || 'General', 
               content: result, 
-              sources: activeSources 
+              sources: activeSources,
+              metadata: { source: '', gender: targetAudience, majorCategory: '', trope: '' } // Base metadata
           });
       } catch (error: any) {
           clearInterval(timer);

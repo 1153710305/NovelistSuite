@@ -1,12 +1,18 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { manipulateText, rewriteChapterWithContext, extractContextFromTree, analyzeTrendKeywords, generateChapterContent, generateImage, generateIllustrationPrompt } from '../services/geminiService';
-import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Database, History, Trash2, Clock, Loader2, ChevronDown, ChevronUp, Check, BookOpen, Tag, Globe, Sliders, ChevronRight, GripHorizontal, Layout as LayoutIcon, Zap, Library, Plus, FileText, FolderOpen, Network, Pencil, Wrench, Sidebar, Image as ImageIcon, Upload, Eye } from 'lucide-react';
+import { manipulateText, rewriteChapterWithContext, extractContextFromTree, analyzeTrendKeywords, generateChapterContent, generateImage, generateIllustrationPrompt, generateNovelArchitecture, generateStoryFromIdea } from '../services/geminiService';
+import { Sparkles, RefreshCw, PenLine, Wand2, Copy, Database, History, Trash2, Clock, Loader2, ChevronDown, ChevronUp, Check, BookOpen, Tag, Globe, Sliders, ChevronRight, GripHorizontal, Layout as LayoutIcon, Zap, Library, Plus, FileText, FolderOpen, Network, Pencil, Wrench, Sidebar, Image as ImageIcon, Upload, Eye, Download, Upload as UploadIcon, MoreVertical, FileJson, Archive } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem, updateHistoryItem } from '../services/storageService';
+import { saveToStorage, loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem, updateHistoryItem, addHistoryItem } from '../services/storageService';
 import { StudioRecord, AVAILABLE_SOURCES, GenerationConfig, InspirationMetadata, OutlineNode, ArchitectureMap } from '../types';
 import { MindMap } from '../components/MindMap';
+
+declare global {
+    interface Window {
+        JSZip: any;
+    }
+}
 
 // --- Helper Hook for Responsive ---
 const useIsMobile = () => {
@@ -18,6 +24,18 @@ const useIsMobile = () => {
     }, []);
     return isMobile;
 };
+
+// --- Helper: Convert Outline Tree to Markdown ---
+const convertNodeToMarkdown = (node: OutlineNode, level: number = 1): string => {
+    const indent = '#'.repeat(level);
+    let md = `${indent} ${node.name} (${node.type})\n${node.description || ''}\n\n`;
+    if (node.children) {
+        node.children.forEach(child => {
+            md += convertNodeToMarkdown(child, level + 1);
+        });
+    }
+    return md;
+}
 
 /**
  * Studio Component
@@ -67,17 +85,29 @@ export const Studio: React.FC = () => {
   const [selectedIdea, setSelectedIdea] = useState<string>('');
   const [config, setConfig] = useState<GenerationConfig>({ type: 'short', wordCount: 2000, chapterCount: 10, wordsPerChapter: 3000, styleId: '' });
 
+  // --- Manual Creation Modals ---
+  const [showNewMapModal, setShowNewMapModal] = useState(false);
+  const [newMapType, setNewMapType] = useState<keyof ArchitectureMap>('world');
+  const [newMapName, setNewMapName] = useState('');
+  
+  const [showNewChapModal, setShowNewChapModal] = useState(false);
+  const [newChapTitle, setNewChapTitle] = useState('');
+
   // --- Illustration State ---
   const [showIlluModal, setShowIlluModal] = useState(false);
   const [illuMode, setIlluMode] = useState<'context' | 'prompt' | 'upload'>('context');
   const [illuPrompt, setIlluPrompt] = useState('');
   const [isGeneratingIllu, setIsGeneratingIllu] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // For history import
 
   // --- Active Context ---
   // The currently loaded story project
   const [activeStoryRecord, setActiveStoryRecord] = useState<StudioRecord | null>(null);
   const [expandedStoryId, setExpandedStoryId] = useState<string>('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null); // For History Item Menu
+  const [processingRecordId, setProcessingRecordId] = useState<string | null>(null); // For background tasks on specific items
+  const [modifyingRecordId, setModifyingRecordId] = useState<string | null>(null); // For manual creation targeting
   
   // Navigation within a story
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number | null>(null);
@@ -106,6 +136,11 @@ export const Studio: React.FC = () => {
           if (savedData.editorText) setEditorText(savedData.editorText);
       }
       loadHistory();
+      
+      // Click outside to close menus
+      const handleClickOutside = () => setMenuOpenId(null);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // Poll for background generation updates (studioState global)
@@ -137,17 +172,10 @@ export const Studio: React.FC = () => {
 
   // --- Core Handlers ---
 
-  /**
-   * Trigger the Daily Inspiration Generator.
-   * Uses selected sources to find a trend, then asks AI to generate story ideas.
-   */
   const handleDailyGen = () => {
     startStudioGeneration(studioState.trendFocus, selectedSources, targetAudience, lang);
   };
 
-  /**
-   * Ask AI to analyze the "New Book Lists" of selected platforms to find a hot keyword.
-   */
   const handleAnalyzeTrend = async () => {
       if (selectedSources.length === 0) return;
       setIsAnalyzingTrend(true);
@@ -168,21 +196,241 @@ export const Studio: React.FC = () => {
   }
 
   const handleHistoryClick = (record: StudioRecord) => {
-      setStudioState(prev => ({
-          ...prev,
-          trendFocus: record.trendFocus || '',
-          generatedContent: record.content
-      }));
+      if (record.recordType === 'inspiration') {
+          setStudioState(prev => ({
+              ...prev,
+              trendFocus: record.trendFocus || '',
+              generatedContent: record.content
+          }));
+      } else {
+          toggleStoryExpand(record);
+      }
   };
 
-  const handleDeleteHistory = (e: React.MouseEvent, id: string) => {
+  const handleToggleMenu = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
+      setMenuOpenId(prev => prev === id ? null : id);
+  };
+
+  // --- Export / Import History ---
+  const handleExportJson = () => {
+      const dataStr = JSON.stringify(history, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `inkflow_studio_history_${new Date().toISOString().slice(0,10)}.json`;
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+  };
+
+  const handleExportItemJson = (item: StudioRecord) => {
+      const dataStr = JSON.stringify(item, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `${item.title || 'inkflow_item'}.json`;
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      setMenuOpenId(null);
+  }
+
+  // New ZIP Export Functionality
+  const handleExportZip = async (item: StudioRecord) => {
+      setMenuOpenId(null);
+      if (!window.JSZip) {
+          alert("ZIP library not loaded.");
+          return;
+      }
+
+      const zip = new window.JSZip();
+      const safeTitle = (item.title || 'novel').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      
+      // 1. Export Maps to Markdown
+      const mapsFolder = zip.folder("mind_maps");
+      if (item.architecture) {
+          Object.keys(item.architecture).forEach(key => {
+              const tree = (item.architecture as any)[key] as OutlineNode;
+              if (tree) {
+                  const mdContent = convertNodeToMarkdown(tree);
+                  mapsFolder?.file(`${key}.md`, mdContent);
+              }
+          });
+      }
+
+      // 2. Export Chapters to TXT
+      const chaptersFolder = zip.folder("manuscript");
+      if (item.chapters && item.chapters.length > 0) {
+          item.chapters.forEach((chap, idx) => {
+              const safeChapTitle = chap.title.replace(/[^a-z0-9]/gi, '_');
+              chaptersFolder?.file(`${String(idx + 1).padStart(2, '0')}_${safeChapTitle}.txt`, chap.content || "");
+          });
+      } else if (item.content) {
+          chaptersFolder?.file("full_story.txt", item.content);
+      }
+
+      // 3. Generate and Download
+      try {
+          const content = await zip.generateAsync({ type: "blob" });
+          const url = URL.createObjectURL(content);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${safeTitle}_backup.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      } catch (e) {
+          console.error("Failed to generate zip", e);
+          alert("Failed to create zip file.");
+      }
+  };
+
+  const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const fileReader = new FileReader();
+      if (e.target.files && e.target.files.length > 0) {
+          fileReader.readAsText(e.target.files[0], "UTF-8");
+          fileReader.onload = (e) => {
+              try {
+                  const importedData = JSON.parse(e.target?.result as string);
+                  if (Array.isArray(importedData)) {
+                      const currentIds = new Set(history.map(h => h.id));
+                      const newItems = importedData.filter((item: StudioRecord) => !currentIds.has(item.id));
+                      const updatedHistory = [...newItems, ...history];
+                      saveToStorage(STORAGE_KEYS.HISTORY_STUDIO, updatedHistory);
+                      setHistory(updatedHistory);
+                      alert(t('common.import') + " " + t('common.confirm'));
+                  } else {
+                      alert("Invalid format: Expected an array.");
+                  }
+              } catch (error) {
+                  console.error(error);
+                  alert("Error importing file.");
+              }
+          };
+      }
+  };
+
+  const handleDeleteHistory = (id: string) => {
       const updated = deleteHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, id);
       setHistory(updated);
       if (activeStoryRecord?.id === id) {
           setActiveStoryRecord(null);
           setMainViewMode('quick-tools');
       }
+      setMenuOpenId(null);
+  };
+
+  const handleGenerateMapForRecord = async (record: StudioRecord) => {
+      setMenuOpenId(null);
+      if (processingRecordId) return;
+      setProcessingRecordId(record.id);
+      try {
+          const idea = record.title || record.trendFocus || "A new story";
+          const architecture = await generateNovelArchitecture(idea, lang, model);
+          const updatedRecord: StudioRecord = { ...record, architecture: architecture, title: record.title || idea };
+          updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
+          setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
+          if (activeStoryRecord?.id === record.id) setActiveStoryRecord(updatedRecord);
+      } catch (e) {
+          console.error(e);
+          alert(t('common.errorDesc'));
+      } finally {
+          setProcessingRecordId(null);
+      }
+  };
+
+  const handleGenerateContentForRecord = async (record: StudioRecord) => {
+      setMenuOpenId(null);
+      if (processingRecordId) return;
+      setProcessingRecordId(record.id);
+      try {
+          if ((!record.chapters || record.chapters.length === 0) && !record.content) {
+               const idea = record.title || record.trendFocus || "New Story";
+               const genConfig = record.config || { type: 'short', wordCount: 2000 };
+               const result = await generateStoryFromIdea(idea, genConfig, lang, model);
+               const updatedRecord: StudioRecord = {
+                   ...record,
+                   content: result.content,
+                   chapters: result.chapters || [],
+                   architecture: record.architecture || result.architecture || undefined
+               };
+               updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
+               setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
+               if (activeStoryRecord?.id === record.id) setActiveStoryRecord(updatedRecord);
+          } else {
+              setActiveStoryRecord(record);
+              setMainViewMode('story-files');
+          }
+      } catch (e) {
+          console.error(e);
+          alert(t('common.errorDesc'));
+      } finally {
+          setProcessingRecordId(null);
+      }
+  };
+
+  // --- Manual Creation Handlers ---
+
+  const openNewMapModal = (recordId: string) => {
+      setMenuOpenId(null);
+      setModifyingRecordId(recordId);
+      setNewMapName("New Concept");
+      setNewMapType("world");
+      setShowNewMapModal(true);
+  };
+
+  const handleManualAddMap = () => {
+      if (!modifyingRecordId || !newMapName) return;
+      const record = history.find(h => h.id === modifyingRecordId);
+      if (!record) return;
+
+      const newRoot: OutlineNode = {
+          id: Date.now().toString(),
+          name: newMapName,
+          type: newMapType === 'character' ? 'character' : newMapType === 'structure' ? 'book' : 'system',
+          description: 'Created manually',
+          children: []
+      };
+
+      const currentArch = record.architecture || {} as ArchitectureMap;
+      // Note: ArchitectureMap in types.ts has fixed keys. We overwrite the key.
+      const updatedArch = { ...currentArch, [newMapType]: newRoot };
+
+      const updatedRecord = { ...record, architecture: updatedArch };
+      updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
+      setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
+      if (activeStoryRecord?.id === record.id) setActiveStoryRecord(updatedRecord);
+      
+      setShowNewMapModal(false);
+      setModifyingRecordId(null);
+  };
+
+  const openNewChapModal = (recordId: string) => {
+      setMenuOpenId(null);
+      setModifyingRecordId(recordId);
+      setNewChapTitle(`Chapter ${(history.find(h=>h.id===recordId)?.chapters?.length || 0) + 1}`);
+      setShowNewChapModal(true);
+  };
+
+  const handleManualAddChapter = () => {
+      if (!modifyingRecordId || !newChapTitle) return;
+      const record = history.find(h => h.id === modifyingRecordId);
+      if (!record) return;
+
+      const newChapter = {
+          title: newChapTitle,
+          content: '',
+          nodeId: undefined
+      };
+
+      const updatedChapters = [...(record.chapters || []), newChapter];
+      const updatedRecord = { ...record, chapters: updatedChapters };
+      
+      updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
+      setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
+      if (activeStoryRecord?.id === record.id) setActiveStoryRecord(updatedRecord);
+      
+      setShowNewChapModal(false);
+      setModifyingRecordId(null);
   };
 
   // --- Navigation Handlers ---
@@ -197,7 +445,6 @@ export const Studio: React.FC = () => {
           setExpandedStoryId('');
       } else {
           setExpandedStoryId(record.id);
-          // Auto-select manuscript view if expanding
           setActiveStoryRecord(record);
           setMainViewMode('story-files'); 
       }
@@ -220,6 +467,37 @@ export const Studio: React.FC = () => {
       setMainViewMode('story-editor');
   };
 
+  const handleDeleteChapter = (e: React.MouseEvent, record: StudioRecord, index: number) => {
+      e.stopPropagation();
+      if (!confirm("Delete this chapter?")) return;
+      
+      const newChapters = [...(record.chapters || [])];
+      newChapters.splice(index, 1);
+      
+      const updatedRecord = { ...record, chapters: newChapters };
+      updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
+      setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
+      if (activeStoryRecord?.id === record.id) setActiveStoryRecord(updatedRecord);
+  };
+  
+  const handleResetMap = () => {
+      if (!activeStoryRecord || !selectedMapType) return;
+      if (!confirm("Reset/Delete this map?")) return;
+      
+      const currentArch = activeStoryRecord.architecture || {} as ArchitectureMap;
+      const updatedArch = { ...currentArch };
+      delete (updatedArch as any)[selectedMapType]; // Remove the key conceptually (or set to null if strict)
+      // Since strict typing, we can set it to a dummy empty node or handle undefined in render
+      // Let's set it to undefined by casting
+      (updatedArch as any)[selectedMapType] = undefined;
+
+      const updatedRecord = { ...activeStoryRecord, architecture: updatedArch };
+      updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, updatedRecord);
+      setHistory(prev => prev.map(item => item.id === activeStoryRecord.id ? updatedRecord : item));
+      setActiveStoryRecord(updatedRecord);
+      setSelectedMapNode(null);
+  };
+
   // --- Map Editing ---
 
   const updateNodeInTree = (root: OutlineNode, targetId: string, updates: Partial<OutlineNode>): OutlineNode => {
@@ -230,23 +508,15 @@ export const Studio: React.FC = () => {
 
   const handleSaveNodeEdit = () => {
       if (!activeStoryRecord || !activeStoryRecord.architecture || !selectedMapNode?.id) return;
-      
       const currentTree = activeStoryRecord.architecture[selectedMapType];
       const newTree = updateNodeInTree(currentTree, selectedMapNode.id, { name: editNodeName, description: editNodeDesc });
-      
       const newArchitecture = { ...activeStoryRecord.architecture, [selectedMapType]: newTree };
       const updatedRecord = { ...activeStoryRecord, architecture: newArchitecture };
-      
       setActiveStoryRecord(updatedRecord);
       updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { architecture: newArchitecture });
-      
       setSelectedMapNode({ ...selectedMapNode, name: editNodeName, description: editNodeDesc });
   }
 
-  /**
-   * Generates draft content for a specific node in the Architecture Map.
-   * CRITICAL: It extracts "World" and "Character" context from other maps to inform the draft.
-   */
   const handleGenerateNodeContent = async () => {
       if (!activeStoryRecord || !selectedMapNode || !selectedMapNode.id) return;
       setIsGeneratingChapter(true);
@@ -254,20 +524,15 @@ export const Studio: React.FC = () => {
           const context = 
             (activeStoryRecord.architecture?.world ? extractContextFromTree(activeStoryRecord.architecture.world) : '') +
             (activeStoryRecord.architecture?.character ? extractContextFromTree(activeStoryRecord.architecture.character) : '');
-          
           const content = await generateChapterContent(selectedMapNode, context, lang, model);
-          
           const newChapter = { title: selectedMapNode.name, content: content, nodeId: selectedMapNode.id };
           const existingChapters = activeStoryRecord.chapters || [];
           const updatedChapters = [...existingChapters, newChapter];
-          
           const updatedRecord = { ...activeStoryRecord, chapters: updatedChapters };
           setActiveStoryRecord(updatedRecord);
           updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { chapters: updatedChapters });
-          
           setCurrentChapterIndex(updatedChapters.length - 1);
           setMainViewMode('story-editor');
-
       } catch (e) {
           console.error(e);
           alert(t('common.errorDesc'));
@@ -276,42 +541,29 @@ export const Studio: React.FC = () => {
       }
   }
 
-  /**
-   * Rewrites the current chapter in the Editor.
-   * It re-injects the current architecture context to ensure the rewrite stays consistent with the world settings.
-   */
   const handleRewriteWithContext = async () => {
       if (!activeStoryRecord || currentChapterIndex === null) return;
-      
       const currentChapter = activeStoryRecord.chapters?.[currentChapterIndex];
       const contentToRewrite = currentChapter ? currentChapter.content : activeStoryRecord.content;
-      
       if (!contentToRewrite) return;
-
       setIsRewriting(true);
       try {
           const freshContext = 
              (activeStoryRecord.architecture?.world ? extractContextFromTree(activeStoryRecord.architecture.world) : '') +
              (activeStoryRecord.architecture?.character ? extractContextFromTree(activeStoryRecord.architecture.character) : '');
-
           const promptTemplate = selectedPromptId ? promptLibrary.find(p => p.id === selectedPromptId)?.content : undefined;
-
           const result = await rewriteChapterWithContext(contentToRewrite, freshContext, lang, model, promptTemplate);
-          
           let newChapters = activeStoryRecord.chapters ? [...activeStoryRecord.chapters] : [];
           if (newChapters[currentChapterIndex]) {
               newChapters[currentChapterIndex] = { ...newChapters[currentChapterIndex], content: result };
           }
-
           const updatedRecord = { 
               ...activeStoryRecord, 
               chapters: newChapters,
               content: activeStoryRecord.storyType === 'short' ? result : activeStoryRecord.content
           };
-
           setActiveStoryRecord(updatedRecord);
           updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, updatedRecord);
-          
       } catch (e) {
           alert("Rewrite failed. Check console.");
       } finally {
@@ -319,19 +571,13 @@ export const Studio: React.FC = () => {
       }
   }
 
-  // --- Illustration Handling ---
-
   const insertTextAtCursor = (textToInsert: string) => {
         if (!editorRef.current || !activeStoryRecord) return;
-        
         const textarea = editorRef.current;
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
         const text = textarea.value;
-        
         const newText = text.substring(0, start) + textToInsert + text.substring(end);
-        
-        // Update State
         const newChapters = [...(activeStoryRecord.chapters || [])];
         if (currentChapterIndex !== null && newChapters[currentChapterIndex]) {
             newChapters[currentChapterIndex] = { ...newChapters[currentChapterIndex], content: newText };
@@ -343,8 +589,6 @@ export const Studio: React.FC = () => {
              setActiveStoryRecord(updated);
              updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { content: newText });
         }
-        
-        // Restore cursor
         setTimeout(() => {
             textarea.selectionStart = start + textToInsert.length;
             textarea.selectionEnd = start + textToInsert.length;
@@ -355,38 +599,26 @@ export const Studio: React.FC = () => {
   const handleGenerateIllustration = async () => {
       if (!activeStoryRecord) return;
       setIsGeneratingIllu(true);
-      
       try {
           let promptToUse = illuPrompt;
-
           if (illuMode === 'context') {
-             // Extract context around cursor
              const textarea = editorRef.current;
              if (textarea) {
                  const cursor = textarea.selectionStart;
                  const text = textarea.value;
-                 // Get 1000 chars around cursor
                  const start = Math.max(0, cursor - 1500);
                  const end = Math.min(text.length, cursor + 500);
                  const contextText = text.substring(start, end);
-                 
-                 // Generate Prompt from context
                  promptToUse = await generateIllustrationPrompt(contextText, lang, model);
              } else {
                  throw new Error("Editor not found");
              }
           }
-
           if (!promptToUse) throw new Error("No prompt available");
-
-          // Generate Image
-          const imageBase64 = await generateImage(promptToUse, 'gemini-2.5-flash-image', '4:3');
-          
-          // Insert Markdown
-          const insertString = `\n\n![Illustration](${imageBase64})\n*${promptToUse}*\n\n`;
+          const base64Image = await generateImage(promptToUse, 'gemini-2.5-flash-image', '4:3');
+          const insertString = `\n\n![Illustration](${base64Image})\n*${promptToUse}*\n\n`;
           insertTextAtCursor(insertString);
           setShowIlluModal(false);
-
       } catch (e) {
           console.error(e);
           alert(t('common.errorDesc'));
@@ -398,11 +630,9 @@ export const Studio: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onloadend = () => {
           const base64 = reader.result as string;
-          // Simple insert
           const insertString = `\n\n![Uploaded Illustration](${base64})\n\n`;
           insertTextAtCursor(insertString);
           setShowIlluModal(false);
@@ -410,7 +640,6 @@ export const Studio: React.FC = () => {
       reader.readAsDataURL(file);
   };
 
-  // --- Parser for Inspiration Cards ---
   const parseInspirations = (text: string) => {
       if (!text) return [];
       const blocks = text.split(/### \d+\./g).filter(p => p.trim().length > 0);
@@ -452,7 +681,7 @@ export const Studio: React.FC = () => {
   const confirmGenerateStory = () => {
       setShowConfigModal(false);
       startStoryGeneration(selectedIdea, config, lang);
-      setActiveTab('tools'); // Switch to Tools tab to see progress/result
+      setActiveTab('tools'); 
   }
 
   const handleAddPrompt = () => {
@@ -471,15 +700,13 @@ export const Studio: React.FC = () => {
       setToolLoading(true);
       try {
         const result = await manipulateText(editorText, toolMode, lang, model);
-        setEditorText(result); // Update directly in editor
+        setEditorText(result); 
       } catch (e) {
           console.error(e);
       } finally {
           setToolLoading(false);
       }
   };
-
-  // --- RENDER HELPERS ---
 
   const renderSidebar = () => (
       <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full flex-shrink-0">
@@ -494,28 +721,75 @@ export const Studio: React.FC = () => {
           </div>
           
           <div className="flex-1 overflow-y-auto p-2">
-              <div className="text-xs font-bold text-slate-400 uppercase mb-2 px-2 mt-2">{t('studio.historyTitle')}</div>
+               <div className="flex items-center justify-between px-2 mt-2 mb-2">
+                  <div className="text-xs font-bold text-slate-400 uppercase">{t('studio.historyTitle')}</div>
+                  <div className="flex gap-1">
+                      <button onClick={handleExportJson} className="p-1 text-slate-400 hover:text-teal-600" title={t('common.export')}>
+                          <Download size={12}/>
+                      </button>
+                      <button onClick={() => fileInputRef.current?.click()} className="p-1 text-slate-400 hover:text-teal-600" title={t('common.import')}>
+                          <UploadIcon size={12}/>
+                      </button>
+                      <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImportHistory} />
+                  </div>
+              </div>
+
               <div className="space-y-1">
                 {storyHistory.length === 0 ? (
                     <div className="text-center text-slate-400 text-xs mt-4 italic">{t('common.noHistory')}</div>
                 ) : (
                     storyHistory.map(item => (
-                        <div key={item.id} className="bg-white rounded border border-slate-200 overflow-hidden">
+                        <div key={item.id} className="bg-white rounded border border-slate-200 overflow-visible relative">
                             <div 
-                                onClick={() => toggleStoryExpand(item)} 
+                                onClick={() => handleHistoryClick(item)}
                                 className={`p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 ${activeStoryRecord?.id === item.id ? 'bg-teal-50 border-b border-teal-100' : ''}`}
                             >
                                 <div className="w-4/5 flex items-center gap-2">
-                                    <div className="text-slate-400 flex-shrink-0">{expandedStoryId === item.id ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}</div>
+                                    <div className="text-slate-400 flex-shrink-0">
+                                        {processingRecordId === item.id ? <Loader2 className="animate-spin" size={14}/> : 
+                                         (expandedStoryId === item.id ? <ChevronDown size={14}/> : <ChevronRight size={14}/>)
+                                        }
+                                    </div>
                                     <div className="min-w-0">
                                         <div className="text-xs font-bold text-slate-700 truncate">{item.title || 'Untitled'}</div>
                                         <div className="text-[10px] text-slate-400">{formatDate(item.timestamp)}</div>
                                     </div>
                                 </div>
-                                <button onClick={(e) => handleDeleteHistory(e, item.id)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><Trash2 size={12} /></button>
+                                <div className="relative">
+                                    <button onClick={(e) => handleToggleMenu(e, item.id)} className="text-slate-300 hover:text-slate-600 p-1 flex-shrink-0">
+                                        <MoreVertical size={14} />
+                                    </button>
+                                    {menuOpenId === item.id && (
+                                        <div className="absolute right-0 top-6 w-48 bg-white border border-slate-200 shadow-xl rounded-lg z-50 flex flex-col py-1">
+                                            <button onClick={() => handleGenerateMapForRecord(item)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700">
+                                                <Network size={12} className="text-teal-600"/> {t('studio.historyMenu.createMap')}
+                                            </button>
+                                            <button onClick={() => handleGenerateContentForRecord(item)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700">
+                                                <FileText size={12} className="text-blue-600"/> {t('studio.historyMenu.createContent')}
+                                            </button>
+                                            <div className="h-px bg-slate-100 my-1"></div>
+                                            {/* New Manual Creation Options */}
+                                            <button onClick={() => openNewMapModal(item.id)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-600">
+                                                <Plus size={12}/> {t('studio.manual.newMapTitle')}
+                                            </button>
+                                            <button onClick={() => openNewChapModal(item.id)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-600">
+                                                <Plus size={12}/> {t('studio.manual.newChapTitle')}
+                                            </button>
+                                            <div className="h-px bg-slate-100 my-1"></div>
+                                            <button onClick={() => handleExportItemJson(item)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-600">
+                                                <FileJson size={12}/> {t('studio.historyMenu.exportJson')}
+                                            </button>
+                                            <button onClick={() => handleExportZip(item)} className="px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-600">
+                                                <Archive size={12}/> {t('studio.historyMenu.exportZip')}
+                                            </button>
+                                            <button onClick={() => handleDeleteHistory(item.id)} className="px-3 py-2 text-left text-xs hover:bg-red-50 flex items-center gap-2 text-red-600">
+                                                <Trash2 size={12}/> {t('common.delete')}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Expanded Sub-Menu */}
                             {expandedStoryId === item.id && (
                                 <div className="bg-slate-50/50 pl-0 py-1 space-y-0.5 border-t border-slate-100">
                                      <button 
@@ -530,8 +804,6 @@ export const Studio: React.FC = () => {
                                      >
                                          <FolderOpen size={14} /> {t('studio.tree.manuscript')}
                                      </button>
-                                     
-                                     {/* Inline Chapters */}
                                      {item.chapters && item.chapters.length > 0 && (
                                          <div className="mt-1 pb-1">
                                              {item.chapters.map((chap, idx) => (
@@ -597,6 +869,12 @@ export const Studio: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {activeStoryRecord?.chapters?.map((chap, idx) => (
                       <div key={idx} onClick={() => handleOpenChapter(activeStoryRecord!, idx)} className="group cursor-pointer flex flex-col items-center p-6 rounded-xl bg-white border border-slate-200 hover:border-teal-400 hover:shadow-md transition-all text-center relative">
+                          <button 
+                             onClick={(e) => handleDeleteChapter(e, activeStoryRecord!, idx)}
+                             className="absolute top-2 right-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                              <Trash2 size={14} />
+                          </button>
                           <div className="w-16 h-16 mb-4 text-teal-500 bg-teal-50 rounded-2xl flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white transition-colors shadow-sm">
                               <FileText size={32} />
                           </div>
@@ -604,13 +882,14 @@ export const Studio: React.FC = () => {
                           <span className="text-xs text-slate-400">{chap.content.length} chars</span>
                       </div>
                   ))}
-                  {/* Empty State / Add New Placeholder */}
-                  <div className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all cursor-not-allowed opacity-50">
+                  <div 
+                    onClick={() => openNewChapModal(activeStoryRecord!.id)}
+                    className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all cursor-pointer opacity-70 hover:opacity-100"
+                  >
                       <div className="w-16 h-16 mb-4 text-slate-300 rounded-2xl flex items-center justify-center">
                           <Plus size={32} />
                       </div>
-                      <span className="text-sm font-bold text-slate-400">New Chapter</span>
-                      <span className="text-[10px] text-slate-400 mt-1">(Generate via Map)</span>
+                      <span className="text-sm font-bold text-slate-400">Add Chapter</span>
                   </div>
               </div>
           </div>
@@ -619,7 +898,6 @@ export const Studio: React.FC = () => {
 
   const renderStoryEditor = () => (
       <div className="flex-1 flex flex-col h-full bg-slate-50 relative">
-          
           {/* Illustration Modal */}
           {showIlluModal && (
             <div className="absolute top-16 right-6 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 animate-in fade-in zoom-in-95 duration-200">
@@ -681,7 +959,6 @@ export const Studio: React.FC = () => {
               </div>
               
               <div className="flex items-center gap-2">
-                    {/* Illustration Button */}
                     <button 
                         onClick={() => setShowIlluModal(!showIlluModal)}
                         className={`p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-teal-600 transition-colors relative ${showIlluModal ? 'bg-teal-50 text-teal-600' : ''}`}
@@ -690,7 +967,6 @@ export const Studio: React.FC = () => {
                         <ImageIcon size={18} />
                     </button>
                     <div className="h-6 w-px bg-slate-200 mx-2"></div>
-
                     <div className="flex items-center bg-slate-100 rounded-lg px-2 py-1">
                         <span className="text-[10px] text-slate-400 mr-2 uppercase font-bold">{t('studio.editor.aiModify')}</span>
                         <select 
@@ -713,7 +989,6 @@ export const Studio: React.FC = () => {
               </div>
           </div>
 
-          {/* Editor Area */}
           <div className="flex-1 overflow-y-auto p-8">
               <div className="max-w-3xl mx-auto bg-white min-h-full shadow-sm border border-slate-200 p-12 rounded-xl">
                     <textarea 
@@ -731,9 +1006,6 @@ export const Studio: React.FC = () => {
                                 updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { chapters: newChapters });
                             }
                         }}
-                        onSelect={() => {
-                            // Can track cursor position here if needed
-                        }}
                         placeholder="Start writing..."
                     />
               </div>
@@ -746,62 +1018,54 @@ export const Studio: React.FC = () => {
       
       return (
           <div className="flex-1 flex h-full bg-slate-50 overflow-hidden">
-              {/* Main Map View */}
               <div className="flex-1 flex flex-col relative">
-                  {/* Map Controls */}
-                  <div className="h-12 border-b border-slate-200 bg-white flex items-center px-4 gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
-                     {mapTypes.map(type => (
-                         <button 
-                            key={type} 
-                            onClick={() => { setSelectedMapType(type); setSelectedMapNode(null); }}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap ${selectedMapType === type ? 'bg-teal-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
-                         >
-                            {t(`studio.maps.${type}`)}
-                         </button>
-                     ))}
+                  <div className="h-12 border-b border-slate-200 bg-white flex items-center justify-between px-4 gap-2">
+                     <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1">
+                        {mapTypes.map(type => (
+                            <button 
+                                key={type} 
+                                onClick={() => { setSelectedMapType(type); setSelectedMapNode(null); }}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap ${selectedMapType === type ? 'bg-teal-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                            >
+                                {t(`studio.maps.${type}`)}
+                            </button>
+                        ))}
+                     </div>
+                     <button onClick={handleResetMap} className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-red-50" title="Clear/Reset Map">
+                        <Trash2 size={16}/>
+                     </button>
                   </div>
                   
-                  {/* Map Canvas */}
                   <div className="flex-1 relative bg-slate-50">
                      {activeStoryRecord && activeStoryRecord.architecture && activeStoryRecord.architecture[selectedMapType] ? (
                          <MindMap data={activeStoryRecord.architecture[selectedMapType]} onNodeClick={setSelectedMapNode} />
                      ) : (
-                         <div className="flex items-center justify-center h-full text-slate-400 italic">No Map Data</div>
+                         <div className="flex items-center justify-center h-full flex-col gap-2 text-slate-400">
+                             <span className="italic">No Map Data</span>
+                             <button onClick={() => openNewMapModal(activeStoryRecord!.id)} className="text-teal-600 text-sm hover:underline font-bold flex items-center gap-1"><Plus size={14}/> Create Map</button>
+                         </div>
                      )}
                   </div>
               </div>
 
-              {/* Node Inspector Panel (Right Side Overlay/Split) */}
               <div className="w-80 bg-white border-l border-slate-200 shadow-xl flex flex-col z-10 transition-transform">
                   <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                       <h3 className="font-bold text-slate-700 text-sm">Node Inspector</h3>
                       {selectedMapNode && <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded text-slate-600 uppercase font-bold">{selectedMapNode.type}</span>}
                   </div>
-                  
                   {selectedMapNode ? (
                       <div className="p-4 flex-1 overflow-y-auto space-y-4">
                            <div className="space-y-1">
                                <label className="text-[10px] font-bold text-slate-400 uppercase">Name</label>
-                               <input 
-                                    value={editNodeName} 
-                                    onChange={e => setEditNodeName(e.target.value)} 
-                                    className="w-full p-2 border border-slate-200 rounded text-sm font-bold focus:ring-2 focus:ring-teal-500 focus:outline-none" 
-                                />
+                               <input value={editNodeName} onChange={e => setEditNodeName(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-sm font-bold focus:ring-2 focus:ring-teal-500 focus:outline-none" />
                            </div>
                            <div className="space-y-1">
                                <label className="text-[10px] font-bold text-slate-400 uppercase">Description</label>
-                               <textarea 
-                                    value={editNodeDesc} 
-                                    onChange={e => setEditNodeDesc(e.target.value)} 
-                                    rows={6} 
-                                    className="w-full p-2 border border-slate-200 rounded text-xs leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none resize-none" 
-                                />
+                               <textarea value={editNodeDesc} onChange={e => setEditNodeDesc(e.target.value)} rows={6} className="w-full p-2 border border-slate-200 rounded text-xs leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none resize-none" />
                            </div>
-                           
                            <div className="flex gap-2 pt-2">
                                <button onClick={handleSaveNodeEdit} className="flex-1 py-2 bg-slate-900 text-white rounded text-xs font-bold hover:bg-slate-800">Save Changes</button>
                            </div>
-
                            <div className="border-t border-slate-100 pt-4 mt-2">
                                 {(selectedMapNode.type === 'chapter' || selectedMapType === 'chapters') && (
                                      <button 
@@ -828,6 +1092,53 @@ export const Studio: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full p-0 md:p-4 max-w-full mx-auto relative overflow-hidden bg-slate-100">
+      
+      {/* New Map Modal */}
+      {showNewMapModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6">
+                  <h3 className="font-bold text-slate-800 mb-4">{t('studio.manual.newMapTitle')}</h3>
+                  <div className="space-y-4">
+                       <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase">{t('studio.manual.mapType')}</label>
+                           <select value={newMapType} onChange={e => setNewMapType(e.target.value as any)} className="w-full p-2 border rounded text-sm mt-1 bg-white">
+                               {['world', 'system', 'mission', 'character', 'anchor', 'structure', 'events', 'chapters'].map(t => (
+                                   <option key={t} value={t}>{t}</option>
+                               ))}
+                           </select>
+                       </div>
+                       <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase">{t('studio.manual.rootName')}</label>
+                           <input value={newMapName} onChange={e => setNewMapName(e.target.value)} className="w-full p-2 border rounded text-sm mt-1" />
+                       </div>
+                       <div className="flex justify-end gap-2 pt-2">
+                           <button onClick={() => setShowNewMapModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded text-sm">{t('common.cancel')}</button>
+                           <button onClick={handleManualAddMap} className="px-4 py-2 bg-teal-600 text-white rounded text-sm hover:bg-teal-700">{t('studio.manual.create')}</button>
+                       </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* New Chapter Modal */}
+      {showNewChapModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6">
+                  <h3 className="font-bold text-slate-800 mb-4">{t('studio.manual.newChapTitle')}</h3>
+                  <div className="space-y-4">
+                       <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase">{t('studio.manual.chapTitle')}</label>
+                           <input value={newChapTitle} onChange={e => setNewChapTitle(e.target.value)} className="w-full p-2 border rounded text-sm mt-1" />
+                       </div>
+                       <div className="flex justify-end gap-2 pt-2">
+                           <button onClick={() => setShowNewChapModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded text-sm">{t('common.cancel')}</button>
+                           <button onClick={handleManualAddChapter} className="px-4 py-2 bg-teal-600 text-white rounded text-sm hover:bg-teal-700">{t('studio.manual.create')}</button>
+                       </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Config Modal */}
       {showConfigModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -972,12 +1283,12 @@ export const Studio: React.FC = () => {
                             {inspirationHistory.length === 0 ? <div className="text-center text-slate-400 text-xs mt-4">{t('common.noHistory')}</div> : (
                                 <div className="space-y-2">
                                     {inspirationHistory.map(item => (
-                                        <div key={item.id} onClick={() => handleHistoryClick(item)} className="bg-slate-50 rounded-lg border border-slate-100 p-3 cursor-pointer hover:bg-white hover:shadow-sm hover:border-teal-200 transition-all flex justify-between items-center group">
-                                            <div className="w-4/5">
+                                        <div key={item.id} className="bg-slate-50 rounded-lg border border-slate-100 p-3 cursor-pointer hover:bg-white hover:shadow-sm hover:border-teal-200 transition-all flex justify-between items-center group relative">
+                                            <div className="w-4/5" onClick={() => handleHistoryClick(item)}>
                                                 <div className="text-xs font-bold text-slate-700 truncate mb-1">{item.trendFocus}</div>
                                                 <div className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {formatDate(item.timestamp)}</div>
                                             </div>
-                                            <button onClick={(e) => handleDeleteHistory(e, item.id)} className="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                                            <button onClick={() => handleDeleteHistory(item.id)} className="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -1012,7 +1323,6 @@ export const Studio: React.FC = () => {
                                             </div>
                                         )}
                                         
-                                        {/* New Metadata Grid */}
                                         {card.metadata && (
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                                                 {card.metadata.theme && (
@@ -1091,10 +1401,10 @@ export const Studio: React.FC = () => {
                                         </button>
                                     </div>
                                 ))}
-                            </div>
+                             </div>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-slate-400 italic flex-col gap-4">
-                                <Sparkles size={48} className="opacity-10" />
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                <Sparkles size={48} className="opacity-20 mb-4" />
                                 <p>{t('studio.emptyDaily')}</p>
                             </div>
                         )}
@@ -1103,15 +1413,13 @@ export const Studio: React.FC = () => {
               )}
 
               {activeTab === 'tools' && (
-                  <div className="absolute inset-0 flex">
-                      {/* 2-Column Layout */}
-                      {renderSidebar()}
-                      
-                      {mainViewMode === 'quick-tools' && renderQuickTools()}
-                      {mainViewMode === 'story-files' && renderStoryFiles()}
-                      {mainViewMode === 'story-editor' && renderStoryEditor()}
-                      {mainViewMode === 'story-map' && renderStoryMap()}
-                  </div>
+                 <div className="absolute inset-0 flex">
+                     {isMobile ? null : renderSidebar()}
+                     {mainViewMode === 'quick-tools' && renderQuickTools()}
+                     {mainViewMode === 'story-files' && renderStoryFiles()}
+                     {mainViewMode === 'story-editor' && renderStoryEditor()}
+                     {mainViewMode === 'story-map' && renderStoryMap()}
+                 </div>
               )}
           </div>
       </div>
