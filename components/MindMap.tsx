@@ -1,9 +1,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import * as d3 from 'd3';
+import * as d3Import from 'd3';
 import { OutlineNode } from '../types';
 import { useI18n } from '../i18n';
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+
+// Cast d3 to any to avoid type mismatch issues with @types/d3 in the environment
+const d3 = d3Import as any;
 
 interface MindMapProps {
   data: OutlineNode | null; 
@@ -14,9 +17,9 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<SVGGElement>(null); 
-  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown>>(null);
+  const zoomRef = useRef<any>(null);
   const { t } = useI18n();
-  const [zoomTransform, setZoomTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
+  const [zoomTransform, setZoomTransform] = useState<any>(d3.zoomIdentity);
 
   useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current || !gRef.current) return;
@@ -27,24 +30,29 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
     const svg = d3.select(svgRef.current);
     const g = d3.select(gRef.current);
 
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoom = d3.zoom()
       .scaleExtent([0.1, 3]) 
-      .on("zoom", (event) => {
+      .on("zoom", (event: any) => {
         g.attr("transform", event.transform);
         setZoomTransform(event.transform);
       });
 
     svg.call(zoom).on("dblclick.zoom", null);
-    (zoomRef as any).current = zoom;
+    zoomRef.current = zoom;
 
     g.selectAll("*").remove();
 
-    const root = d3.hierarchy<OutlineNode>(data);
+    const root = d3.hierarchy(data);
     const nodeCount = root.descendants().length;
-    const dynamicHeight = Math.max(height, nodeCount * 45); // Increased spacing
-    const dynamicWidth = Math.max(width, nodeCount * 25 + 500);
+    
+    // Calculate depth to adjust width
+    const maxDepth = root.height; // Height of tree (levels)
 
-    const treeLayout = d3.tree<OutlineNode>()
+    // Dynamic sizing based on content - INCREASED for detailed view
+    const dynamicHeight = Math.max(height, nodeCount * 60); // Increased vertical space
+    const dynamicWidth = Math.max(width, (maxDepth + 1) * 400); // Increased horizontal space per level
+
+    const treeLayout = d3.tree()
       .size([dynamicHeight - 100, dynamicWidth - 200]);
 
     treeLayout(root);
@@ -59,24 +67,24 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
       .attr("stroke-width", 1.5)
       .attr("d", d3.linkHorizontal() 
         .x((d: any) => d.y)
-        .y((d: any) => d.x) as any
+        .y((d: any) => d.x)
       );
 
     const node = g.selectAll(".node")
       .data(root.descendants())
       .enter()
       .append("g")
-      .attr("class", (d) => `node ${d.children ? "node--internal" : "node--leaf"}`)
+      .attr("class", (d: any) => `node ${d.children ? "node--internal" : "node--leaf"}`)
       .attr("transform", (d: any) => `translate(${d.y},${d.x})`) 
       .style("cursor", "pointer")
-      .on("click", (event, d) => {
+      .on("click", (event: any, d: any) => {
          event.stopPropagation(); 
          onNodeClick(d.data); 
       });
 
     node.append("circle")
-      .attr("r", (d) => d.data.type === 'book' ? 9 : 7)
-      .attr("fill", (d) => {
+      .attr("r", (d: any) => d.data.type === 'book' ? 9 : 7)
+      .attr("fill", (d: any) => {
           switch(d.data.type) {
               case 'book': return '#ef4444'; // Red
               case 'act': return '#f59e0b'; // Amber
@@ -91,19 +99,20 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
 
     node.append("text")
       .attr("dy", ".35em")
-      .attr("x", (d) => d.children ? -13 : 13) 
-      .style("text-anchor", (d) => d.children ? "end" : "start")
-      .text((d) => d.data.name)
-      .style("font-size", "12px")
+      .attr("x", (d: any) => d.children ? -13 : 13) 
+      .style("text-anchor", (d: any) => d.children ? "end" : "start")
+      .text((d: any) => d.data.name)
+      .style("font-size", "14px")
       .style("font-family", "sans-serif")
       .style("fill", "#334155")
-      .style("font-weight", (d) => d.data.type === 'book' ? "bold" : "normal")
+      .style("font-weight", (d: any) => d.data.type === 'book' ? "bold" : "normal")
       .clone(true).lower() 
       .attr("stroke", "white")
       .attr("stroke-width", 3);
 
     if (zoomTransform === d3.zoomIdentity) {
-       const initialTransform = d3.zoomIdentity.translate(80, height / 2 - (root as any).x).scale(1);
+       // Adjust initial translate based on root height/position
+       const initialTransform = d3.zoomIdentity.translate(80, height / 2 - (root as any).x).scale(0.8);
        svg.call(zoom.transform, initialTransform);
     }
 

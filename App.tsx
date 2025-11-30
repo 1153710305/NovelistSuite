@@ -1,3 +1,15 @@
+/**
+ * @file App.tsx
+ * @description Root component and main router of the application.
+ * 
+ * ## Functionality
+ * - Handles authentication state (Guest/User/Admin).
+ * - Manages view routing (Dashboard, Studio, Market, etc.).
+ * - Wraps the application in Global Providers (`AppProvider`, `I18nProvider`).
+ * 
+ * ## Module Correspondence
+ * - The entry point for the React component tree.
+ */
 
 import React, { useState } from 'react';
 import { Layout } from './components/Layout';
@@ -7,6 +19,7 @@ import { Studio } from './pages/Studio';
 import { Architect } from './pages/Architect';
 import { CoverStudio } from './pages/CoverStudio';
 import { Chat } from './pages/Chat';
+import { Workflow } from './pages/Workflow';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { I18nProvider } from './i18n';
@@ -39,6 +52,7 @@ const AppContent: React.FC = () => {
       case 'market': return <Market />;
       case 'writing': return <Studio />;
       case 'architect': return <Architect />;
+      case 'workflow': return <Workflow />;
       case 'cover': return <CoverStudio />;
       case 'chat': return <Chat />;
       default: return <Dashboard />;

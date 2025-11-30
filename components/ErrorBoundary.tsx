@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+import React, { ErrorInfo, ReactNode, Component } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -11,20 +12,17 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
-  }
+  public state: State = {
+    hasError: false,
+    error: null
+  };
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("%c[ErrorBoundary] Uncaught Error:", 'color: red; font-weight: bold; font-size: 14px;', error);
+    console.error("[ErrorBoundary] Uncaught Error:", error);
     console.error("[ErrorBoundary] Component Stack:", errorInfo.componentStack);
   }
 

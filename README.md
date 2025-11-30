@@ -1,259 +1,87 @@
 
-# InkFlow AI - Novelist Suite
+# InkFlow AI - 智能小说创作套件 (Novelist Suite)
 
-[English](#english) | [中文](#chinese)
+**InkFlow AI** 是一款专为网络小说作者打造的本地优先（Local-First）智能创作系统。它深度集成了 Google Gemini API，提供从市场趋势分析、灵感爆发、结构设计到正文辅助写作的全流程支持。
 
----
+## 🛠 技术栈与开发环境
 
-<a name="english"></a>
-## 🇬🇧 English: InkFlow AI - Novelist Suite
+### 核心技术
+*   **开发语言**: TypeScript (v5.x)
+*   **前端框架**: React 19
+*   **构建工具**: Vite
+*   **样式方案**: Tailwind CSS
+*   **AI 模型库**: `@google/genai` (Google Gemini SDK)
+*   **状态管理**: React Context API + Hooks
+*   **数据持久化**: Browser LocalStorage (无后端架构)
+*   **可视化**: D3.js (思维导图), Recharts (数据图表)
 
-**InkFlow AI** is a comprehensive, local-first intelligent creative suite designed specifically for web novel authors. Leveraging the power of Google Gemini models, it provides end-to-end support ranging from market trend analysis and viral hit deconstruction to daily inspiration generation, structural design, and assisted drafting.
+### 开发环境要求
+*   **Node.js**: v18.0.0 或更高版本
+*   **包管理器**: npm 或 yarn
+*   **API Key**: 需要有效的 Google AI Studio API Key (支持 Gemini 2.5/3.0 模型)
 
-### 🌟 Key Features
+## 📂 项目结构说明
 
-1.  **Dashboard**
-    *   **Data Aggregation**: Real-time aggregation of genre heat indices from major Chinese platforms (Qidian, Fanqie, Jinjiang).
-    *   **Social Intelligence**: Tracking trending tropes and memes on social media (Douyin, Bilibili, Weibo) and Novel platforms (Fanqie, Qidian).
-    *   **Visual Analytics**: Platform traffic share and user demographics visualization.
-
-2.  **Market & Analysis**
-    *   **Rankings Simulation**: View simulated rankings filtered by category.
-    *   **Deconstruction Lab**: AI-powered analysis of any novel link.
-        *   *Viral Factor Analysis*: Identifies the "Golden 3 Chapters", hooks, and engagement drivers.
-        *   *Pacing Analysis*: Visualizes plot progression speed.
-        *   *Character Arc*: Analyzes protagonist motivation and growth.
-
-3.  **Writing Studio (Collaboration Studio)**
-    *   **Daily Inspiration**: Uses Dashboard trend data to generate 10 fresh story concepts daily.
-        *   **Targeted Generation**: Supports selecting target audience (Male/Female Frequency).
-        *   **Rich Metadata**: Generates detailed tags including Major Category (e.g., Western Fantasy), Theme (e.g., Derivative), Character Archetype (e.g., Harem, Emperor), and Plot Type (e.g., God-slaying).
-    *   **8-Map Architecture**: A unique, deep-linking node system that connects World Settings, Power Systems, Characters, and Plot Outlines.
-    *   **Context-Aware Drafting**: The "Bridge" system injects relevant World/Character details into the AI prompt when drafting specific chapters, ensuring consistency.
-    *   **AI Co-pilot**: Inline rewriting, polishing, and illustration generation within the editor.
-    *   *For a detailed breakdown of the Studio architecture, see [DESIGN_STUDIO.md](DESIGN_STUDIO.md).*
-
-4.  **Story Architect**
-    *   **Blueprint Mode**: Visual mind map editing for high-level story structure.
-    *   **Cover Studio**: AI art generation for novel covers using diverse styles (Xianxia, Cyberpunk, etc.).
-
-### 📊 Data Methodology
-
-The Dashboard data displayed in InkFlow AI is powered by a high-fidelity **Market Intelligence Engine**.
-
-**Note**: In this demo version, live API connections to Chinese platforms are simulated to bypass CORS restrictions and authentication requirements. The system uses a curated "Real-World Snapshot" dataset to replicate actual market conditions.
-
-#### 1. Data Sources & Acquisition
-*   **Web Novel Platforms**:
-    *   **Qidian (起点)**: Simulates the "24h Hot List", "Monthly Ticket List", and "New Star List".
-    *   **Fanqie (番茄)**: Simulates the "Must-Read List" (Top 100) and "Top Searching List".
-    *   **Jinjiang (晋江)**: Simulates the "Golden List" (Jinbang).
-*   **Social Media Intelligence**:
-    *   **Douyin (TikTok)**: Monitors trending hashtags related to `#BookTok` and `#WebNovel`.
-    *   **Weibo/Bilibili**: Tracks discussion volume on novel-related topics.
-
-#### 2. Heat Index Algorithm
-The "Heat" score (0-100,000) is calculated using a weighted formula to normalize data across different platforms:
-
-```math
-Heat Score = (S * 0.4) + (R * 0.3) + (D * 0.3)
+```text
+/
+├── components/         # 通用 UI 组件
+│   ├── Layout.tsx      # 应用主布局框架
+│   ├── MindMap.tsx     # D3.js 思维导图组件
+│   ├── TaskMonitor.tsx # 全局后台任务监控器
+│   └── ...
+├── contexts/           # 全局状态管理
+│   └── AppContext.tsx  # 核心状态 (设置, 任务队列, 全局数据)
+├── pages/              # 路由页面模块
+│   ├── Dashboard.tsx   # 仪表盘 (数据分析)
+│   ├── Studio.tsx      # 写作工作室 (核心功能)
+│   ├── Architect.tsx   # 故事架构师 (大纲设计)
+│   ├── Market.tsx      # 市场拆解
+│   ├── Workflow.tsx    # 自动化工作流
+│   └── ...
+├── services/           # 业务逻辑服务层
+│   ├── geminiService.ts # Google Gemini API 交互核心
+│   ├── storageService.ts # 本地存储封装
+│   └── logger.ts       # 系统日志服务
+├── types.ts            # TypeScript 类型定义 (核心数据模型)
+├── i18n.tsx            # 国际化配置
+├── index.tsx           # 应用入口
+└── App.tsx             # 根组件与路由分发
 ```
 
-Where:
-*   **S (Search Volume)**: Daily search queries for the book title or keyword.
-*   **R (Read Count Growth)**: The delta of new readers/views in the last 24 hours.
-*   **D (Discussion Intensity)**: The velocity of new comments and shares.
+## 🌟 核心功能模块
 
-The resulting score is normalized against the platform's daily peak to provide a comparative "Heat" metric.
+### 1. 写作工作室 (Studio)
+核心创作界面。采用 **"8-图架构体系" (8-Map Architecture)**，将小说结构化为世界观、角色、剧情等 8 个维度的思维导图。AI 在生成正文时会自动检索这些导图作为上下文，保证长篇连载的逻辑一致性。
 
-### 🏗 System Design & AI Architecture
+### 2. 故事架构师 (Architect)
+专注于大纲设计的模块。支持递归式的内容扩展（如：从“书名”生成“分卷”，再生成“章节”，最后生成“场景”）。
 
-InkFlow AI is built on a **React + TypeScript** frontend that communicates directly with the **Google Gemini API**. It follows a "Local-First" architecture where all user data (stories, outlines, history) is stored in the browser's `localStorage`, ensuring privacy and offline capability for viewing.
+### 3. 市场与实验室 (Market & Lab)
+通过模拟爬虫数据分析市场热点。实验室功能支持输入任意小说片段，AI 将分析其“爆款因子”、“节奏密度”和“角色弧光”。
 
-#### The "InkFlow Engine"
+### 4. 任务监控台 (Task Monitor)
+实时监控所有后台 AI 任务的状态。
+- **Token 消耗统计**: 详细展示输入 (Input) 和输出 (Output) 的 Token 数量，帮助优化成本。
+- **错误诊断**: 捕获 API 错误详情，区分网络超时、配额不足或内容拦截，并提供原始错误日志。
+- **调试模式**: 可查看发送给 AI 的完整 Prompt、System Instruction 和上下文数据。
 
-The core logic resides in `services/geminiService.ts`, which acts as the orchestration layer between the UI and the AI models.
+### 5. 自动化工作流 (Workflow)
+实验性功能。允许用户输入一个核心创意，系统自动完成从大纲设计到分章撰写的全自动化流程。
 
-**1. Data Flow Pipeline**
-```mermaid
-[User Input] -> [Service Layer] -> [Prompt Engineering] -> [Gemini API] -> [Response Parsing] -> [State/Storage]
-```
+## 🚀 快速开始
 
-**2. The 8-Map Context System**
-Unlike generic chat assistants, InkFlow uses a structured context injection system. A novel is defined by 8 distinct Mind Maps:
-1.  **World**: Geography, History, Laws.
-2.  **System**: Power hierarchy, Leveling rules (The "Cool Point System").
-3.  **Mission**: Main quest lines and side quests.
-4.  **Character**: Relationships, Stats, Arcs.
-5.  **Anchor**: Key items/memories (Memory Anchors).
-6.  **Structure**: High-level Acts/Volumes.
-7.  **Events**: Major turning points.
-8.  **Chapters**: The actual scene-by-scene outline.
-
-**Collaborative AI Workflow**:
-*   **Context Extraction**: When the user requests to "Generate Draft" for a specific Chapter Node, the system recursively traverses the `World` and `Character` maps.
-*   **Prompt Assembly**: It combines the *Static Context* (World/Chars) + *Dynamic Context* (Current Chapter Outline) + *Style Instructions*.
-*   **Generation**: Gemini generates the text ensuring consistency with the defined architecture.
-
-### AI Function Collaboration
-
-*   **Trend -> Inspiration**: The `Dashboard` analyzes trends -> feeds keywords to `Studio` -> `Studio` generates daily inspiration cards.
-*   **Card -> Architecture**: Clicking "Generate Story" on an inspiration card passes the metadata (Golden Finger, Trope) to the `Architect` service to build the initial 8-Map structure.
-*   **Architecture -> Manuscript**: Nodes in the `Chapters` map are linked to the `Manuscript` view. Generating content in the map automatically creates a file in the manuscript folder.
-
----
-
-<a name="chinese"></a>
-## 🇨🇳 中文: InkFlow AI - 个人AI小说生成系统
-
-**InkFlow AI** 是专为网络小说作者打造的综合性、本地优先的智能创作套件。利用 Google Gemini 模型的强大功能，它提供从市场趋势分析、爆款拆解到每日灵感生成、结构设计和辅助写作的全流程支持。
-
-### 🌟 核心功能
-
-1.  **仪表盘 (Dashboard)**
-    *   **数据聚合**: 实时聚合来自起点、番茄、晋江等主流中文平台的热度指数。
-    *   **社交情报**: 追踪抖音、B站、微博以及**番茄、起点**上的热门梗和话题。
-    *   **可视化分析**: 平台流量份额和用户画像可视化。
-
-2.  **市场与分析 (Market & Analysis)**
-    *   **榜单模拟**: 查看按分类过滤的模拟排行榜。
-    *   **拆书实验室**: AI 驱动的小说链接拆解分析。
-        *   *爆款因子分析*: 识别“黄金三章”、钩子和爽点。
-        *   *节奏分析*: 可视化情节推进速度。
-        *   *角色弧光*: 分析主角动机和成长路径。
-
-3.  **写作工作室 (Collaboration Studio)**
-    *   **每日灵感**: 利用仪表盘趋势数据，每日生成 10 个新鲜的故事创意。
-        *   **定向生成**: 支持选择目标读者（男频/女频）。
-        *   **丰富标签**: 生成详细的标签，包括主分类（如西方奇幻、东方仙侠）、主题（如衍生、仕途、都市异能）、角色原型（如多女主、皇帝）和情节类型（如斩神衍生、西游衍生）。
-    *   **8-图架构体系**: 一个独特的深度链接节点系统，连接世界观设定、力量体系、角色和情节大纲。
-    *   **上下文感知写作**: “桥梁”系统在撰写特定章节时，会将相关的世界/角色细节注入 AI 提示词中，确保一致性。
-    *   **AI 副驾驶**: 编辑器内的行内重写、润色和插图生成。
-    *   *有关工作室架构的详细分析，请参阅 [DESIGN_STUDIO.md](DESIGN_STUDIO.md)。*
-
-4.  **故事架构师 (Story Architect)**
-    *   **蓝图模式**: 用于高层故事结构的思维导图编辑。
-    *   **封面工作室**: 使用多种风格（仙侠、赛博朋克等）生成小说封面 AI 艺术。
-
-### 📊 数据获取与算法文档
-
-InkFlow AI 仪表盘展示的数据由内置的高保真**市场情报引擎 (Market Intelligence Engine)** 模拟生成。
-
-**注意**: 在此演示版本中，系统使用经过筛选的“真实世界快照”数据集来模拟真实的市场状况，以绕过浏览器端的 CORS 限制和 API 鉴权。
-
-#### 1. 数据来源 (Data Sources)
-*   **网文平台**:
-    *   **起点中文网**: 模拟抓取“24小时热销榜”、“月票榜”及“新星榜”数据。
-    *   **番茄小说**: 模拟抓取“必读榜” (Top 100) 及“热搜榜”关键词。
-    *   **晋江文学城**: 模拟抓取“金榜”数据。
-*   **社交媒体情报**:
-    *   **抖音 (Douyin)**: 监测与 `#推书`、`#网文` 相关的热门标签。
-    *   **微博/B站**: 追踪网文相关话题的讨论量。
-
-#### 2. 热度指数算法 (Heat Index Algorithm)
-热度值（Heat Score, 0-100,000）使用加权公式计算，以统一不同平台的数据维度：
-
-```math
-热度值 = (S * 0.4) + (R * 0.3) + (D * 0.3)
-```
-
-其中：
-*   **S (搜索量 Search Volume)**: 该书名或关键词的日均搜索请求量。
-*   **R (阅读增长 Read Count Growth)**: 过去 24 小时内新增的阅读/观看人数增量。
-*   **D (讨论强度 Discussion Intensity)**: 新增评论、章评和转发的速度。
-
-最终得分会相对于该平台的当日峰值进行归一化处理，提供直观的“热度”指标。
-
-### 🏗 系统设计与 AI 架构
-
-InkFlow AI 基于 **React + TypeScript** 前端构建，直接与 **Google Gemini API** 通信。它遵循“本地优先”架构，所有用户数据（故事、大纲、历史记录）均存储在浏览器的 `localStorage` 中，确保隐私和离线查看能力。
-
-#### "InkFlow 引擎"
-
-核心逻辑位于 `services/geminiService.ts` 中，充当 UI 和 AI 模型之间的编排层。
-
-**1. 数据流管道**
-```mermaid
-[用户输入] -> [服务层] -> [提示词工程] -> [Gemini API] -> [响应解析] -> [状态/存储]
-```
-
-**2. 8-图上下文系统**
-与通用聊天助手不同，InkFlow 使用结构化的上下文注入系统。一部小说由 8 个独特的思维导图定义：
-1.  **世界 (World)**: 地理、历史、法则。
-2.  **体系 (System)**: 力量等级、升级规则（“爽点体系”）。
-3.  **任务 (Mission)**: 主线任务和支线任务。
-4.  **角色 (Character)**: 关系、属性、弧光。
-5.  **锚点 (Anchor)**: 关键物品/记忆（记忆锚点）。
-6.  **结构 (Structure)**: 高层卷/幕。
-7.  **事件 (Events)**: 主要转折点。
-8.  **章节 (Chapters)**: 实际的分场大纲。
-
-**协作 AI 工作流**:
-*   **上下文提取**: 当用户请求为特定章节节点“生成草稿”时，系统会递归遍历 `World` 和 `Character` 导图。
-*   **提示词组装**: 它结合了 *静态上下文* (世界/角色) + *动态上下文* (当前章节大纲) + *风格指令*。
-*   **生成**: Gemini 生成确本文本，确保与定义的架构一致。
-
-### AI 功能联动
-
-*   **趋势 -> 灵感**: `仪表盘` 分析趋势 -> 向 `工作室` 提供关键词 -> `工作室` 生成每日灵感卡片。
-*   **卡片 -> 架构**: 点击灵感卡片上的“生成小说”，将元数据（金手指、梗）传递给 `架构师` 服务，以构建初始的 8-图结构。
-*   **架构 -> 正文**: `Chapters` 导图中的节点链接到 `正文` 视图。在导图中生成内容会自动在正文文件夹中创建文件。
-
----
-
-## 🛠 技术栈 (Tech Stack)
-
-*   **前端**: React 19, TypeScript, Vite
-*   **样式**: Tailwind CSS
-*   **图标**: Lucide React
-*   **可视化**: D3.js (思维导图), Recharts (图表)
-*   **AI**: Google GenAI SDK (`@google/genai`)
-
----
-
-## 💻 安装与设置 (Installation)
-
-### 先决条件
-*   **Node.js**: v18.0.0+ (推荐 LTS)。
-*   **API Key**: 有效的 Google AI Studio API Key。
-
-### 快速开始
-
-1.  **克隆仓库**
-    ```bash
-    git clone https://github.com/your-username/inkflow-ai.git
-    cd inkflow-ai
-    ```
-
-2.  **安装依赖**
+1.  **安装依赖**:
     ```bash
     npm install
     ```
-
-3.  **配置 API Key**
-    在根目录创建一个 `.env` 文件：
-    ```env
-    API_KEY=your_google_api_key_here
-    ```
-
-4.  **运行开发服务器**
+2.  **启动开发服**:
     ```bash
     npm start
     ```
-    访问应用： `http://localhost:5173`。
+3.  **配置密钥**:
+    项目启动后，系统会自动读取环境变量中的 `API_KEY`。在生产环境中，请确保构建环境包含此变量。
 
 ---
-
-## 📦 部署 (Deployment)
-
-构建生产版本（生成 `dist/` 文件夹）：
-```bash
-npm run build
-```
-
-输出是一个静态 SPA（单页应用），可以托管在 Nginx、Vercel、Netlify 或 GitHub Pages 上。
-
----
-
-**License**: MIT
-**Developer**: InkFlow Team
+**开发者**: InkFlow Team
+**版本**: v1.7.5
+**许可证**: MIT

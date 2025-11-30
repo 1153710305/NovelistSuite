@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storageService';
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal } from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
 
 interface AdminProps {
@@ -12,14 +13,25 @@ interface AdminProps {
 
 export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const { t } = useI18n();
-    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs'>('lab');
+    const { modelConfigs, updateModelConfig, resetModelConfigs } = useApp();
+    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs' | 'config'>('config');
     const [data, setData] = useState<any[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    // 本地编辑状态，用于模型配置
+    const [editingConfigs, setEditingConfigs] = useState<Record<string, any>>({});
+
     useEffect(() => {
         if (activeTab === 'logs') {
             setLogs(Logger.getLogs());
+        } else if (activeTab === 'config') {
+            // 初始化编辑状态
+            const initEdit: any = {};
+            modelConfigs.forEach(m => {
+                initEdit[m.id] = { ...m };
+            });
+            setEditingConfigs(initEdit);
         } else {
             let key = '';
             switch(activeTab) {
@@ -29,7 +41,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
             }
             setData(loadFromStorage(key) || []);
         }
-    }, [activeTab, refreshKey]);
+    }, [activeTab, refreshKey, modelConfigs]);
 
     const handleRefresh = () => setRefreshKey(prev => prev + 1);
 
@@ -50,9 +62,49 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         }
     };
 
+    const handleExportAll = () => {
+        const allData: Record<string, any> = {};
+        Object.values(STORAGE_KEYS).forEach(key => {
+            allData[key] = loadFromStorage(key);
+        });
+
+        const dataStr = JSON.stringify(allData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        const exportFileDefaultName = `inkflow_full_backup_${new Date().toISOString().slice(0,10)}.json`;
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    };
+
+    const handleConfigChange = (id: string, field: string, value: any) => {
+        setEditingConfigs(prev => ({
+            ...prev,
+            [id]: {
+                ...prev[id],
+                [field]: Number(value)
+            }
+        }));
+    };
+
+    const saveConfig = (id: string) => {
+        if (editingConfigs[id]) {
+            updateModelConfig(id, editingConfigs[id]);
+            alert(t('admin.config.saved'));
+        }
+    };
+
+    const handleResetConfig = () => {
+        if (confirm("Reset all models to default settings?")) {
+            resetModelConfigs();
+        }
+    }
+
     const formatDate = (ts: number) => new Date(ts).toLocaleString();
 
     const tabs = [
+        { id: 'config', label: t('admin.tabConfig'), icon: Settings },
         { id: 'lab', label: t('admin.tabLab'), icon: FileText },
         { id: 'studio', label: t('admin.tabStudio'), icon: PenTool },
         { id: 'architect', label: t('admin.tabArchitect'), icon: Network },
@@ -73,12 +125,20 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <p className="text-slate-500 text-sm">System Monitor & Storage Inspector</p>
                         </div>
                     </div>
-                    <button 
-                        onClick={onLogout}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
-                    >
-                        <LogOut size={18} /> {t('admin.exit')}
-                    </button>
+                    <div className="flex gap-3">
+                         <button 
+                            onClick={handleExportAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors border border-slate-300"
+                        >
+                            <Download size={18} /> {t('admin.exportAll')}
+                        </button>
+                        <button 
+                            onClick={onLogout}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
+                        >
+                            <LogOut size={18} /> {t('admin.exit')}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -103,14 +163,82 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <button onClick={handleRefresh} className="p-2 text-slate-500 hover:text-teal-600 rounded-lg hover:bg-slate-100" title={t('admin.refresh')}>
                                 <RefreshCw size={18} />
                             </button>
-                            <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50" title={t('admin.clearAll')}>
-                                <Trash2 size={18} />
-                            </button>
+                            {activeTab !== 'config' && (
+                                <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50" title={t('admin.clearAll')}>
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
                     <div className="p-0 overflow-x-auto flex-1">
-                        {activeTab === 'logs' ? (
+                        {activeTab === 'config' ? (
+                            // --- CONFIG VIEW ---
+                            <div className="p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-lg font-bold text-slate-800">{t('admin.config.title')}</h3>
+                                    <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
+                                        <RotateCcw size={14}/> {t('admin.config.reset')}
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm border-collapse">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                            <tr>
+                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.modelName')}</th>
+                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpm')}</th>
+                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpd')}</th>
+                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.context')}</th>
+                                                <th className="p-4 font-medium border-b border-slate-200 w-24">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {modelConfigs.map((model) => (
+                                                <tr key={model.id} className="hover:bg-slate-50">
+                                                    <td className="p-4 font-medium text-slate-700">
+                                                        {t(model.nameKey)} 
+                                                        <div className="text-xs text-slate-400 font-mono mt-1">{model.id}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <input 
+                                                            type="number" 
+                                                            value={editingConfigs[model.id]?.rpm ?? model.rpm}
+                                                            onChange={(e) => handleConfigChange(model.id, 'rpm', e.target.value)}
+                                                            className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <input 
+                                                            type="number" 
+                                                            value={editingConfigs[model.id]?.dailyLimit ?? model.dailyLimit}
+                                                            onChange={(e) => handleConfigChange(model.id, 'dailyLimit', e.target.value)}
+                                                            className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <input 
+                                                            type="number" 
+                                                            value={editingConfigs[model.id]?.contextWindow ?? model.contextWindow}
+                                                            onChange={(e) => handleConfigChange(model.id, 'contextWindow', e.target.value)}
+                                                            className="w-32 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <button 
+                                                            onClick={() => saveConfig(model.id)}
+                                                            className="p-2 bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition-colors"
+                                                            title={t('admin.config.save')}
+                                                        >
+                                                            <Save size={16} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : activeTab === 'logs' ? (
                             // --- LOGS VIEW ---
                             <div className="h-full overflow-y-auto">
                                 <table className="w-full text-left text-xs font-mono border-collapse">

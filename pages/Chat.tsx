@@ -5,10 +5,12 @@ import { useI18n } from '../i18n';
 import { ChatSession, ChatMessage } from '../types';
 import { streamChatResponse } from '../services/geminiService';
 import { getHistory, addHistoryItem, updateHistoryItem, deleteHistoryItem, STORAGE_KEYS } from '../services/storageService';
+import { useApp } from '../contexts/AppContext'; // Import useApp
 import ReactMarkdown from 'react-markdown';
 
 export const Chat: React.FC = () => {
     const { t } = useI18n();
+    const { globalPersona } = useApp(); // Get globalPersona
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [inputText, setInputText] = useState('');
@@ -75,7 +77,8 @@ export const Chat: React.FC = () => {
             const aiMsg: ChatMessage = { role: 'model', text: '', timestamp: Date.now() };
             let currentAiText = '';
 
-            await streamChatResponse(updatedMessages, inputText, selectedModel, (chunk) => {
+            // Pass globalPersona
+            await streamChatResponse(updatedMessages, inputText, selectedModel, globalPersona, (chunk) => {
                 currentAiText = chunk;
                 setSessions(prev => prev.map(s => s.id === activeSessionId ? { 
                     ...s, 
