@@ -1,4 +1,3 @@
-
 /**
  * @file components/Layout.tsx
  * @description 应用程序的主布局组件 (Shell)。
@@ -11,7 +10,7 @@
  */
 
 import React, { useState } from 'react';
-import { LayoutDashboard, TrendingUp, PenTool, Network, Feather, Settings, HelpCircle, LogOut, Palette, ChevronLeft, ChevronRight, Menu, MessageSquare, Database, Bot, Info, UserCog } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, PenTool, Network, Feather, Settings, HelpCircle, LogOut, Palette, ChevronLeft, ChevronRight, Menu, MessageSquare, Database, Bot, Info, UserCog, ChevronDown, ChevronUp } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { Onboarding } from './Onboarding';
@@ -40,6 +39,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 移动端菜单开关
   const [showDataManager, setShowDataManager] = useState(false); // 数据管理模态框开关
   const [showPersonaModal, setShowPersonaModal] = useState(false); // 全局身份模态框开关
+  
+  // 设置区域折叠状态 (默认折叠)
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
   // 导航菜单配置
   const navItems = [
@@ -145,13 +147,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
 
         {/* 底部设置区域 */}
         <div className={`p-4 border-t border-slate-800 bg-slate-950/30 ${isCollapsed ? 'flex flex-col items-center' : ''}`} id="nav-settings">
-            {!isCollapsed && (
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-3 px-1">
-                    <Settings size={12} /> {t('settings.title')}
-                </div>
-            )}
             
-            <div className={`space-y-4 ${isCollapsed ? 'w-full' : ''}`}>
+            {/* 设置标题栏 (可点击折叠) */}
+            <div 
+                className={`flex items-center justify-between cursor-pointer hover:text-teal-400 transition-colors ${isCollapsed ? 'justify-center mb-2' : 'mb-3 px-1'}`}
+                onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                title={isCollapsed ? t('settings.title') : undefined}
+            >
+                {!isCollapsed ? (
+                    <>
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase">
+                            <Settings size={12} /> {t('settings.title')}
+                        </div>
+                        {isSettingsExpanded ? <ChevronDown size={14} className="text-slate-500"/> : <ChevronUp size={14} className="text-slate-500"/>}
+                    </>
+                ) : (
+                    <Settings size={16} className="text-slate-500" />
+                )}
+            </div>
+            
+            {/* 折叠内容区域 */}
+            <div className={`space-y-4 overflow-hidden transition-all duration-300 ease-in-out ${isSettingsExpanded || isCollapsed ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'} ${isCollapsed ? 'w-full' : ''}`}>
                 {/* 语言选择器 */}
                 <div className="space-y-1">
                     {!isCollapsed && <label className="text-xs text-slate-400">{t('settings.language')}</label>}
@@ -260,7 +276,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         {!isCollapsed && (
             <div className="p-4 border-t border-slate-800 text-xs text-slate-500">
             <p>{t('nav.powered')}</p>
-            <p>v1.7.4</p>
+            <p>v1.7.7</p>
             </div>
         )}
       </aside>

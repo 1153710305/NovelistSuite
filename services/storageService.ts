@@ -24,6 +24,7 @@ export const STORAGE_KEYS = {
   HISTORY_ARCHITECT: 'inkflow_history_architect', // 架构设计历史
   HISTORY_COVERS: 'inkflow_history_covers', // 封面生成历史
   HISTORY_CHAT: 'inkflow_history_chat',     // 对话历史
+  HISTORY_TASKS: 'inkflow_history_tasks',   // AI 任务执行历史 (TaskMonitor)
   PROMPT_LIB: 'inkflow_prompt_library',      // 提示词库
   GLOBAL_PERSONA: 'inkflow_global_persona',   // 当前激活的全局 AI 身份设定 (System Instruction)
   PERSONA_LIB: 'inkflow_persona_library',      // 全局身份库 (List)

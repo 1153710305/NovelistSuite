@@ -10,6 +10,9 @@
  * - 统一管理后台任务队列与进度更新。
  * - **新增**: 管理全局 AI 身份设定 (Global Persona)。
  * - **新增**: 管理动态模型配置 (Model Configs)。
+ * - **新增**: 任务重试机制 (Retry Task)。
+ * - **新增**: 任务暂停与手动恢复 (Pause/Resume)。
+ * - **新增**: 自动执行模式 (Auto-Execute) 支持。
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
@@ -74,8 +77,13 @@ interface AppContextType {
   
   // 任务系统 (核心)
   activeTasks: BackgroundTask[]; // 活跃任务列表
+  autoExecute: boolean; // 是否开启自动执行
+  toggleAutoExecute: () => void; // 切换自动执行状态
   startBackgroundTask: (type: BackgroundTask['type'], labelKey: string, executionFn: (taskId: string) => Promise<any>) => Promise<void>;
-  updateTaskProgress: (taskId: string, stage: string, progress: number, logMessage?: string, metrics?: AIMetrics, debugInfo?: { prompt?: string, context?: string, model?: string }) => void;
+  retryTask: (taskId: string) => void; // 手动重试任务
+  pauseTask: (taskId: string) => Promise<void>; // 暂停任务（等待确认）
+  resumeTask: (taskId: string) => void; // 恢复任务
+  updateTaskProgress: (taskId: string, stage: string, progress: number, logMessage?: string, metrics?: AIMetrics, debugInfo?: BackgroundTask['debugInfo']) => void;
   completeTask: (taskId: string, result: any) => void;
   failTask: (taskId: string, errorMsg: string) => void;
   dismissTask: (taskId: string) => void;
@@ -99,6 +107,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [promptLibrary, setPromptLibrary] = useState<PromptTemplate[]>([]);
   const [usageStats, setUsageStats] = useState<GlobalUsageStats>({ totalTokens: 0, totalRequests: 0, lastReset: Date.now(), modelUsage: {} });
   const [activeTasks, setActiveTasks] = useState<BackgroundTask[]>([]);
+  const [autoExecute, setAutoExecute] = useState<boolean>(false); // 新增自动执行状态
+  
+  // 任务执行器映射表 (用于重试机制)
+  // 使用 useRef 存储函数引用，避免闭包陷阱，同时不触发重渲染
+  const taskExecutors = useRef(new Map<string, (taskId: string) => Promise<any>>());
+  
+  // 暂停任务的解析器映射表 (taskId -> { resolve, reject })
+  // Store both resolve and reject to allow cancellation
+  const pausedResolvers = useRef(new Map<string, { resolve: (value: void | PromiseLike<void>) => void, reject: (reason?: any) => void }>());
   
   // 全局身份状态
   const [globalPersona, setGlobalPersona] = useState<string>('');
@@ -189,6 +206,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPromptLibrary(DEFAULT_PROMPTS);
         saveToStorage(STORAGE_KEYS.PROMPT_LIB, DEFAULT_PROMPTS);
     }
+    
+    // 加载任务历史
+    const savedTasks = loadFromStorage(STORAGE_KEYS.HISTORY_TASKS);
+    if (savedTasks && Array.isArray(savedTasks)) {
+        setActiveTasks(savedTasks);
+    }
 
     // 恢复工作室状态
     const savedStudio = loadFromStorage(STORAGE_KEYS.STUDIO);
@@ -202,6 +225,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setArchitectState(prev => ({ ...prev, premise: savedArchitect.premise || '', synopsis: savedArchitect.synopsis || '', coverImage: savedArchitect.coverImage || '', outline: savedArchitect.outline || null, activeRecordId: savedArchitect.activeRecordId }));
     }
   }, []);
+
+  // --- 持久化任务列表 ---
+  useEffect(() => {
+      // 限制存储的任务数量，避免无限增长，只保留最近 50 条
+      if (activeTasks.length > 0) {
+          // 只在有数据时保存，防止初始化前的空数组覆盖
+          const tasksToSave = activeTasks.length > 50 ? activeTasks.slice(activeTasks.length - 50) : activeTasks;
+          saveToStorage(STORAGE_KEYS.HISTORY_TASKS, tasksToSave);
+      }
+  }, [activeTasks]);
 
   // --- 设置操作 ---
 
@@ -298,8 +331,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    */
   const startBackgroundTask = async (type: BackgroundTask['type'], labelKey: string, executionFn: (taskId: string) => Promise<any>) => {
       const taskId = Date.now().toString();
+      
+      // 存储执行函数以便重试
+      taskExecutors.current.set(taskId, executionFn);
+      
       const newTask: BackgroundTask = { id: taskId, type, labelKey, status: 'running', progress: 0, currentStage: labelKey, logs: [{ timestamp: Date.now(), message: 'Task Initialized' }], startTime: Date.now() };
       setActiveTasks(prev => [...prev, newTask]);
+      
       try {
           const result = await executionFn(taskId);
           // 任务成功完成
@@ -309,6 +347,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return currentTasks.map(t => t.id !== taskId ? t : { ...t, status: 'completed', progress: 100, currentStage: 'Done', logs: [...t.logs, { timestamp: Date.now(), message: 'Success' }], endTime: Date.now(), result });
           });
       } catch (e: any) {
+          // Check for explicit cancellation error
+          if (e.message === "Task Cancelled") {
+              // State is already updated by cancelTask, just return
+              return;
+          }
+
           // 任务失败
           setActiveTasks(currentTasks => {
                const task = currentTasks.find(t => t.id === taskId);
@@ -319,10 +363,96 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /**
+   * 手动重试任务
+   * 根据 ID 查找原始执行函数并重新运行
+   */
+  const retryTask = async (taskId: string) => {
+      const executor = taskExecutors.current.get(taskId);
+      if (!executor) {
+          console.error(`No executor found for task ${taskId}`);
+          return;
+      }
+
+      // 重置任务状态
+      updateTaskProgress(taskId, 'Retrying...', 0, 'Task restarted manually');
+      setActiveTasks(prev => prev.map(t => t.id === taskId ? { 
+          ...t, 
+          status: 'running', 
+          startTime: Date.now(), // 更新开始时间
+          endTime: undefined, 
+          result: undefined,
+          logs: [...t.logs, { timestamp: Date.now(), message: '--- Retry Started ---' }]
+      } : t));
+
+      try {
+          const result = await executor(taskId);
+          completeTask(taskId, result);
+      } catch (e: any) {
+          if (e.message === "Task Cancelled") return;
+          failTask(taskId, e.message);
+      }
+  };
+
+  /**
+   * 暂停任务 (Await Approval)
+   * 将任务状态设为 paused，并返回一个 pending promise，直到 resumeTask 被调用。
+   * 如果 autoExecute 开启，则短暂等待后自动继续。
+   */
+  const pauseTask = (taskId: string): Promise<void> => {
+      return new Promise<void>((resolve, reject) => {
+          if (autoExecute) {
+              // 自动执行模式：添加日志并自动 Resolve
+              setActiveTasks(prev => prev.map(t => t.id === taskId ? {
+                  ...t,
+                  logs: [...t.logs, { timestamp: Date.now(), message: 'Auto-executing (Skipping pause)...' }]
+              } : t));
+              // 短暂延迟以让 UI 有机会渲染进度条变化
+              setTimeout(resolve, 800); 
+              return;
+          }
+
+          // 存储 resolve 和 reject 函数
+          pausedResolvers.current.set(taskId, { resolve, reject });
+          
+          // 更新任务状态为 paused
+          setActiveTasks(prev => prev.map(t => t.id === taskId ? {
+              ...t,
+              status: 'paused',
+              currentStage: 'Paused (Waiting for User)',
+              logs: [...t.logs, { timestamp: Date.now(), message: 'Task paused. Waiting for manual approval.' }]
+          } : t));
+      });
+  };
+
+  /**
+   * 恢复任务
+   * 调用存储的 resolve 函数，解除 await 阻塞。
+   */
+  const resumeTask = (taskId: string) => {
+      const resolver = pausedResolvers.current.get(taskId);
+      if (resolver) {
+          resolver.resolve(); // 解除 Promise 阻塞
+          pausedResolvers.current.delete(taskId);
+          
+          // 更新状态回 running
+          setActiveTasks(prev => prev.map(t => t.id === taskId ? {
+              ...t,
+              status: 'running',
+              currentStage: 'Resuming...',
+              logs: [...t.logs, { timestamp: Date.now(), message: 'Task resumed by user.' }]
+          } : t));
+      }
+  };
+  
+  const toggleAutoExecute = () => {
+      setAutoExecute(prev => !prev);
+  }
+
+  /**
    * 更新任务进度
    * 包含日志记录、指标统计和调试信息更新。
    */
-  const updateTaskProgress = (taskId: string, stage: string, progress: number, logMessage?: string, metrics?: AIMetrics, debugInfo?: { prompt?: string, context?: string, model?: string }) => {
+  const updateTaskProgress = (taskId: string, stage: string, progress: number, logMessage?: string, metrics?: AIMetrics, debugInfo?: BackgroundTask['debugInfo']) => {
       // 如果有指标数据，更新全局统计
       if (metrics) {
           setUsageStats(prev => {
@@ -382,10 +512,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const cancelTask = (taskId: string) => {
-      setActiveTasks(prev => prev.map(task => task.id !== taskId || task.status !== 'running' ? task : { ...task, status: 'cancelled', currentStage: 'Cancelled', logs: [...task.logs, { timestamp: Date.now(), message: 'Cancelled' }], endTime: Date.now() }));
+      // 1. If it's paused awaiting resume, reject it to break the async flow
+      const resolver = pausedResolvers.current.get(taskId);
+      if (resolver) {
+          resolver.reject(new Error("Task Cancelled"));
+          pausedResolvers.current.delete(taskId);
+      }
+
+      // 2. Update status
+      setActiveTasks(prev => prev.map(task => task.id !== taskId || task.status === 'completed' ? task : { 
+          ...task, 
+          status: 'cancelled', 
+          currentStage: 'Cancelled', 
+          logs: [...task.logs, { timestamp: Date.now(), message: 'Cancelled by user' }], 
+          endTime: Date.now() 
+      }));
   };
 
-  const dismissTask = (taskId: string) => setActiveTasks(prev => prev.filter(t => t.id !== taskId));
+  const dismissTask = (taskId: string) => {
+      // 移除执行器引用以释放内存
+      taskExecutors.current.delete(taskId);
+      pausedResolvers.current.delete(taskId);
+      setActiveTasks(prev => prev.filter(t => t.id !== taskId));
+  };
 
   // --- 遗留 API (兼容旧组件，未来应迁移到 startBackgroundTask) ---
 
@@ -430,8 +579,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         model, setModel, modelConfigs, updateModelConfig, resetModelConfigs,
         showOnboarding, completeOnboarding, resetOnboarding, sources, toggleSource,
         usageStats, studioState, setStudioState, architectState, setArchitectState, startArchitectGeneration, labState, setLabState, startLabAnalysis,
-        promptLibrary, addPrompt, updatePrompt, deletePrompt, activeTasks, startBackgroundTask, updateTaskProgress, completeTask, failTask, dismissTask, cancelTask,
-        globalPersona, updateGlobalPersona, personaLibrary, addPersona, updatePersona, deletePersona
+        promptLibrary, addPrompt, updatePrompt, deletePrompt, activeTasks, startBackgroundTask, retryTask, pauseTask, resumeTask, updateTaskProgress, completeTask, failTask, dismissTask, cancelTask,
+        globalPersona, updateGlobalPersona, personaLibrary, addPersona, updatePersona, deletePersona,
+        autoExecute, toggleAutoExecute
     }}>
       {children}
     </AppContext.Provider>

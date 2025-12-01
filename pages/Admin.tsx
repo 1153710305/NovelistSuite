@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storageService';
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw } from 'lucide-react';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
 
 interface AdminProps {
@@ -18,6 +18,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const [data, setData] = useState<any[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 本地编辑状态，用于模型配置
     const [editingConfigs, setEditingConfigs] = useState<Record<string, any>>({});
@@ -78,6 +79,42 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         linkElement.click();
     };
 
+    const handleImportAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const fileReader = new FileReader();
+        if (e.target.files && e.target.files.length > 0) {
+            fileReader.readAsText(e.target.files[0], "UTF-8");
+            fileReader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target?.result as string);
+                    
+                    if (typeof importedData === 'object' && importedData !== null) {
+                        // Confirm overwrite
+                        if (confirm(t('admin.confirmImport'))) {
+                            const validKeys = Object.values(STORAGE_KEYS);
+                            let importedCount = 0;
+
+                            Object.keys(importedData).forEach(key => {
+                                // Only import keys that match known STORAGE_KEYS to allow system data restore
+                                if (validKeys.includes(key)) {
+                                    saveToStorage(key, importedData[key]);
+                                    importedCount++;
+                                }
+                            });
+                            
+                            alert(t('admin.importSuccess') + ` (${importedCount} keys restored)`);
+                            window.location.reload();
+                        }
+                    } else {
+                        alert("Invalid file format.");
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert("Failed to import data. Check file format.");
+                }
+            };
+        }
+    };
+
     const handleConfigChange = (id: string, field: string, value: any) => {
         setEditingConfigs(prev => ({
             ...prev,
@@ -126,6 +163,22 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                         </div>
                     </div>
                     <div className="flex gap-3">
+                         {/* Hidden File Input for Import */}
+                         <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            style={{ display: 'none' }} 
+                            accept=".json" 
+                            onChange={handleImportAll} 
+                         />
+                         
+                         <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors border border-slate-300"
+                        >
+                            <Upload size={18} /> {t('admin.importAll')}
+                        </button>
+
                          <button 
                             onClick={handleExportAll}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors border border-slate-300"

@@ -10,10 +10,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Library, Plus, Trash2, Save, Search, PenLine } from 'lucide-react';
+import { X, Library, Plus, Trash2, Save, Search, PenLine, FileText, FileJson, ArrowRightLeft, Loader2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { PromptTemplate } from '../types';
+import { transformPromptFormat } from '../services/geminiService';
 
 interface PromptLibraryModalProps {
     isOpen: boolean;
@@ -21,7 +22,7 @@ interface PromptLibraryModalProps {
 }
 
 export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, onClose }) => {
-    const { t } = useI18n();
+    const { t, lang } = useI18n();
     const { promptLibrary, addPrompt, updatePrompt, deletePrompt } = useApp();
     
     // 状态管理
@@ -33,6 +34,12 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, 
     const [editName, setEditName] = useState('');
     const [editContent, setEditContent] = useState('');
     const [editTags, setEditTags] = useState('');
+    
+    // 转换状态
+    const [isTransforming, setIsTransforming] = useState(false);
+    
+    // 原始内容备份 (用于还原自然语言)
+    const [originalNaturalContent, setOriginalNaturalContent] = useState<string | null>(null);
 
     // 初始化选中第一个提示词
     useEffect(() => {
@@ -48,6 +55,7 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, 
         setEditContent(prompt.content);
         setEditTags(prompt.tags.join(', '));
         setIsEditing(false); // 退出新建模式
+        setOriginalNaturalContent(null); // 重置备份
     };
 
     // 进入新建模式
@@ -57,6 +65,7 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, 
         setEditContent('');
         setEditTags('');
         setIsEditing(true);
+        setOriginalNaturalContent(null);
     };
 
     // 保存提示词 (新建或更新)
@@ -97,6 +106,49 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, 
                     if (next) handleSelectPrompt(next);
                 } else {
                     handleNewPrompt();
+                }
+            }
+        }
+    };
+    
+    // 提示词格式转换
+    const handleTransformFormat = async (target: 'structured' | 'natural') => {
+        if (!editContent) return;
+        
+        // 逻辑更新：
+        // 1. 如果是转结构化：备份当前的自然语言（如果还没有备份）
+        // 2. 如果是转自然语言：如果有备份，直接还原，否则调用 AI
+        
+        if (target === 'structured') {
+            // 如果还没有备份，则认为当前就是自然语言，保存它
+            if (!originalNaturalContent) {
+                setOriginalNaturalContent(editContent);
+            }
+            
+            setIsTransforming(true);
+            try {
+                const transformed = await transformPromptFormat(editContent, target, lang);
+                setEditContent(transformed);
+            } catch (e) {
+                alert("Transformation failed.");
+            } finally {
+                setIsTransforming(false);
+            }
+        } else {
+            // 还原自然语言
+            if (originalNaturalContent) {
+                setEditContent(originalNaturalContent);
+                // 不清空备份，允许反复切换
+            } else {
+                // 如果没有备份（比如打开即结构化），则调用 AI 尝试还原
+                setIsTransforming(true);
+                try {
+                    const transformed = await transformPromptFormat(editContent, target, lang);
+                    setEditContent(transformed);
+                } catch (e) {
+                    alert("Transformation failed.");
+                } finally {
+                    setIsTransforming(false);
                 }
             }
         }
@@ -203,13 +255,48 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({ isOpen, 
 
                         {/* 内容输入 */}
                         <div className="flex-1 flex flex-col">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t('promptLib.instruction')}</label>
-                            <textarea 
-                                value={editContent}
-                                onChange={(e) => setEditContent(e.target.value)}
-                                className="w-full flex-1 min-h-[300px] p-4 border border-slate-200 rounded-lg text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono text-slate-600 bg-slate-50 focus:bg-white transition-colors"
-                                placeholder={t('promptLib.contentPlaceholder')}
-                            />
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-xs font-bold text-slate-500 uppercase">{t('promptLib.instruction')}</label>
+                                <div className="flex gap-2 items-center">
+                                    <span className="text-[10px] text-slate-400 mr-2">{t('promptLib.transform')}:</span>
+                                    <button 
+                                        onClick={() => handleTransformFormat('structured')} 
+                                        disabled={isTransforming}
+                                        className="text-[10px] flex items-center gap-1 bg-slate-100 px-2 py-1 rounded text-slate-600 hover:bg-slate-200 hover:text-teal-600 transition-colors"
+                                        title="Convert to Structured (JSON/Markdown)"
+                                    >
+                                        <FileJson size={12}/> {isTransforming ? t('promptLib.transforming') : t('promptLib.toStructured')}
+                                    </button>
+                                    <button 
+                                        onClick={() => handleTransformFormat('natural')} 
+                                        disabled={isTransforming}
+                                        className="text-[10px] flex items-center gap-1 bg-slate-100 px-2 py-1 rounded text-slate-600 hover:bg-slate-200 hover:text-teal-600 transition-colors"
+                                        title={originalNaturalContent ? "Restore Original Natural Language" : "Convert to Natural Language"}
+                                    >
+                                        <FileText size={12}/> {isTransforming ? t('promptLib.transforming') : (originalNaturalContent ? t('common.retry') /*Using retry icon concept for Restore*/ : t('promptLib.toNatural'))}
+                                        {originalNaturalContent && <span className="text-[8px] bg-green-100 text-green-700 px-1 rounded ml-1">Cached</span>}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="relative w-full flex-1 min-h-[300px]">
+                                <textarea 
+                                    value={editContent}
+                                    onChange={(e) => {
+                                        setEditContent(e.target.value);
+                                        // 如果用户手动修改了内容，原本的“原始备份”可能就不再适用了，
+                                        // 但这里我们选择保留备份，让用户依然能回退到“刚打开时的状态”。
+                                        // 这是一个设计选择。
+                                    }}
+                                    className="absolute inset-0 w-full h-full p-4 border border-slate-200 rounded-lg text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono text-slate-600 bg-slate-50 focus:bg-white transition-colors"
+                                    placeholder={t('promptLib.contentPlaceholder')}
+                                    disabled={isTransforming}
+                                />
+                                {isTransforming && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-lg">
+                                        <Loader2 className="animate-spin text-teal-600" size={24} />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* 标签输入 */}

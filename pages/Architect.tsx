@@ -2,23 +2,13 @@
 /**
  * @file pages/Architect.tsx
  * @description 故事架构师 (Story Architect) 核心页面。
- * 
- * ## 功能概述
- * 1. **大纲蓝图 (Blueprint View)**: 基于思维导图 (MindMap) 的结构化大纲设计。
- * 2. **稿件预览 (Manuscript View)**: 将树状大纲线性化，提供类似文档的阅读体验。
- * 3. **AI 递归扩展**: 支持一键生成子节点（如：从“书”自动生成“分卷”，再生成“章节”）。
- * 4. **草稿生成**: 对每个节点（如章节、场景）进行 AI 撰写。
- * 
- * ## 交互逻辑
- * - 使用 `MindMap` 组件渲染树状结构。
- * - 左右分栏设计：左侧为历史记录，中间为画布/文档，右侧为属性检查器。
  */
 
-import React, { useState, useEffect } from 'react';
-import { generateChapterContent, expandNodeContent, generateNovelArchitecture } from '../services/geminiService';
-import { OutlineNode, ArchitectRecord } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { generateChapterContent, expandNodeContent, generateNovelArchitecture, optimizeContextWithAI, retrieveRelevantContext } from '../services/geminiService';
+import { OutlineNode, ArchitectRecord, ContextConfig } from '../types';
 import { MindMap } from '../components/MindMap';
-import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, BookOpen, ImageIcon, Edit2, Plus, CopyPlus, Sparkles, Settings2, X, BarChart, Hash, Eye } from 'lucide-react';
+import { Network, Loader2, FileText, Trash2, FolderOpen, RefreshCw, BookOpen, ImageIcon, Edit2, Plus, CopyPlus, Sparkles, Settings2, X, BarChart, Hash, Eye, Link as LinkIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { loadFromStorage, STORAGE_KEYS, getHistory, deleteHistoryItem, updateHistoryItem, addHistoryItem } from '../services/storageService';
@@ -62,8 +52,21 @@ export const Architect: React.FC = () => {
 
   const [history, setHistory] = useState<ArchitectRecord[]>([]); // 历史记录列表
   
+  // 上下文控制 (Context Control) 状态
+  const [contextConfig, setContextConfig] = useState<ContextConfig>({
+      includePrevChapter: true,
+      selectedMaps: [], // 默认不选任何导图，由用户手动选择
+      limitMode: 'auto',
+      manualLimit: 25000,
+      enableRAG: false
+  });
+  const [showContextConfig, setShowContextConfig] = useState(false);
+  
+  // 新增：上下文 AI 优化开关
+  const [enableContextOptimization, setEnableContextOptimization] = useState(false);
+
   // 全局上下文
-  const { model, architectState, setArchitectState, promptLibrary, addPrompt, deletePrompt, globalPersona } = useApp();
+  const { model, architectState, setArchitectState, promptLibrary, addPrompt, deletePrompt, globalPersona, startBackgroundTask, updateTaskProgress, pauseTask } = useApp();
   const { t, lang } = useI18n();
 
   // --- 副作用与数据加载 ---
@@ -214,6 +217,19 @@ export const Architect: React.FC = () => {
       return root;
   }
 
+  // 辅助函数：获取扁平化节点列表，用于判断首章
+  const getFlattenedNodes = (root: OutlineNode): OutlineNode[] => {
+      const nodes: OutlineNode[] = [];
+      const traverse = (n: OutlineNode) => {
+          if (n.type === 'chapter' || n.type === 'scene') {
+              nodes.push(n);
+          }
+          if (n.children) n.children.forEach(traverse);
+      };
+      traverse(root);
+      return nodes;
+  };
+
   /**
    * 提取上下文
    * 遍历整个大纲树，提取角色和设定信息作为 AI 生成的上下文。
@@ -229,6 +245,28 @@ export const Architect: React.FC = () => {
       return context;
   }
 
+  // --- 查找前序节点 (Flatten Search) ---
+  // 用于寻找“上一章”
+  const findPreviousNodeContent = (root: OutlineNode, currentNodeId: string): string | undefined => {
+      const flattened = getFlattenedNodes(root);
+      const idx = flattened.findIndex(n => n.id === currentNodeId);
+      if (idx > 0) {
+          const prevNode = flattened[idx - 1];
+          // 严格检查 content 是否有内容
+          if (prevNode.content && prevNode.content.length > 10) {
+              return prevNode.content;
+          }
+      }
+      return undefined;
+  };
+
+  // 判断是否为首章 (UI使用)
+  const isFirstNode = useMemo(() => {
+      if (!selectedNode || !architectState.outline) return false;
+      const flattened = getFlattenedNodes(architectState.outline);
+      return flattened.length > 0 && flattened[0].id === selectedNode.id;
+  }, [selectedNode, architectState.outline]);
+
   // --- 核心业务逻辑 ---
 
   /**
@@ -238,32 +276,124 @@ export const Architect: React.FC = () => {
   const handleGenerateChapter = async () => {
       if(!selectedNode || !architectState.outline) return;
       setGeneratingChapter(true);
-      try {
-          const selectedStyle = promptLibrary.find(p => p.id === selectedPromptId)?.content;
-          
-          // 提取全局上下文
-          const worldContext = extractContextFromTree(architectState.outline);
-          const fullContext = `Book Title: ${architectState.outline?.name}. Synopsis: ${architectState.synopsis}. \nWORLD & CHARACTERS:\n${worldContext}`;
-          
-          // 传入 globalPersona
-          const result = await generateChapterContent(selectedNode, fullContext, lang, model, selectedStyle, draftWordCount, globalPersona);
-          
-          setGeneratedChapter(result);
-          if (selectedNode.id) {
-              const newRoot = updateNodeInTree(architectState.outline, selectedNode.id, { content: result });
-              setArchitectState(prev => ({ ...prev, outline: newRoot, lastUpdated: Date.now() }));
-              // 更新本地状态
-              setSelectedNode(prev => prev ? ({ ...prev, content: result }) : null);
+      
+      // 使用 TaskSystem 以便监控和重试
+      await startBackgroundTask('draft', 'drafting', async (taskId) => {
+          try {
+              updateTaskProgress(taskId, t('process.init'), 5, t('process.init'));
+              const selectedStyle = promptLibrary.find(p => p.id === selectedPromptId)?.content;
               
-              // 自动切换到稿件视图查看结果
-              alert(t('common.confirm') + ": Draft generated. Switching to Manuscript view.");
-              setViewMode('manuscript');
+              let fullContext = "";
+
+              // 1. Context Assembly (Standard vs RAG)
+              // We'll interpret `enableContextOptimization` or `contextConfig.enableRAG` as "Enable RAG"
+              if (enableContextOptimization || contextConfig.enableRAG) {
+                  updateTaskProgress(taskId, t('process.rag_retrieving'), 10, t('process.rag_retrieving'));
+                  // Architect outline is a single tree, so we pass the root as search target
+                  const ragResult = await retrieveRelevantContext(
+                      `${selectedNode.name} ${selectedNode.description}`, 
+                      [architectState.outline!], 
+                      15, 
+                      (msg) => {
+                          let displayMsg = msg;
+                          if (msg.includes('Vectorizing')) displayMsg = t('process.vectorizing').replace('{progress}', msg.split(':')[1] || '');
+                          else if (msg.includes('Indexing')) displayMsg = t('process.rag_indexing');
+                          
+                          updateTaskProgress(taskId, t('process.rag_indexing'), 15, displayMsg);
+                      }
+                  );
+                  fullContext = ragResult.context;
+              } else {
+                  // Standard Traversal
+                  let worldContext = "";
+                  const traverseContext = (node: OutlineNode) => {
+                      if (contextConfig.selectedMaps.includes(node.type as any) || (node.type === 'character' && contextConfig.selectedMaps.includes('character'))) {
+                          worldContext += `[${node.type}] ${node.name}: ${node.description}\n`;
+                      }
+                      if (node.children) node.children.forEach(traverseContext);
+                  };
+                  traverseContext(architectState.outline!);
+                  fullContext = `Book Title: ${architectState.outline?.name}. Synopsis: ${architectState.synopsis}. \nWORLD & CHARACTERS:\n${worldContext}`;
+              }
+
+              // 2. 提取上一章内容 (如果没有内容，则视为首章)
+              updateTaskProgress(taskId, t('process.analyzing_dep'), 15, t('process.analyzing_dep'));
+              let prevContent: string | undefined = undefined;
+              if (contextConfig.includePrevChapter && selectedNode.id && !isFirstNode) {
+                  prevContent = findPreviousNodeContent(architectState.outline!, selectedNode.id);
+              }
+
+              // 3. Current Node Sub-context (Beats) - NEW Requirement
+              let localChildrenContext = "";
+              if (selectedNode.children && selectedNode.children.length > 0) {
+                  localChildrenContext = "\n\n【本章细纲 (Beats)】:\n";
+                  selectedNode.children.forEach(child => {
+                      localChildrenContext += `- [${child.type}] ${child.name}: ${child.description || ''}\n`;
+                  });
+              }
+              fullContext += localChildrenContext;
+
+              const originalContext = fullContext; // Snapshot
+
+              // 4. Optimization Check
+              // Bundle everything if optimized
+              if (enableContextOptimization) {
+                   // 修复：只清洗上下文
+                   updateTaskProgress(taskId, t('process.optimizing'), 20, t('process.scrubbing'), undefined, {
+                       systemInstruction: globalPersona,
+                       context: fullContext
+                   });
+                   const originalLen = fullContext.length;
+                   // 关键修复：不包含 Prompt/Style
+                   fullContext = await optimizeContextWithAI(fullContext, lang);
+                   const ratio = ((1 - fullContext.length / (originalLen || 1)) * 100).toFixed(1);
+                   
+                   updateTaskProgress(taskId, t('process.optimizing'), 25, t('process.opt_success').replace('{ratio}', ratio), undefined, { 
+                       context: fullContext,
+                       comparison: {
+                           originalContext: originalContext,
+                           optimizedContext: fullContext,
+                           systemInstruction: globalPersona
+                       }
+                   });
+              }
+
+              await pauseTask(taskId);
+
+              // 修复：始终传递 globalPersona
+              updateTaskProgress(taskId, t('process.drafting'), 30, t('process.calling_api'));
+              const result = await generateChapterContent(
+                  selectedNode, 
+                  fullContext, 
+                  lang, 
+                  model, 
+                  selectedStyle, 
+                  draftWordCount, 
+                  globalPersona,
+                  (stage, progress, log, metrics, debugInfo) => updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo),
+                  prevContent
+              );
+              
+              updateTaskProgress(taskId, t('process.saving'), 95, t('process.saving'));
+              setGeneratedChapter(result);
+              if (selectedNode.id) {
+                  const newRoot = updateNodeInTree(architectState.outline!, selectedNode.id, { content: result });
+                  setArchitectState(prev => ({ ...prev, outline: newRoot, lastUpdated: Date.now() }));
+                  // 更新本地状态
+                  setSelectedNode(prev => prev ? ({ ...prev, content: result }) : null);
+                  
+                  // 自动切换到稿件视图查看结果
+                  alert(t('common.confirm') + ": Draft generated. Switching to Manuscript view.");
+                  setViewMode('manuscript');
+              }
+              return t('process.done');
+          } catch(e) {
+              setGeneratedChapter("Error generating content.");
+              throw e;
+          } finally {
+              setGeneratingChapter(false);
           }
-      } catch(e) {
-          setGeneratedChapter("Error generating content.");
-      } finally {
-          setGeneratingChapter(false);
-      }
+      });
   }
 
   // 草稿内容失焦保存
@@ -578,72 +708,94 @@ export const Architect: React.FC = () => {
                               <h2 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-teal-600 transition-colors flex items-center gap-2">
                                   {selectedNode.name} <Edit2 size={14} className="opacity-0 group-hover:opacity-50"/>
                               </h2>
-                              <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{selectedNode.description}</p>
+                              <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{selectedNode.description || t('architect.noContent')}</p>
                           </div>
                       )}
                   </div>
 
-                  {/* 结构操作区 */}
-                  <div className="border-t border-slate-100 pt-6">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><Network size={12}/> {t('architect.structureActions')}</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleAddChild()} className="p-2 border border-slate-200 rounded text-xs font-medium hover:bg-slate-50 flex items-center justify-center gap-1"><Plus size={14}/> {t('architect.addChild')}</button>
-                          <button onClick={handleAddSibling} className="p-2 border border-slate-200 rounded text-xs font-medium hover:bg-slate-50 flex items-center justify-center gap-1"><CopyPlus size={14}/> {t('architect.addSibling')}</button>
-                          <button onClick={handleDeleteNode} className="p-2 border border-red-100 text-red-600 rounded text-xs font-medium hover:bg-red-50 flex items-center justify-center gap-1 col-span-2"><Trash2 size={14}/> {t('architect.deleteNode')}</button>
-                      </div>
-                  </div>
-
-                  {/* AI 扩展区 */}
-                  <div className="border-t border-slate-100 pt-6">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><Sparkles size={12}/> {t('architect.aiExpand')}</h4>
-                      <div className="space-y-3">
-                          <select value={expandPromptId} onChange={e => setExpandPromptId(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-xs bg-white">
-                              <option value="">{t('architect.defaultStyle')}</option>
-                              {promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                          <button onClick={handleAiExpandChildren} disabled={expandingNode} className="w-full py-2 bg-teal-600 text-white rounded text-xs font-bold hover:bg-teal-700 flex items-center justify-center gap-2 shadow-sm">
-                              {expandingNode ? <Loader2 className="animate-spin" size={14}/> : <Network size={14}/>} {t('architect.expandBtn')}
+                  {/* Actions Area */}
+                  <div className="pt-6 border-t border-slate-100 space-y-4">
+                      
+                      {/* Context Config */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <button onClick={() => setShowContextConfig(!showContextConfig)} className="w-full flex justify-between items-center text-xs font-bold text-slate-600 mb-2">
+                              <span className="flex items-center gap-2"><Settings2 size={12}/> {t('studio.inspector.contextSettings')}</span>
+                              {showContextConfig ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
                           </button>
+                          
+                          {showContextConfig && (
+                              <div className="space-y-2 pt-2 border-t border-slate-200 animate-in fade-in">
+                                  <div className="flex items-center gap-2">
+                                      <input type="checkbox" id="arch-rag" checked={contextConfig.enableRAG} onChange={e => setContextConfig({...contextConfig, enableRAG: e.target.checked})} className="rounded border-gray-300 text-purple-600"/>
+                                      <label htmlFor="arch-rag" className="text-[10px] text-slate-600 font-bold">{t('studio.inspector.enableRAG')}</label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <input type="checkbox" id="arch-opt" checked={enableContextOptimization} onChange={e => setEnableContextOptimization(e.target.checked)} className="rounded border-gray-300 text-teal-600"/>
+                                      <label htmlFor="arch-opt" className="text-[10px] text-slate-600 font-bold">{t('studio.inspector.optimizeContext')}</label>
+                                  </div>
+                              </div>
+                          )}
                       </div>
+
+                      {/* Generate Draft */}
+                      {(selectedNode.type === 'chapter' || selectedNode.type === 'scene') && (
+                          <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">{t('architect.generateDraft')}</label>
+                              
+                              <div className="flex gap-2 mb-2">
+                                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded px-2 flex-1">
+                                      <Hash size={12} className="text-slate-400 mr-1"/>
+                                      <input type="number" value={draftWordCount} onChange={e => setDraftWordCount(Number(e.target.value))} className="w-full bg-transparent text-xs py-1.5 focus:outline-none" />
+                                  </div>
+                                  <div className="flex-1">
+                                      <select value={selectedPromptId} onChange={e => setSelectedPromptId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded text-xs py-1.5 px-2">
+                                          <option value="">{t('architect.prompts.select')}</option>
+                                          {promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                      </select>
+                                  </div>
+                              </div>
+
+                              <button 
+                                  onClick={handleGenerateChapter}
+                                  disabled={generatingChapter}
+                                  className="w-full py-2 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 flex items-center justify-center gap-2 shadow-md shadow-teal-100 disabled:opacity-50"
+                              >
+                                  {generatingChapter ? <Loader2 className="animate-spin" size={14}/> : <FileText size={14}/>}
+                                  {t('architect.generateDraft')}
+                              </button>
+                          </div>
+                      )}
+
+                      {/* Structure Actions */}
+                      <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">{t('architect.structureActions')}</label>
+                          <div className="grid grid-cols-2 gap-2">
+                              <button onClick={() => handleAddChild()} className="py-2 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-50 flex items-center justify-center gap-1 text-slate-600">
+                                  <Plus size={12}/> {t('architect.addChild')}
+                              </button>
+                              <button onClick={handleAddSibling} className="py-2 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-50 flex items-center justify-center gap-1 text-slate-600">
+                                  <CopyPlus size={12}/> {t('architect.addSibling')}
+                              </button>
+                          </div>
+                          
+                          {/* AI Expand */}
+                          <div className="flex gap-2">
+                              <button 
+                                  onClick={handleAiExpandChildren}
+                                  disabled={expandingNode}
+                                  className="flex-1 py-2 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-xs font-bold hover:bg-indigo-100 flex items-center justify-center gap-1"
+                              >
+                                  {expandingNode ? <Loader2 className="animate-spin" size={12}/> : <Sparkles size={12}/>}
+                                  {t('architect.aiExpand')}
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* Delete */}
+                      <button onClick={handleDeleteNode} className="w-full py-2 text-red-500 hover:bg-red-50 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors">
+                          <Trash2 size={12}/> {t('architect.deleteNode')}
+                      </button>
                   </div>
-
-                  {/* 草稿生成区 */}
-                  {(selectedNode.type === 'chapter' || selectedNode.type === 'scene') && (
-                      <div className="border-t border-slate-100 pt-6 pb-8">
-                           <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><FileText size={12}/> {t('architect.content')}</h4>
-                           
-                           {/* 草稿预览与编辑 */}
-                           <textarea 
-                              value={generatedChapter} 
-                              onChange={e => setGeneratedChapter(e.target.value)}
-                              onBlur={handleContentBlur}
-                              placeholder={t('architect.noContent')}
-                              className="w-full h-48 p-3 bg-slate-50 border border-slate-200 rounded text-xs leading-relaxed resize-none focus:bg-white focus:ring-1 focus:ring-teal-500 mb-3"
-                           />
-                           
-                           <div className="flex gap-2 items-center mb-3">
-                               <Hash size={14} className="text-slate-400"/>
-                               <input 
-                                  type="number" 
-                                  value={draftWordCount} 
-                                  onChange={e => setDraftWordCount(Number(e.target.value))}
-                                  className="w-20 p-1 border rounded text-xs text-center"
-                                  step={500}
-                               />
-                               <span className="text-xs text-slate-400">words</span>
-                           </div>
-
-                           <select value={selectedPromptId} onChange={e => setSelectedPromptId(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-xs bg-white mb-3">
-                              <option value="">{t('architect.prompts.select')}</option>
-                              {promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                           </select>
-
-                           <button onClick={handleGenerateChapter} disabled={generatingChapter} className="w-full py-2 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-sm">
-                               {generatingChapter ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>} {t('architect.generateDraft')}
-                           </button>
-                      </div>
-                  )}
-
               </div>
           </div>
       )}

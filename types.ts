@@ -52,6 +52,7 @@ export interface OutlineNode {
   description?: string; // 节点的描述或概要
   content?: string;   // 节点对应的正文内容 (主要用于章节/场景节点)
   children?: OutlineNode[]; // 子节点列表 (实现递归树结构)
+  embedding?: number[]; // [New] 向量化数据，用于 RAG 检索 (Web-LLM Local Vector Store)
 }
 
 // 提示词模板接口
@@ -138,7 +139,7 @@ export interface BackgroundTask {
     id: string;             // 任务唯一ID
     type: 'inspiration' | 'story' | 'map_regen' | 'draft'; // 任务类型
     labelKey?: string;      // 用于 UI 显示的国际化 Key
-    status: 'running' | 'completed' | 'error' | 'cancelled'; // 任务状态
+    status: 'running' | 'completed' | 'error' | 'cancelled' | 'paused'; // 任务状态 (Added paused)
     progress: number;       // 进度百分比 (0 - 100)
     currentStage: string;   // 当前执行阶段描述 (如："正在分析提示词...")
     logs: TaskLog[];        // 执行日志流
@@ -153,6 +154,19 @@ export interface BackgroundTask {
         model?: string;             // 使用的模型
         systemInstruction?: string; // 使用的系统设定/身份
         sourceData?: any;           // 原始参考数据 (如爬取的榜单列表)
+        // [New] 优化前后的对比数据
+        comparison?: {
+            originalContext?: string;
+            optimizedContext?: string;
+            originalPrompt?: string;
+            optimizedPrompt?: string;
+            systemInstruction?: string;
+        };
+        // [New] 真实发送给 API 的 Payload (Request/Response)
+        apiPayload?: {
+            request: string;
+            response: string;
+        };
     };
 }
 
@@ -254,6 +268,17 @@ export interface GenerationConfig {
     chapterCount?: number;  // 预计章节数
     wordsPerChapter?: number; // 每章字数
     styleId?: string;       // 选用的提示词模板 ID
+}
+
+// 上下文生成配置 (Context Control)
+export interface ContextConfig {
+    includePrevChapter: boolean; // 是否包含上一章
+    previousChapterId?: string;  // 指定上一章节点的 ID (manual selection)
+    nextChapterId?: string;      // 指定下一章节点的 ID (manual selection)
+    selectedMaps: string[];      // 选中的导图 Key (world, character...)
+    limitMode: 'auto' | 'manual'; // 限制模式
+    manualLimit: number;         // 手动限制字符数
+    enableRAG?: boolean;         // [New] 是否启用 RAG 检索增强
 }
 
 // --- 历史记录数据模型 ---

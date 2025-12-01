@@ -82,6 +82,14 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
          onNodeClick(d.data); 
       });
 
+    // 1. Invisible Hit Area Circle (Larger for easier clicking)
+    // 增加一个透明的大圆，作为点击热区，提升用户体验
+    node.append("circle")
+      .attr("r", 25) // 半径 25px 的热区
+      .attr("fill", "transparent")
+      .attr("stroke", "none");
+
+    // 2. Visual Circle (The actual colored dot)
     node.append("circle")
       .attr("r", (d: any) => d.data.type === 'book' ? 9 : 7)
       .attr("fill", (d: any) => {
@@ -144,9 +152,9 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
           <g ref={gRef}></g>
       </svg>
       <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-md border border-slate-200 opacity-80 hover:opacity-100 transition-opacity">
-          <button onClick={handleZoomIn} className="p-1.5 rounded hover:bg-slate-100 text-slate-600"><ZoomIn size={18} /></button>
-          <button onClick={handleZoomOut} className="p-1.5 rounded hover:bg-slate-100 text-slate-600"><ZoomOut size={18} /></button>
-          <button onClick={handleResetZoom} className="p-1.5 rounded hover:bg-slate-100 text-slate-600"><Maximize size={18} /></button>
+          <button onClick={handleZoomIn} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Zoom In"><ZoomIn size={20} /></button>
+          <button onClick={handleZoomOut} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Zoom Out"><ZoomOut size={20} /></button>
+          <button onClick={handleResetZoom} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Fit to Screen"><Maximize size={20} /></button>
       </div>
     </div>
   );

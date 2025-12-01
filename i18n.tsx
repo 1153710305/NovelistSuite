@@ -2,15 +2,6 @@
 /**
  * @file i18n.tsx
  * @description 国际化 (i18n) 处理系统。
- * 
- * ## 功能
- * - 提供轻量级 Context Provider (`I18nProvider`) 支持多语言。
- * - 存储基于 JSON 结构的翻译字典。
- * - 处理回退逻辑 (缺失键时回退到中文)。
- * - 持久化语言选择到本地存储。
- * 
- * ## AI 集成
- * - 不直接连接 AI，但提供 `lang` 参数给 AI 提示词 (`geminiService` 中的 `getLangInstruction`)。
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -22,7 +13,7 @@ const translations: Record<Language, any> = {
   en: {
     app: { title: 'InkFlow AI' },
     login: { title: 'InkFlow AI Login', subtitle: 'Select your access role', userBtn: 'Author Login', adminBtn: 'Admin Login', userDesc: 'Enter Creative Suite', adminDesc: 'View System Data' },
-    admin: { title: 'Admin Dashboard', tabUsers: 'Users', tabLab: 'Lab Data', tabStudio: 'Studio Data', tabArchitect: 'Architect Data', tabConfig: 'Model Config', refresh: 'Refresh', clearAll: 'Clear', empty: 'No Records', id: 'ID', timestamp: 'Time', content: 'Content', type: 'Type', exit: 'Exit', exportAll: 'Export All Data',
+    admin: { title: 'Admin Dashboard', tabUsers: 'Users', tabLab: 'Lab Data', tabStudio: 'Studio Data', tabArchitect: 'Architect Data', tabConfig: 'Model Config', refresh: 'Refresh', clearAll: 'Clear', empty: 'No Records', id: 'ID', timestamp: 'Time', content: 'Content', type: 'Type', exit: 'Exit', exportAll: 'Export All Data', importAll: 'Import All Data', confirmImport: 'This action will OVERWRITE all local data with the imported file. Continue?', importSuccess: 'Data imported successfully. Reloading...',
         config: { title: 'Model Resource Limits', reset: 'Reset to Defaults', modelName: 'Model Name', rpm: 'RPM (Req/Min)', rpd: 'Daily Limit (Req/Day)', context: 'Context Window (Tokens)', save: 'Save Config', saved: 'Configuration saved.' }
     },
     models: { 
@@ -47,7 +38,25 @@ const translations: Record<Language, any> = {
         errorTitle: 'Error', 
         errorDesc: 'An unexpected error occurred. Please check your network connection.', 
         reload: 'Reload', logs: 'Logs', level: 'Level', message: 'Message', edit: 'Edit', cancel: 'Cancel', confirm: 'Confirm', close: 'Close', add: 'Add', manage: 'Manage', apply: 'Apply', export: 'Export', import: 'Import', selectAll: 'Select All', deselectAll: 'Deselect All', selected: 'Selected',
-        search: 'Search...'
+        search: 'Search...', retry: 'Retry', clear: 'Clear', opacity: 'Opacity'
+    },
+    process: {
+        analyzing_dep: 'Analyzing context dependencies...',
+        rag_retrieving: 'Retrieving context from Vector DB...',
+        rag_indexing: 'Indexing new context nodes...',
+        optimizing: 'AI Scrubbing & Compression...',
+        opt_success: 'Context Optimized (Compressed: {ratio}%)',
+        drafting: 'AI Drafting Content...',
+        saving: 'Saving data to local storage...',
+        done: 'Task Completed Successfully',
+        regen_map: 'Regenerating mind map structure...',
+        init: 'Initializing task...',
+        failed: 'Task Failed',
+        vectorizing: 'Vectorizing nodes: {progress}',
+        scrubbing: 'Scrubbing payload...',
+        calling_api: 'Calling Gemini API...',
+        building_prompt: 'Building Prompt...',
+        analyzingTrend: 'Analyzing Market Data...'
     },
     nav: { dashboard: 'Dashboard', market: 'Market & Analysis', studio: 'Writing Studio', architect: 'Story Architect', coverStudio: 'Art Studio', chat: 'AI Chat', workflow: 'Auto Workflow', powered: 'Powered by Google Gemini' },
     settings: { title: 'Settings', language: 'Language', model: 'Model', modelHelp: 'Lite, Flash, Pro', resetGuide: 'Reset Guide', dataManager: 'Data & Export', globalPersona: 'Global Persona' },
@@ -81,12 +90,18 @@ const translations: Record<Language, any> = {
         manageTitle: 'Manage Prompts',
         newPrompt: 'New Prompt',
         editPrompt: 'Edit Prompt',
+        name: 'Prompt Name',
+        instruction: 'System Instruction',
         namePlaceholder: 'e.g. Cyberpunk Style',
         contentPlaceholder: 'Enter system instructions or style guide...',
         tagsPlaceholder: 'Tags (comma separated)',
         saveSuccess: 'Prompt saved successfully.',
         deleteConfirm: 'Are you sure you want to delete this prompt?',
-        empty: 'No prompts found. Create one!'
+        empty: 'No prompts found. Create one!',
+        transform: 'AI Format Transform',
+        toStructured: 'To Structured',
+        toNatural: 'To Natural',
+        transforming: 'Converting...'
     },
     sources: { title: 'Sources', label: 'Platforms:', douyin: 'Douyin', kuaishou: 'Kuaishou', bilibili: 'Bilibili', baidu: 'Baidu', weibo: 'Weibo', xiaohongshu: 'RedBook', fanqie: 'Fanqie', qidian: 'Qidian', jinjiang: 'Jinjiang', zhihu: 'Zhihu', zongheng: 'Zongheng', all: 'All' },
     dataDoc: { title: 'Data Methodology', btnLabel: 'Methodology', method: { title: 'Method', desc: 'API Aggregation + AI Analysis' }, sources: { title: 'Sources', desc: 'Official Rankings' }, reliability: { title: 'Reliability', desc: 'Cross-verification' } },
@@ -97,7 +112,6 @@ const translations: Record<Language, any> = {
         anime: 'Anime', game: 'Gaming', review: 'Review', meme: 'Meme', tutorial: 'Tutorial', 
         question: 'Question', career: 'Career', science: 'Science', history: 'History', relationship: 'Relationship', 
         ootd: 'OOTD', makeup: 'Makeup', travel: 'Travel', food: 'Food', decor: 'Decor',
-        // Novel Specific
         system: 'System Stream', rebirth: 'Rebirth', transmigration: 'Transmigration', counterattack: 'Face Slapping',
         invincible: 'Invincible Start', goudao: 'Low Profile', detective: 'Investigation', infinite: 'Infinite Flow',
         simulation: 'Life Sim', horror_recovery: 'Mystery Recovery', cyberpunk: 'Cyberpunk'
@@ -122,12 +136,17 @@ const translations: Record<Language, any> = {
         mapGroup: { core: 'Core Settings', plot: 'Plot Planning' },
         maps: { world: 'World Setting', system: 'Cool System', mission: 'Char Status Template', character: 'Character Profile', anchor: 'Plot Anchors', structure: 'Volume Outline', events: 'Event Flow', chapters: 'Unit Outline' },
         analyzeTrend: 'Get Trend (New Book List)', analyzingTrend: 'Analyzing...', promptLib: 'Prompt Library',
-        tree: { maps: 'Mind Maps', manuscript: 'Manuscript', regenerate: 'Regenerate Map', selectContext: 'Select Precedent Context', contextTip: 'Select other maps to guide generation' },
+        tree: { maps: 'Mind Maps', manuscript: 'Manuscript', regenerate: 'Regenerate Map', selectContext: 'Select Precedent Context', contextTip: 'Select other maps to guide generation', requirements: 'Mandatory Requirements (MUST Satisfy)', requirementsPlaceholder: 'e.g. "Main character MUST be female", "System has 9 levels"...' },
         editor: { aiModify: 'AI Modify', manual: 'Manual Edit', selectPrompt: 'Select Prompt', insertIllu: 'Insert Illustration', illuMode: 'Illustration Mode', illuContext: 'Analyze Cursor Context', illuPrompt: 'Custom Prompt', illuUpload: 'Upload Image', generateIllu: 'Generate', preview: 'Preview', edit: 'Edit' },
         historyMenu: { createMap: 'Add Mind Map', createContent: 'Add Chapter', exportJson: 'Export Backup (JSON)', exportZip: 'Export ZIP (MD+TXT)' },
         manual: { newMapTitle: 'Create Mind Map', mapType: 'Map Type', rootName: 'Root Name', newChapTitle: 'Create Chapter', chapTitle: 'Chapter Title', create: 'Create', defaultChapter: 'Chapter', untitled: 'Untitled', addChapter: 'Add Chapter' },
         folder: { manuscript: 'Manuscript Folder', files: 'Files' },
-        inspector: { title: 'Node Inspector', name: 'Name', desc: 'Description', save: 'Save Changes', generate: 'Generate Draft', wordCount: 'Target Word Count' },
+        inspector: { 
+            title: 'Node Inspector', name: 'Name', desc: 'Description', save: 'Save Changes', generate: 'Generate Draft', wordCount: 'Target Word Count',
+            promptLabel: 'Prompt Instruction', selectTemplate: 'Fill from Template...', contextSettings: 'Context Controls', 
+            prevNode: 'Previous (Transition)', nextNode: 'Next (Foreshadowing)', autoDetect: 'Auto Detect', none: 'None', currentChapter: 'Current Chapter', optimizeContext: 'AI Scrub & Clean', optimizeDesc: 'Clean, Deduplicate & Disambiguate context (remove "maybe", "left/right").', enableRAG: 'Enable RAG Search',
+            contextMaps: 'Context Maps', sizeLimit: 'Size Limit', words: 'words'
+        },
         contextWarning: { 
             title: 'Large Context Warning', 
             desc: 'The amount of context data (World/Character maps) exceeds the safe threshold for this model. Sending too much data may cause timeouts or high costs.',
@@ -189,9 +208,32 @@ const translations: Record<Language, any> = {
         },
         debug: {
             title: 'Debug Details',
+            legendHelp: 'Explain Data Fields',
             prompt: 'Prompt',
+            promptDesc: '[Action] The specific command. E.g., "Write Chapter 3".',
             context: 'Context',
-            model: 'Model'
+            contextDesc: '[Dynamic] Background info (World/Chars/Metadata).',
+            system: 'System Persona',
+            systemDesc: '[Fixed] Who the AI is (e.g. Senior Editor).',
+            model: 'Model',
+            comparison: 'Optimization Comparison',
+            original: 'Before (Original)',
+            optimized: 'After (Compressed)',
+            compressed_note: 'ℹ️ High-Density Protocol Active: Context has been compressed into structured JSON tags ([CMD], [FACTS]) to save tokens.',
+            api: 'API Payload',
+            apiDesc: '[Raw Data] Real request sent to Gemini and raw response.',
+            request: 'Request Payload (Full)',
+            response: 'Response Data (Raw)'
+        },
+        legend: {
+            title: 'Data Field Legend',
+            systemTitle: 'System Persona (Fixed)',
+            systemDesc: 'Defines WHO the AI is. (e.g. "You are a Senior Editor"). This is static and persists across requests.',
+            contextTitle: 'Context (Dynamic)',
+            contextDesc: 'Defines WHAT the AI knows. Contains background info like World Setting, Character Sheets, and previous chapters. It is dynamically assembled for each task.',
+            promptTitle: 'Prompt (Action)',
+            promptDesc: 'Defines WHAT to do NOW. The specific instruction for the current task (e.g. "Rewrite this paragraph").',
+            formatNote: 'Note: If you see tags like [CMD] or [TASK] in Context, it means "Context Optimization" is active. The AI has compressed the raw data into a high-density format for better performance.'
         }
     },
     workflow: {
@@ -213,7 +255,7 @@ const translations: Record<Language, any> = {
   zh: {
     app: { title: '个人AI小说生成系统' },
     login: { title: 'InkFlow AI 登录', subtitle: '请选择您的访问身份', userBtn: '作者登录', adminBtn: '管理员登录', userDesc: '进入创作系统', adminDesc: '查看本地数据' },
-    admin: { title: '系统管理后台', tabUsers: '用户信息', tabLab: '拆书数据', tabStudio: '工作室数据', tabArchitect: '大纲数据', tabConfig: '模型配置', refresh: '刷新', clearAll: '清空', empty: '无记录', id: 'ID', timestamp: '时间', content: '内容', type: '类型', exit: '退出', exportAll: '导出全部数据',
+    admin: { title: '系统管理后台', tabUsers: '用户信息', tabLab: '拆书数据', tabStudio: '工作室数据', tabArchitect: '大纲数据', tabConfig: '模型配置', refresh: '刷新', clearAll: '清空', empty: '无记录', id: 'ID', timestamp: '时间', content: '内容', type: '类型', exit: '退出', exportAll: '导出全部数据', importAll: '导入全部数据', confirmImport: '此操作将覆盖所有本地数据！确定继续吗？', importSuccess: '数据导入成功，页面将刷新。',
         config: { title: '模型资源与配额限制', reset: '恢复默认设置', modelName: '模型名称', rpm: '频率限制 (Req/Min)', rpd: '每日配额 (Req/Day)', context: '上下文窗口 (Tokens)', save: '保存配置', saved: '配置已更新。' }
     },
     models: { 
@@ -238,7 +280,25 @@ const translations: Record<Language, any> = {
         errorTitle: '出错了', 
         errorDesc: '发生未知错误，请检查网络连接。', 
         reload: '重载', logs: '日志', level: '级别', message: '信息', edit: '编辑', cancel: '取消', confirm: '确认', close: '关闭', add: '添加', manage: '管理', apply: '应用', export: '导出', import: '导入', selectAll: '全选', deselectAll: '取消全选', selected: '已选',
-        search: '搜索...'
+        search: '搜索...', retry: '重试', clear: '清空', opacity: '透明度'
+    },
+    process: {
+        analyzing_dep: '正在分析上下文依赖...',
+        rag_retrieving: '正在从向量数据库检索...',
+        rag_indexing: '正在索引新节点...',
+        optimizing: 'AI 结构化清洗与压缩...',
+        opt_success: '清洗完成 (压缩率: {ratio}%)',
+        drafting: 'AI 正在撰写正文...',
+        saving: '正在保存数据...',
+        done: '任务执行成功',
+        regen_map: '正在重绘导图结构...',
+        init: '任务初始化...',
+        failed: '任务失败',
+        vectorizing: '正在向量化节点: {progress}',
+        scrubbing: '正在清洗并压缩上下文...',
+        calling_api: '正在调用 Gemini API 生成...',
+        building_prompt: '正在构建提示词...',
+        analyzingTrend: '正在分析市场数据...'
     },
     nav: { dashboard: '仪表盘', market: '市场与拆解', studio: '写作工作室', architect: '故事架构师', coverStudio: '封面工作室', chat: 'AI 对话', workflow: '自动化工作流', powered: '由智能 AI 驱动' },
     settings: { title: '设置', language: '语言', model: '模型', modelHelp: 'Lite, Flash, Pro', resetGuide: '重置引导', dataManager: '数据与导出', globalPersona: '全局身份' },
@@ -272,12 +332,18 @@ const translations: Record<Language, any> = {
         manageTitle: '管理提示词',
         newPrompt: '新建提示词',
         editPrompt: '编辑提示词',
+        name: '提示词名称',
+        instruction: '系统指令内容',
         namePlaceholder: '例：赛博修仙风格',
         contentPlaceholder: '在此输入系统指令或风格要求...',
         tagsPlaceholder: '标签 (逗号分隔)',
         saveSuccess: '提示词已保存。',
         deleteConfirm: '确定要删除此提示词吗？',
-        empty: '暂无自定义提示词。'
+        empty: '暂无自定义提示词。',
+        transform: 'AI 格式转换',
+        toStructured: '转结构化',
+        toNatural: '转自然语言',
+        transforming: '转换中...'
     },
     sources: { title: '数据来源', label: '选择平台：', douyin: '抖音', kuaishou: '快手', bilibili: 'B站', baidu: '百度', weibo: '微博', xiaohongshu: '小红书', fanqie: '番茄', qidian: '起点', jinjiang: '晋江', zhihu: '知乎', zongheng: '纵横', all: '全选' },
     dataDoc: { title: '数据说明', btnLabel: '算法文档', method: { title: '获取方式', desc: 'API聚合+AI分析' }, sources: { title: '来源', desc: '官方榜单' }, reliability: { title: '真实性', desc: '交叉验证' } },
@@ -288,7 +354,6 @@ const translations: Record<Language, any> = {
         anime: '动漫新番', game: '游戏攻略', review: '影视解说', meme: '鬼畜/梗', tutorial: '硬核教程', 
         question: '热榜提问', career: '职场', science: '科普', history: '历史', relationship: '情感', 
         ootd: '穿搭', makeup: '美妆', travel: '旅游', food: '美食', decor: '装修',
-        // Novel Specific
         system: '系统流', rebirth: '重生', transmigration: '穿越', counterattack: '打脸/逆袭',
         invincible: '无敌开局', goudao: '苟道/稳健', detective: '刑侦/破案', infinite: '无限流',
         simulation: '人生模拟', horror_recovery: '诡异复苏', cyberpunk: '赛博朋克'
@@ -313,12 +378,17 @@ const translations: Record<Language, any> = {
         mapGroup: { core: '核心设定', plot: '剧情规划' },
         maps: { world: '世界设定', system: '爽点体系', mission: '角色状态模版', character: '角色档案', anchor: '剧情伏笔锚点', structure: '分卷大纲', events: '事件流', chapters: '单元细纲' },
         analyzeTrend: '获取焦点 (新书榜)', analyzingTrend: '爬取中...', promptLib: '提示词库',
-        tree: { maps: '思维导图', manuscript: '正文稿件', regenerate: '重新生成导图', selectContext: '选择前置参考', contextTip: '选择其他已有的导图作为生成依据，可确保逻辑一致性。' },
+        tree: { maps: '思维导图', manuscript: '正文稿件', regenerate: '重新生成导图', selectContext: '选择前置参考', contextTip: '选择其他已有的导图作为生成依据，可确保逻辑一致性。', requirements: '必须满足的要求 (硬性约束)', requirementsPlaceholder: '例：“主角必须是女性”、“力量体系必须是9级”...' },
         editor: { aiModify: 'AI 修改', manual: '手动编辑', selectPrompt: '选择提示词', insertIllu: '插入插图', illuMode: '插图模式', illuContext: '分析光标上下文', illuPrompt: '自定义描述', illuUpload: '上传图片', generateIllu: '生成插图', preview: '预览', edit: '编辑' },
         historyMenu: { createMap: '新增思维导图', createContent: '新增正文', exportJson: '导出备份(JSON)', exportZip: '导出压缩包(MD+TXT)' },
         manual: { newMapTitle: '新建思维导图', mapType: '导图类型', rootName: '根节点名称', newChapTitle: '新建章节', chapTitle: '章节名称', create: '创建', defaultChapter: '第', untitled: '无标题', addChapter: '新增章节' },
         folder: { manuscript: '正文文件夹', files: '文件' },
-        inspector: { title: '节点检查器', name: '名称', desc: '描述', save: '保存更改', generate: '生成草稿', wordCount: '目标字数' },
+        inspector: { 
+            title: '节点检查器', name: '名称', desc: '描述', save: '保存更改', generate: '生成草稿', wordCount: '目标字数',
+            promptLabel: '提示词指令', selectTemplate: '选择模板填充...', contextSettings: '上下文控制', 
+            prevNode: '承接上文 (上一章)', nextNode: '铺垫下文 (下一章)', autoDetect: '自动检测', none: '无', currentChapter: '当前章节', optimizeContext: 'AI 结构化与确定性清洗', optimizeDesc: '将上下文转为结构化JSON，去重并消除模糊词（如：左右→东南，大概→精确值）。', enableRAG: '开启 RAG 检索',
+            contextMaps: '上下文参考 (RAG关闭时可多选)', sizeLimit: '字数限制', words: '字'
+        },
         contextWarning: { 
             title: '上下文过大预警', 
             desc: '当前的上下文数据（世界观/角色导图）已超过模型的建议安全阈值。发送过多数据可能导致超时或高额消耗。',
@@ -380,9 +450,32 @@ const translations: Record<Language, any> = {
         },
         debug: {
             title: '调试详情',
-            prompt: '提示词',
-            context: '上下文',
-            model: '模型'
+            legendHelp: '解释数据含义',
+            prompt: '提示词 (Action)',
+            promptDesc: '[当前指令] 具体的动作命令。例如：“撰写第三章”。',
+            context: '上下文 (Knowledge)',
+            contextDesc: '[背景资料] 动态组装的知识。包含世界观、角色表和元数据。',
+            system: '系统设定 (Persona)',
+            systemDesc: '[固定人设] AI 是谁（例如：资深主编）。',
+            model: '模型',
+            comparison: '优化前后对比',
+            original: '原始输入 (Before)',
+            optimized: '压缩结果 (After)',
+            compressed_note: 'ℹ️ 高密度协议已激活: 上下文已压缩为结构化标签 ([CMD], [FACTS]) 以节省 Token。',
+            api: 'API 请求详情',
+            apiDesc: '[原始数据] 发送给 Gemini 的完整请求包和原始响应。',
+            request: '请求载荷 (Request)',
+            response: '原始响应 (Response)'
+        },
+        legend: {
+            title: '调试数据图例说明',
+            systemTitle: '系统设定 (System Persona)',
+            systemDesc: '定义 AI 的“身份”。（例如：“你是一个资深主编”）。这是固定的，每次请求都会携带。',
+            contextTitle: '上下文 (Context)',
+            contextDesc: '定义 AI 的“知识”。包含世界观、角色表、前文剧情等。它是根据当前任务动态组装的背景资料。',
+            promptTitle: '提示词 (Prompt)',
+            promptDesc: '定义 AI 的“动作”。具体的指令（例如：“重写这一段”、“生成第三章”）。',
+            formatNote: '注意：如果在上下文中看到 [CMD] 或 [TASK] 等标签，说明“上下文优化”已开启。AI 将原始资料压缩成了高密度格式以提升性能。'
         }
     },
     workflow: {
