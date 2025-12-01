@@ -20,7 +20,7 @@ import {
 } from '../services/storageService';
 
 import { 
-    StudioRecord, AVAILABLE_SOURCES, GenerationConfig, OutlineNode, ArchitectureMap, ContextConfig
+    StudioRecord, AVAILABLE_SOURCES, GenerationConfig, OutlineNode, ArchitectureMap, ContextConfig, EmbeddingModel
 } from '../types';
 
 import { MindMap } from '../components/MindMap';
@@ -168,6 +168,7 @@ export const Studio: React.FC = () => {
   const [selectedMapType, setSelectedMapType] = useState<Exclude<keyof ArchitectureMap, 'synopsis'>>('world');
   const [selectedMapNode, setSelectedMapNode] = useState<OutlineNode | null>(null);
   
+  // Computed states for loading indicators based on activeTasks
   const isGeneratingDaily = activeTasks.some(t => t.type === 'inspiration' && t.status === 'running');
   const isRegeneratingMap = activeTasks.some(t => t.type === 'map_regen' && t.status === 'running');
   const isAnalyzingTrend = activeTasks.some(t => t.labelKey === 'analyzeTrend' && t.status === 'running');
@@ -190,7 +191,9 @@ export const Studio: React.FC = () => {
       manualLimit: 25000,
       previousChapterId: undefined, 
       nextChapterId: undefined, 
-      enableRAG: false
+      enableRAG: false,
+      ragThreshold: 0.25, // Default 0.25
+      embeddingModel: EmbeddingModel.LOCAL_MINILM // Default to LOCAL_MINILM
   });
   const [showContextConfig, setShowContextConfig] = useState(false); 
   const [enableContextOptimization, setEnableContextOptimization] = useState(false);
@@ -208,7 +211,14 @@ export const Studio: React.FC = () => {
       loadHistory();
   }, []);
 
+  // Sync state with activeTasks to handle cancellations correctly
   useEffect(() => {
+     // Check if drafting task is running
+     const isDrafting = activeTasks.some(t => t.type === 'draft' && (t.status === 'running' || t.status === 'paused'));
+     if (!isDrafting && isGeneratingChapter) {
+         setIsGeneratingChapter(false);
+     }
+
      const lastInspTask = activeTasks.find(t => t.type === 'inspiration' && t.status === 'completed');
      if (lastInspTask && lastInspTask.result) {
          setStudioState(prev => ({ ...prev, generatedContent: lastInspTask.result }));
@@ -641,14 +651,24 @@ export const Studio: React.FC = () => {
               
               if (searchTargets.length > 0) {
                   const query = `${selectedMapNode.name} ${selectedMapNode.description || ''}`;
-                  const ragResult = await retrieveRelevantContext(query, searchTargets, 15, (msg) => {
-                      // Localize progress messages
-                      let displayMsg = msg;
-                      if (msg.includes('Vectorizing')) displayMsg = t('process.vectorizing').replace('{progress}', msg.split(':')[1] || '');
-                      else if (msg.includes('Indexing')) displayMsg = t('process.rag_indexing');
-                      
-                      updateTaskProgress(taskId, t('process.rag_indexing'), 15, displayMsg);
-                  });
+                  // Use threshold from config or default to 0.25
+                  const threshold = contextConfig.ragThreshold ?? 0.25;
+                  
+                  const ragResult = await retrieveRelevantContext(
+                      query, 
+                      searchTargets, 
+                      15, 
+                      (msg) => {
+                          // Localize progress messages
+                          let displayMsg = msg;
+                          if (msg.includes('Vectorizing')) displayMsg = t('process.vectorizing').replace('{progress}', msg.split(':')[1] || '');
+                          else if (msg.includes('Indexing')) displayMsg = t('process.rag_indexing');
+                          
+                          updateTaskProgress(taskId, t('process.rag_indexing'), 15, displayMsg);
+                      }, 
+                      threshold,
+                      contextConfig.embeddingModel // Pass selected embedding model
+                  );
                   // 强制将元数据拼接到 RAG 结果前
                   context = buildCoreMetadataContext(activeStoryRecord) + ragResult.context;
               } else {
@@ -905,19 +925,19 @@ export const Studio: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="col-span-1 md:col-span-2">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">书名 (Title)</label>
-                              <textarea value={inspirationRules.title} onChange={e => setInspirationRules({...inspirationRules, title: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-20 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-700 bg-white" placeholder="例如：四字书名，包含‘系统’二字..." />
+                              <textarea value={inspirationRules.title} onChange={e => setInspirationRules({...inspirationRules, title: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-20 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-900 bg-white" placeholder="例如：四字书名，包含‘系统’二字..." />
                           </div>
                           <div className="col-span-1 md:col-span-2">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">简介规则 (Synopsis)</label>
-                              <textarea value={inspirationRules.synopsis} onChange={e => setInspirationRules({...inspirationRules, synopsis: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-32 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-700 bg-white" placeholder="例如：新媒体风格，前三行必须有反转..." />
+                              <textarea value={inspirationRules.synopsis} onChange={e => setInspirationRules({...inspirationRules, synopsis: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-32 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-900 bg-white" placeholder="例如：新媒体风格，前三行必须有反转..." />
                           </div>
                           <div>
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">爽点 (Cool Point)</label>
-                              <textarea value={inspirationRules.coolPoint} onChange={e => setInspirationRules({...inspirationRules, coolPoint: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-24 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-700 bg-white" placeholder="例如：人前显圣，扮猪吃虎..." />
+                              <textarea value={inspirationRules.coolPoint} onChange={e => setInspirationRules({...inspirationRules, coolPoint: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-24 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-900 bg-white" placeholder="例如：人前显圣，扮猪吃虎..." />
                           </div>
                           <div>
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">爆点 (Burst Point)</label>
-                              <textarea value={inspirationRules.burstPoint} onChange={e => setInspirationRules({...inspirationRules, burstPoint: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-24 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-700 bg-white" placeholder="例如：主角身世揭秘，退婚打脸..." />
+                              <textarea value={inspirationRules.burstPoint} onChange={e => setInspirationRules({...inspirationRules, burstPoint: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-24 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-900 bg-white" placeholder="例如：主角身世揭秘，退婚打脸..." />
                           </div>
                       </div>
                   </div>
@@ -933,7 +953,7 @@ export const Studio: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
               <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6">
                   <h3 className="font-bold text-slate-800 mb-4">{t('studio.manual.newChapTitle')}</h3>
-                  <input value={newChapTitle} onChange={e => setNewChapTitle(e.target.value)} className="w-full p-2 border rounded text-sm mt-1" />
+                  <input value={newChapTitle} onChange={e => setNewChapTitle(e.target.value)} className="w-full p-2 border rounded text-sm mt-1 text-slate-900 bg-white" />
                   <div className="flex justify-end gap-2 pt-4">
                       <button onClick={() => setShowNewChapModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded text-sm">{t('common.cancel')}</button>
                       <button onClick={handleManualAddChapter} className="px-4 py-2 bg-teal-600 text-white rounded text-sm hover:bg-teal-700">{t('studio.manual.create')}</button>
@@ -965,7 +985,7 @@ export const Studio: React.FC = () => {
                                <label className="text-xs font-bold text-slate-500 uppercase">额外补充 (Optional Instruction)</label>
                                <button onClick={() => setRegenIdea('')} className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-1"><Eraser size={10}/> {t('common.clear')}</button>
                            </div>
-                           <textarea value={regenIdea} onChange={e => setRegenIdea(e.target.value)} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-32 leading-relaxed font-mono text-xs focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-700 bg-white" placeholder="输入新的构思或修改意见..." />
+                           <textarea value={regenIdea} onChange={e => setRegenIdea(e.target.value)} className="w-full p-3 border border-slate-200 rounded-lg text-sm h-32 leading-relaxed font-mono text-xs focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-slate-900 bg-white" placeholder="输入新的构思或修改意见..." />
                            <p className="text-[10px] text-slate-400 mt-1">* 核心书名、简介及爽点等元数据将自动合并到上下文中，无需重复输入。</p>
                        </div>
                        
@@ -1029,7 +1049,7 @@ export const Studio: React.FC = () => {
                                 )}
                             </div>
                             <div className="flex bg-slate-100 p-1 rounded-lg mb-4"><button onClick={() => setTargetAudience('male')} className={`flex-1 py-1.5 rounded text-xs font-medium ${targetAudience === 'male' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>{t('studio.maleFreq')}</button><button onClick={() => setTargetAudience('female')} className={`flex-1 py-1.5 rounded text-xs font-medium ${targetAudience === 'female' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>{t('studio.femaleFreq')}</button></div>
-                            <div className="flex gap-2 mb-4"><input type="text" value={studioState.trendFocus} onChange={(e) => handleInputChange(e.target.value)} placeholder={t('studio.trendPlaceholder')} className="flex-1 p-2 text-xs border border-slate-300 rounded" disabled={isGeneratingDaily} /><button onClick={handleAnalyzeTrend} disabled={isAnalyzingTrend || selectedSources.length === 0} className="p-2 bg-indigo-50 text-indigo-600 rounded disabled:opacity-50" title="获取趋势 (Gemini Grounding)">{isAnalyzingTrend ? <Loader2 className="animate-spin" size={16}/> : <ZapIcon size={16}/>}</button></div>
+                            <div className="flex gap-2 mb-4"><input type="text" value={studioState.trendFocus} onChange={(e) => handleInputChange(e.target.value)} placeholder={t('studio.trendPlaceholder')} className="flex-1 p-2 text-xs border border-slate-300 rounded text-slate-900 bg-white" disabled={isGeneratingDaily} /><button onClick={handleAnalyzeTrend} disabled={isAnalyzingTrend || selectedSources.length === 0} className="p-2 bg-indigo-50 text-indigo-600 rounded disabled:opacity-50" title="获取趋势 (Gemini Grounding)">{isAnalyzingTrend ? <Loader2 className="animate-spin" size={16}/> : <ZapIcon size={16}/>}</button></div>
                             <button onClick={handleOpenInspirationConfig} disabled={isGeneratingDaily} className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-2">{isGeneratingDaily ? <Loader2 className="animate-spin"/> : t('studio.generateBtn')}</button>
                         </div>
                         <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4 overflow-y-auto shadow-sm">
@@ -1140,9 +1160,9 @@ export const Studio: React.FC = () => {
                                   <div className="w-full bg-white border-b border-slate-200 p-4 flex flex-col gap-4 shadow-sm z-10">
                                       <div className="flex flex-wrap gap-3 items-center">
                                           <div className="flex items-center gap-2 px-2 border-r border-slate-200 mr-2 flex-shrink-0"><span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">{t('studio.mapGroup.core')}</span></div>
-                                          {coreMaps.map(type => (<button key={type} onClick={() => { setSelectedMapType(type as any); setSelectedMapNode(null); }} className={`px-4 py-2 rounded text-sm font-bold whitespace-nowrap transition-all ${selectedMapType === type ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{t(`studio.maps.${type}`)}</button>))}
+                                          {coreMaps.map(type => (<button key={type} onClick={() => { setSelectedMapType(type as any); setSelectedMapNode(null); }} className={`px-5 py-2.5 rounded text-sm font-bold whitespace-nowrap transition-all ${selectedMapType === type ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{t(`studio.maps.${type}`)}</button>))}
                                           <div className="flex items-center gap-2 px-2 border-l border-r border-slate-200 mx-2 flex-shrink-0"><span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">{t('studio.mapGroup.plot')}</span></div>
-                                          {plotMaps.map(type => (<button key={type} onClick={() => { setSelectedMapType(type as any); setSelectedMapNode(null); }} className={`px-4 py-2 rounded text-sm font-bold whitespace-nowrap transition-all ${selectedMapType === type ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>{t(`studio.maps.${type}`)}</button>))}
+                                          {plotMaps.map(type => (<button key={type} onClick={() => { setSelectedMapType(type as any); setSelectedMapNode(null); }} className={`px-5 py-2.5 rounded text-sm font-bold whitespace-nowrap transition-all ${selectedMapType === type ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>{t(`studio.maps.${type}`)}</button>))}
                                       </div>
                                       {/* Action Buttons Row */}
                                       <div className="flex gap-2 justify-end border-t border-slate-100 pt-2">
@@ -1163,8 +1183,8 @@ export const Studio: React.FC = () => {
                                   <div className="w-96 max-w-full bg-white border-l border-slate-200 shadow-2xl z-20 flex flex-col animate-in slide-in-from-right duration-200 absolute top-0 right-0 bottom-0">
                                       <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm"><Settings2 size={16}/> {t('studio.inspector.title')}</h3><button onClick={() => setSelectedMapNode(null)} className="text-slate-400 hover:text-slate-600">&times;</button></div>
                                       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                          <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.name')}</label><input value={editNodeName} onChange={e => setEditNodeName(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-sm font-bold bg-slate-50 focus:bg-white transition-colors" /></div>
-                                          <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.desc')}</label><textarea value={editNodeDesc} onChange={e => setEditNodeDesc(e.target.value)} rows={6} className="w-full p-2 border border-slate-200 rounded text-xs leading-relaxed bg-slate-50 focus:bg-white transition-colors" /></div>
+                                          <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.name')}</label><input value={editNodeName} onChange={e => setEditNodeName(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-sm font-bold bg-slate-50 focus:bg-white transition-colors text-slate-900" /></div>
+                                          <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.desc')}</label><textarea value={editNodeDesc} onChange={e => setEditNodeDesc(e.target.value)} rows={6} className="w-full p-2 border border-slate-200 rounded text-xs leading-relaxed bg-slate-50 focus:bg-white transition-colors text-slate-900" /></div>
                                           <button onClick={handleSaveNodeEdit} className="w-full py-2 bg-slate-100 text-slate-600 rounded text-xs font-bold hover:bg-slate-200 mb-4">{t('studio.inspector.save')}</button>
                                           
                                           {/* Context Control Panel - Only for Chapters (Restrict drafting UI) */}
@@ -1178,11 +1198,45 @@ export const Studio: React.FC = () => {
                                                           <div><span className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1"><ArrowRightCircle size={10}/> {t('studio.inspector.nextNode')}</span><select value={contextConfig.nextChapterId || ''} onChange={e => setContextConfig({...contextConfig, nextChapterId: e.target.value || undefined})} className="w-full p-1.5 border rounded text-[10px] bg-slate-50 truncate"><option value="">{t('studio.inspector.none')}</option>{allChapterNodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
                                                           
                                                           {/* RAG Toggle */}
-                                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                                          <div className="flex flex-col gap-2 border-b border-slate-100 pb-2 mb-2">
                                                               <div className="flex items-center gap-2">
                                                                   <input type="checkbox" id="rag-toggle" checked={contextConfig.enableRAG} onChange={e => setContextConfig({...contextConfig, enableRAG: e.target.checked})} className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"/>
                                                                   <label htmlFor="rag-toggle" className="text-[10px] font-bold text-purple-700 cursor-pointer flex items-center gap-1"><Network size={10} /> {t('studio.inspector.enableRAG')}</label>
                                                               </div>
+                                                              {contextConfig.enableRAG && (
+                                                                  <div className="space-y-3">
+                                                                      {/* Threshold Slider */}
+                                                                      <div>
+                                                                          <div className="flex justify-between items-center mb-1">
+                                                                              <span className="text-[9px] font-bold text-slate-500">{t('studio.inspector.ragThreshold')}</span>
+                                                                              <span className="text-[9px] text-purple-600 font-mono">{contextConfig.ragThreshold}</span>
+                                                                          </div>
+                                                                          <input 
+                                                                              type="range" 
+                                                                              min="0.0" max="1.0" step="0.05" 
+                                                                              value={contextConfig.ragThreshold || 0.25} 
+                                                                              onChange={(e) => setContextConfig({...contextConfig, ragThreshold: parseFloat(e.target.value)})}
+                                                                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                                                          />
+                                                                      </div>
+                                                                      
+                                                                      {/* Embedding Model Selector */}
+                                                                      <div>
+                                                                          <div className="flex justify-between items-center mb-1">
+                                                                              <span className="text-[9px] font-bold text-slate-500">{t('studio.inspector.embeddingModel')}</span>
+                                                                          </div>
+                                                                          <select 
+                                                                              value={contextConfig.embeddingModel || EmbeddingModel.LOCAL_MINILM}
+                                                                              onChange={(e) => setContextConfig({...contextConfig, embeddingModel: e.target.value})}
+                                                                              className="w-full p-1.5 border rounded text-[10px] bg-slate-50"
+                                                                          >
+                                                                              <option value={EmbeddingModel.LOCAL_MINILM}>Local (Offline / Free) - Default</option>
+                                                                              <option value={EmbeddingModel.TEXT_EMBEDDING_004}>text-embedding-004 (Cloud)</option>
+                                                                              <option value={EmbeddingModel.EMBEDDING_001}>embedding-001 (Legacy)</option>
+                                                                          </select>
+                                                                      </div>
+                                                                  </div>
+                                                              )}
                                                           </div>
 
                                                           {/* Context Maps Selection - Only if RAG is OFF */}
@@ -1210,10 +1264,10 @@ export const Studio: React.FC = () => {
 
                                               <div className="border-t border-slate-100 pt-4">
                                                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">{t('studio.inspector.generate')}</label>
-                                                  <input value={manualDraftTitle} onChange={e => setManualDraftTitle(e.target.value)} placeholder={t('studio.manual.chapTitle')} className="w-full p-2 border border-slate-200 rounded text-xs mb-2"/>
+                                                  <input value={manualDraftTitle} onChange={e => setManualDraftTitle(e.target.value)} placeholder={t('studio.manual.chapTitle')} className="w-full p-2 border border-slate-200 rounded text-xs mb-2 bg-white text-slate-900"/>
                                                   <div className="flex gap-2 items-center mb-2"><Hash size={14} className="text-slate-400"/><input type="number" value={draftWordCount} onChange={e => setDraftWordCount(Number(e.target.value))} className="w-20 p-1 border rounded text-xs text-center" step={500}/><span className="text-xs text-slate-400">{t('studio.inspector.words')}</span></div>
                                                   <select value={selectedPromptId} onChange={handlePromptSelect} className="w-full p-2 border border-slate-200 rounded text-xs bg-slate-50 mb-2"><option value="">{t('studio.inspector.selectTemplate')}</option>{promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-                                                  <textarea value={customPromptContent} onChange={e => setCustomPromptContent(e.target.value)} placeholder={t('studio.inspector.promptLabel')} className="w-full p-2 border border-slate-200 rounded text-xs h-20 mb-3 resize-none focus:outline-none focus:border-teal-400"/>
+                                                  <textarea value={customPromptContent} onChange={e => setCustomPromptContent(e.target.value)} placeholder={t('studio.inspector.promptLabel')} className="w-full p-2 border border-slate-200 rounded text-xs h-20 mb-3 resize-none focus:outline-none focus:border-teal-400 bg-white text-slate-900"/>
                                                   <button onClick={handleGenerateNodeContent} disabled={isGeneratingChapter} className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50">{isGeneratingChapter ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} {t('studio.inspector.generate')}</button>
                                               </div>
                                               </>

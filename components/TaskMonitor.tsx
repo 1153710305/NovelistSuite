@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, X, ChevronDown, ChevronUp, Terminal, Clock, CheckCircle, AlertTriangle, Square, Cpu, Zap, Copy, Download, Database, UserCog, ArrowUpCircle, ArrowDownCircle, RotateCw, FileText, Play, Eye, FastForward, Columns, HelpCircle, Info, Code } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -166,14 +165,24 @@ export const TaskMonitor: React.FC = () => {
                 );
             }
             // Support for Chinese localized style tag from writeChapter
-            if (line.startsWith('【文风要求】')) {
+            // Fix: Enhanced pattern matching for style preset
+            if (line.includes('【文风要求】')) {
                 return (
                     <div key={i} className="text-purple-100 bg-purple-900/30 p-2 rounded border border-purple-500/30 mt-1 mb-1">
                         <span className="font-bold text-purple-400 block mb-1 text-[11px]">【文风预设】(Style Preset):</span>
-                        <span className="whitespace-pre-wrap block">{line.replace(/^【文风要求】[：:]/, '') || '(无)'}</span>
+                        <span className="whitespace-pre-wrap block">{line.replace(/.*【文风要求】[：:]?/, '') || '(无)'}</span>
                     </div>
                 );
             }
+            // Hide Context from prompt display if it accidentally leaked in
+            if (line.includes('【全局上下文】') || line.includes('Context from Previous Chapter') || line.includes('Context Layer Hidden')) {
+                 return (
+                    <div key={i} className="text-slate-600 italic border-l-2 border-slate-700 pl-2 mt-1">
+                        [Context Hidden in Debug View]
+                    </div>
+                 );
+            }
+
             return <div key={i} className="text-green-300/80">{line}</div>;
         });
 

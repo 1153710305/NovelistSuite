@@ -1,4 +1,5 @@
 
+
 /**
  * @file types.ts
  * @description InkFlow AI 应用程序的中央类型定义文件 (数据字典)。
@@ -100,6 +101,13 @@ export const AVAILABLE_SOURCES = [
 export enum ImageModel {
     IMAGEN = 'imagen-4.0-generate-001', // 高质量生成模型
     GEMINI_FLASH_IMAGE = 'gemini-2.5-flash-image' // 快速生成模型
+}
+
+// 嵌入模型枚举 (用于 RAG)
+export enum EmbeddingModel {
+    TEXT_EMBEDDING_004 = 'text-embedding-004',
+    EMBEDDING_001 = 'embedding-001',
+    LOCAL_MINILM = 'local-minilm' // [New] 本地开源模型
 }
 
 // --- 聊天模块类型 ---
@@ -278,7 +286,9 @@ export interface ContextConfig {
     selectedMaps: string[];      // 选中的导图 Key (world, character...)
     limitMode: 'auto' | 'manual'; // 限制模式
     manualLimit: number;         // 手动限制字符数
-    enableRAG?: boolean;         // [New] 是否启用 RAG 检索增强
+    enableRAG?: boolean;         // 是否启用 RAG 检索增强
+    ragThreshold?: number;       // [New] RAG 相似度阈值 (0.0 - 1.0)
+    embeddingModel?: string;     // [New] 嵌入模型选择
 }
 
 // --- 历史记录数据模型 ---

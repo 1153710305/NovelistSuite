@@ -1,24 +1,12 @@
 
-/**
- * @file services/geminiService.ts
- * @description 与 Google Gemini API 交互的核心服务层。
- * 
- * ## 功能概述
- * - 封装 GoogleGenAI 客户端调用。
- * - 实现网络错误自动重试机制 (Exponential Backoff)。
- * - 提供 JSON 响应清洗和解析工具。
- * - 实现具体的业务逻辑接口：灵感生成、架构设计、章节撰写、插图生成等。
- * - **新增**: 向量化检索增强生成 (RAG)，用于大文档的智能上下文提取。
- * - **新增**: 高密度结构化 Prompt，用于上下文压缩。
- * - **新增**: 智能降级 (Smart Fallback)，当遇 429 配额错误时自动切换至 Lite 模型。
- */
-
 // 引入 Google GenAI SDK
 import { GoogleGenAI, Type, Schema, GenerateContentResponse } from "@google/genai";
 // 引入类型定义
-import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap, AIMetrics, InspirationMetadata } from '../types';
+import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap, AIMetrics, InspirationMetadata, EmbeddingModel } from '../types';
 // 引入提示词服务
 import { PromptService, InspirationRules } from './promptService';
+// 引入本地 Embedding 库
+import { pipeline } from '@xenova/transformers';
 
 // --- 基础工具函数 ---
 
@@ -33,6 +21,9 @@ const getAiClient = () => {
       requestOptions: { timeout: 300000 } 
   } as any);
 };
+
+// 本地模型单例，防止重复加载
+let localEmbedder: any = null;
 
 /**
  * 清洗 JSON 字符串
@@ -210,17 +201,45 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-async function generateEmbedding(text: string): Promise<number[]> {
+// 增加 model 参数，支持错误抛出，支持本地模型
+async function generateEmbedding(text: string, model: string = "local-minilm"): Promise<number[] | { error: string }> {
+    // 1. 处理本地开源模型
+    if (model === EmbeddingModel.LOCAL_MINILM) {
+        try {
+            if (!localEmbedder) {
+                console.log("[LocalRAG] Loading Local Embedding Model: Xenova/all-MiniLM-L6-v2...");
+                // 首次调用会自动从 CDN 下载模型文件 (约20MB)，后续会缓存
+                localEmbedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+            }
+            // 执行推理
+            const output = await localEmbedder(text, { pooling: 'mean', normalize: true });
+            // output.data 是 Tensor (Float32Array)，转换为普通数组
+            return Array.from(output.data);
+        } catch (e: any) {
+            console.error("Local embedding failed", e);
+            return { error: `Local Model Failed: ${e.message}` };
+        }
+    }
+
+    // 2. 处理 Google Gemini API
     const ai = getAiClient();
     try {
         const result = await retryWithBackoff<any>(() => ai.models.embedContent({
-            model: "text-embedding-004",
+            model: model, 
             content: { parts: [{ text }] }
         }));
         return result.embedding?.values || [];
-    } catch (e) {
-        console.warn("Embedding failed:", e);
-        return [];
+    } catch (e: any) {
+        const errStr = getErrorDetails(e);
+        console.warn("Embedding failed:", errStr);
+        
+        let friendlyMsg = errStr;
+        if (errStr.includes("404")) friendlyMsg = "Model Not Found (404). Check if model exists or API key has access.";
+        if (errStr.includes("403")) friendlyMsg = "Permission Denied (403). API Key invalid or restricted.";
+        if (errStr.includes("429")) friendlyMsg = "Quota Exceeded (429). Rate limit reached.";
+        if (errStr.includes("value must be a list")) friendlyMsg = "Invalid Input Format. Model might be deprecated.";
+        
+        return { error: friendlyMsg };
     }
 }
 
@@ -228,49 +247,113 @@ export const retrieveRelevantContext = async (
     queryText: string,
     nodes: OutlineNode[], 
     topK: number = 10,
-    onProgress?: (msg: string) => void
+    onProgress?: (msg: string) => void,
+    minScore: number = 0.25,
+    embeddingModel: string = "local-minilm" 
 ): Promise<{ context: string, updatedNodes: OutlineNode[] }> => {
+    // 1. Flatten all nodes
     let allNodes: OutlineNode[] = [];
     const flatten = (n: OutlineNode) => {
-        if (n.description && n.description.length > 10) {
+        if (n.description && n.description.length > 5) { // Relaxed length check
             allNodes.push(n);
         }
         if (n.children) n.children.forEach(flatten);
     };
     nodes.forEach(flatten);
 
-    if (allNodes.length === 0) return { context: "", updatedNodes: nodes };
+    let finalContext = "【RAG 智能检索背景资料 (Auto-Retrieved Context)】\n";
+
+    if (allNodes.length === 0) {
+        finalContext += "> 警告: 没有可检索的导图节点 (Map is empty or nodes have no description).\n";
+        return { context: finalContext, updatedNodes: nodes };
+    }
 
     if (onProgress) onProgress(`Indexing ${allNodes.length} context nodes...`);
 
+    // 2. Generate Embeddings for nodes (if missing)
     let updatedCount = 0;
+    let embeddingErrors = 0;
+    let lastError = "";
+
     for (const node of allNodes) {
-        if (!node.embedding) {
+        if (!node.embedding || node.embedding.length === 0) {
             const textToEmbed = `${node.name}: ${node.description}`;
-            await new Promise(r => setTimeout(r, 150)); 
-            node.embedding = await generateEmbedding(textToEmbed);
-            updatedCount++;
-            if (onProgress && updatedCount % 5 === 0) onProgress(`Vectorizing nodes: ${updatedCount}/${allNodes.length}`);
+            
+            // Rate limit protection ONLY for remote API
+            if (embeddingModel !== EmbeddingModel.LOCAL_MINILM) {
+                await new Promise(r => setTimeout(r, 100)); 
+            }
+            
+            const result = await generateEmbedding(textToEmbed, embeddingModel);
+            
+            if (Array.isArray(result)) {
+                if (result.length > 0) {
+                    node.embedding = result;
+                    updatedCount++;
+                    if (onProgress && updatedCount > 0 && updatedCount % 5 === 0) {
+                        onProgress(`Vectorizing nodes: ${updatedCount}/${allNodes.length}`);
+                    }
+                } else {
+                    embeddingErrors++;
+                }
+            } else {
+                // It's an error object
+                embeddingErrors++;
+                lastError = result.error;
+            }
         }
     }
 
+    // 3. Generate Embedding for Query
     if (onProgress) onProgress("Analyzing query intent...");
-    const queryEmbedding = await generateEmbedding(queryText);
+    const queryResult = await generateEmbedding(queryText, embeddingModel);
+    
+    if (!Array.isArray(queryResult)) {
+        finalContext += `> 错误: 查询词向量化失败 (Query Embedding Failed). Model: ${embeddingModel}\n`;
+        finalContext += `> 原因: ${queryResult.error}\n`;
+        finalContext += `> 建议: 推荐使用 'Local (Offline)' 模型或 'text-embedding-004'。\n`;
+        return { context: finalContext, updatedNodes: nodes };
+    }
+    
+    const queryEmbedding = queryResult;
 
+    if (queryEmbedding.length === 0) {
+        finalContext += `> 错误: 查询词向量化返回空结果。\n`;
+        return { context: finalContext, updatedNodes: nodes };
+    }
+
+    // 4. Calculate Scores
     const scoredNodes = allNodes.map(node => ({
         node,
-        score: node.embedding ? cosineSimilarity(queryEmbedding, node.embedding) : -1
+        score: node.embedding && node.embedding.length > 0 ? cosineSimilarity(queryEmbedding, node.embedding) : 0
     }));
 
     scoredNodes.sort((a, b) => b.score - a.score);
-    const topNodes = scoredNodes.slice(0, topK);
+    
+    // Debug Stats
+    const maxScore = scoredNodes.length > 0 ? scoredNodes[0].score.toFixed(4) : "N/A";
+    finalContext += `> 统计: 扫描节点 ${allNodes.length} 个 | 最高相似度: ${maxScore} | 设定阈值: ${minScore} | Embedding模型: ${embeddingModel}\n`;
+    if (embeddingErrors > 0) {
+        finalContext += `> 警告: ${embeddingErrors} 个节点向量化失败。\n`;
+        if (lastError) finalContext += `> 最新错误: ${lastError}\n`;
+    }
 
-    let finalContext = "【RAG 智能检索背景资料 (Auto-Retrieved Context)】\n";
-    topNodes.forEach((item, idx) => {
-        if (item.score > 0.4) { 
-            finalContext += `[Ref #${idx+1} | Score: ${item.score.toFixed(2)}] [${item.node.type}] ${item.node.name}: ${item.node.description}\n`;
+    // 5. Filter & Select
+    const topCandidates = scoredNodes.slice(0, topK * 2); 
+    const validNodes = topCandidates.filter(item => item.score > minScore).slice(0, topK);
+
+    if (validNodes.length === 0) {
+        finalContext += `> 结果: 未找到高于阈值 (${minScore}) 的相关资料。\n`;
+        // Fallback
+        if (scoredNodes.length > 0 && scoredNodes[0].score > 0) {
+            const fallback = scoredNodes[0];
+            finalContext += `> [兜底展示/Fallback] (Score: ${fallback.score.toFixed(4)}) [${fallback.node.type}] ${fallback.node.name}: ${fallback.node.description}\n`;
         }
-    });
+    } else {
+        validNodes.forEach((item, idx) => {
+            finalContext += `[Ref #${idx+1} | Score: ${item.score.toFixed(2)}] [${item.node.type}] ${item.node.name}: ${item.node.description}\n`;
+        });
+    }
 
     return { context: finalContext, updatedNodes: nodes }; 
 };
@@ -449,9 +532,15 @@ export const analyzeTrendKeywords = async (
     ${PromptService.getLangInstruction(lang)}
     `;
 
+    // Create display prompt hiding long instructions for debug
+    const displayPrompt = `
+    请使用 Google Search 搜索最新的"${platformNames} ${genderStr} 小说排行榜"。
+    [...Analysis Instruction Hidden...]
+    `;
+
     if (onDebug) {
         onDebug({ 
-            prompt: prompt, 
+            prompt: displayPrompt, 
             model: model, 
             systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
             context: `Grounding Search: ${platformNames} ${genderStr}`,
@@ -525,7 +614,7 @@ export const generateDailyStories = async (
                       burstPoint: { type: Type.STRING },
                       memoryAnchor: { type: Type.STRING }
                   },
-                  required: ["source", "gender", "majorCategory", "trope", "goldenFinger", "coolPoint", "burstPoint"]
+                  required: ["source", "gender", "majorCategory", "trope", "goldenFinger", "coolPoint", "burstPoint", "memoryAnchor"] // Added memoryAnchor
               }
           },
           required: ["title", "synopsis", "metadata"]
@@ -746,26 +835,30 @@ export const generateChapterContent = async (
     
     let fullContext = context;
     
+    // 强化上一章结尾的上下文注入，明确标识
     if (previousContent) {
         const transitionText = previousContent.length > 2000 
             ? previousContent.substring(previousContent.length - 2000) 
             : previousContent;
-        fullContext += `\n\n【⭐⭐⭐ 剧情承接上下文 (Context from Previous Chapter) ⭐⭐⭐】\n上一章结尾片段:\n${transitionText}\n\n【衔接指令】：请紧密承接上述结尾，保持情节流畅。`;
+        fullContext += `\n\n=== 【⚠️ 上一章结尾片段 (Previous Chapter Tail)】 ===\n(请重点分析此处的悬念/冲突，并在本章开头予以回应)\n${transitionText}\n=== 结束 ===\n`;
     }
 
+    // 强化下一章预告的上下文注入
     if (nextChapterInfo) {
-        fullContext += `\n\n【⭐⭐⭐ 下章预告/铺垫 (Next Chapter Foreshadowing) ⭐⭐⭐】\n目标章节：${nextChapterInfo.title}\n章节梗概：${nextChapterInfo.desc || '未知'}\n`;
+        fullContext += `\n\n=== 【🚀 下一章预告 (Next Chapter Preview)】 ===\n目标章节：${nextChapterInfo.title}\n章节梗概：${nextChapterInfo.desc || '未知'}\n`;
         if (nextChapterInfo.childrenText) {
             fullContext += `包含场景：\n${nextChapterInfo.childrenText}\n`;
         }
-        fullContext += `\n【铺垫指令】：当前章节结束时，请务必为下一章的剧情做铺垫，设置悬疑点或伏笔。`;
+        fullContext += `(请在本章结尾为上述内容做铺垫/设钩子)\n=== 结束 ===\n`;
     }
 
     const safeContext = truncateContext(fullContext, 40000);
+    // PromptService.writeChapter embeds context directly. 
     const prompt = `${PromptService.writeChapter(node.name, node.description || '', safeContext, wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
     const finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
     
     // Create a display-friendly prompt that hides the massive context
+    // We pass a placeholder string to writeChapter so the structure is preserved but content is hidden
     const displayPrompt = `${PromptService.writeChapter(node.name, node.description || '', '...[Context Layer Hidden - See Context Tab]...', wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
 
     if (onUpdate) onUpdate("章节生成", 20, "构建 Prompt...", undefined, { 

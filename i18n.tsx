@@ -145,7 +145,8 @@ const translations: Record<Language, any> = {
             title: 'Node Inspector', name: 'Name', desc: 'Description', save: 'Save Changes', generate: 'Generate Draft', wordCount: 'Target Word Count',
             promptLabel: 'Prompt Instruction', selectTemplate: 'Fill from Template...', contextSettings: 'Context Controls', 
             prevNode: 'Previous (Transition)', nextNode: 'Next (Foreshadowing)', autoDetect: 'Auto Detect', none: 'None', currentChapter: 'Current Chapter', optimizeContext: 'AI Scrub & Clean', optimizeDesc: 'Clean, Deduplicate & Disambiguate context (remove "maybe", "left/right").', enableRAG: 'Enable RAG Search',
-            contextMaps: 'Context Maps', sizeLimit: 'Size Limit', words: 'words'
+            contextMaps: 'Context Maps', sizeLimit: 'Size Limit', words: 'words',
+            ragThreshold: 'Similarity Threshold', embeddingModel: 'Embedding Model'
         },
         contextWarning: { 
             title: 'Large Context Warning', 
@@ -387,7 +388,8 @@ const translations: Record<Language, any> = {
             title: '节点检查器', name: '名称', desc: '描述', save: '保存更改', generate: '生成草稿', wordCount: '目标字数',
             promptLabel: '提示词指令', selectTemplate: '选择模板填充...', contextSettings: '上下文控制', 
             prevNode: '承接上文 (上一章)', nextNode: '铺垫下文 (下一章)', autoDetect: '自动检测', none: '无', currentChapter: '当前章节', optimizeContext: 'AI 结构化与确定性清洗', optimizeDesc: '将上下文转为结构化JSON，去重并消除模糊词（如：左右→东南，大概→精确值）。', enableRAG: '开启 RAG 检索',
-            contextMaps: '上下文参考 (RAG关闭时可多选)', sizeLimit: '字数限制', words: '字'
+            contextMaps: '上下文参考 (RAG关闭时可多选)', sizeLimit: '字数限制', words: '字',
+            ragThreshold: '相似度阈值 (0.0-1.0)', embeddingModel: 'Embedding 模型'
         },
         contextWarning: { 
             title: '上下文过大预警', 

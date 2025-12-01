@@ -20,6 +20,38 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
   const zoomRef = useRef<any>(null);
   const { t } = useI18n();
   const [zoomTransform, setZoomTransform] = useState<any>(d3.zoomIdentity);
+  
+  // Track collapsed node IDs
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+
+  // Recursively process data to handle collapsing (move children to _children)
+  const processData = (node: OutlineNode): any => {
+      if (!node) return null;
+      // Create a shallow copy to avoid mutating the original prop persistently across renders in a bad way
+      const newNode: any = { ...node };
+      
+      // If node is in collapsed set, hide children
+      if (node.id && collapsedIds.has(node.id)) {
+          newNode._children = node.children ? node.children.map(processData) : undefined;
+          newNode.children = undefined;
+      } else {
+          newNode.children = node.children ? node.children.map(processData) : undefined;
+          newNode._children = undefined; // Ensure _children is cleared if expanded
+      }
+      return newNode;
+  };
+
+  const toggleCollapse = (nodeId: string) => {
+      setCollapsedIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(nodeId)) {
+              newSet.delete(nodeId);
+          } else {
+              newSet.add(nodeId);
+          }
+          return newSet;
+      });
+  };
 
   useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current || !gRef.current) return;
@@ -42,21 +74,23 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
 
     g.selectAll("*").remove();
 
-    const root = d3.hierarchy(data);
-    const nodeCount = root.descendants().length;
+    // Process data to apply collapse state
+    const processedData = processData(data);
+    const root = d3.hierarchy(processedData);
     
-    // Calculate depth to adjust width
-    const maxDepth = root.height; // Height of tree (levels)
+    // Calculate layout
+    const nodeCount = root.descendants().length;
+    const maxDepth = root.height; 
 
-    // Dynamic sizing based on content - INCREASED for detailed view
-    const dynamicHeight = Math.max(height, nodeCount * 60); // Increased vertical space
-    const dynamicWidth = Math.max(width, (maxDepth + 1) * 400); // Increased horizontal space per level
+    const dynamicHeight = Math.max(height, nodeCount * 60); 
+    const dynamicWidth = Math.max(width, (maxDepth + 1) * 400); 
 
     const treeLayout = d3.tree()
       .size([dynamicHeight - 100, dynamicWidth - 200]);
 
     treeLayout(root);
 
+    // Links
     g.selectAll(".link")
       .data(root.links())
       .enter()
@@ -70,6 +104,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
         .y((d: any) => d.x)
       );
 
+    // Nodes
     const node = g.selectAll(".node")
       .data(root.descendants())
       .enter()
@@ -77,38 +112,63 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
       .attr("class", (d: any) => `node ${d.children ? "node--internal" : "node--leaf"}`)
       .attr("transform", (d: any) => `translate(${d.y},${d.x})`) 
       .style("cursor", "pointer")
+      // FIX: Move click handlers to the GROUP element so clicking text/circle/bg works
       .on("click", (event: any, d: any) => {
-         event.stopPropagation(); 
+         event.stopPropagation();
          onNodeClick(d.data); 
+      })
+      .on("dblclick", (event: any, d: any) => {
+          event.stopPropagation();
+          if (d.data.children || d.data._children) {
+              toggleCollapse(d.data.id);
+          }
       });
 
     // 1. Invisible Hit Area Circle (Larger for easier clicking)
-    // 增加一个透明的大圆，作为点击热区，提升用户体验
     node.append("circle")
-      .attr("r", 25) // 半径 25px 的热区
+      .attr("r", 30) 
       .attr("fill", "transparent")
       .attr("stroke", "none");
 
-    // 2. Visual Circle (The actual colored dot)
+    // 2. Visual Circle (The colored dot)
     node.append("circle")
       .attr("r", (d: any) => d.data.type === 'book' ? 9 : 7)
       .attr("fill", (d: any) => {
+          if (d.data._children) return "#94a3b8"; // Gray for collapsed
           switch(d.data.type) {
-              case 'book': return '#ef4444'; // Red
-              case 'act': return '#f59e0b'; // Amber
-              case 'character': return '#a855f7'; // Purple
-              case 'setting': return '#22c55e'; // Green
-              default: return '#3b82f6'; // Blue (Chapter/Scene)
+              case 'book': return '#ef4444'; 
+              case 'act': return '#f59e0b'; 
+              case 'character': return '#a855f7'; 
+              case 'setting': return '#22c55e'; 
+              default: return '#3b82f6'; 
           }
       }) 
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
-      .attr("filter", "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))");
+      .attr("filter", "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))")
+      .style("pointer-events", "none"); // Let events pass to the hit area/group
 
+    // 3. Collapse/Expand Indicator (Small circle next to main circle)
+    // Only show if the node has children (or hidden children)
+    const indicator = node.filter((d: any) => d.children || d.data._children)
+        .append("circle")
+        .attr("cx", 14) // Offset to the right
+        .attr("cy", 0)
+        .attr("r", 4)
+        .attr("fill", (d: any) => d.data._children ? "#64748b" : "#fff") // Filled if collapsed, white if open
+        .attr("stroke", "#64748b")
+        .attr("stroke-width", 1)
+        .style("cursor", "pointer")
+        .on("click", (event: any, d: any) => {
+            event.stopPropagation();
+            toggleCollapse(d.data.id);
+        });
+
+    // 4. Labels
     node.append("text")
       .attr("dy", ".35em")
-      .attr("x", (d: any) => d.children ? -13 : 13) 
-      .style("text-anchor", (d: any) => d.children ? "end" : "start")
+      .attr("x", (d: any) => d.children || d.data._children ? -18 : 18) 
+      .style("text-anchor", (d: any) => d.children || d.data._children ? "end" : "start")
       .text((d: any) => d.data.name)
       .style("font-size", "14px")
       .style("font-family", "sans-serif")
@@ -118,13 +178,13 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
       .attr("stroke", "white")
       .attr("stroke-width", 3);
 
+    // Initial Zoom
     if (zoomTransform === d3.zoomIdentity) {
-       // Adjust initial translate based on root height/position
        const initialTransform = d3.zoomIdentity.translate(80, height / 2 - (root as any).x).scale(0.8);
        svg.call(zoom.transform, initialTransform);
     }
 
-  }, [data, onNodeClick]); 
+  }, [data, onNodeClick, collapsedIds]); // Re-render when collapsedIds change
 
   const handleZoomIn = () => {
       if (svgRef.current && zoomRef.current) {
@@ -155,6 +215,9 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
           <button onClick={handleZoomIn} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Zoom In"><ZoomIn size={20} /></button>
           <button onClick={handleZoomOut} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Zoom Out"><ZoomOut size={20} /></button>
           <button onClick={handleResetZoom} className="p-2 rounded hover:bg-slate-100 text-slate-600 transition-colors" title="Fit to Screen"><Maximize size={20} /></button>
+      </div>
+      <div className="absolute top-4 left-4 text-xs text-slate-400 pointer-events-none">
+          Double-click node to toggle collapse
       </div>
     </div>
   );
