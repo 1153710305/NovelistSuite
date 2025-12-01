@@ -1,4 +1,7 @@
 
+
+
+
 // 引入 Google GenAI SDK
 import { GoogleGenAI, Type, Schema, GenerateContentResponse } from "@google/genai";
 // 引入类型定义
@@ -836,11 +839,9 @@ export const generateChapterContent = async (
     let fullContext = context;
     
     // 强化上一章结尾的上下文注入，明确标识
+    // 注意：previousContent 已经由调用方进行了截取，这里直接使用
     if (previousContent) {
-        const transitionText = previousContent.length > 2000 
-            ? previousContent.substring(previousContent.length - 2000) 
-            : previousContent;
-        fullContext += `\n\n=== 【⚠️ 上一章结尾片段 (Previous Chapter Tail)】 ===\n(请重点分析此处的悬念/冲突，并在本章开头予以回应)\n${transitionText}\n=== 结束 ===\n`;
+        fullContext += `\n\n【上一章结尾】\n(请承接此处的剧情和悬念)\n${previousContent}\n\n`;
     }
 
     // 强化下一章预告的上下文注入

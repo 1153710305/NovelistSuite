@@ -281,7 +281,7 @@ export interface GenerationConfig {
 // 上下文生成配置 (Context Control)
 export interface ContextConfig {
     includePrevChapter: boolean; // 是否包含上一章
-    previousChapterId?: string;  // 指定上一章节点的 ID (manual selection)
+    previousChapterId?: string;  // 指定上一章的来源 ID (Manual or Auto Node ID)
     nextChapterId?: string;      // 指定下一章节点的 ID (manual selection)
     selectedMaps: string[];      // 选中的导图 Key (world, character...)
     limitMode: 'auto' | 'manual'; // 限制模式
@@ -289,6 +289,7 @@ export interface ContextConfig {
     enableRAG?: boolean;         // 是否启用 RAG 检索增强
     ragThreshold?: number;       // [New] RAG 相似度阈值 (0.0 - 1.0)
     embeddingModel?: string;     // [New] 嵌入模型选择
+    prevContextLength?: number;  // [New] 上一章上下文引用长度 (500/1000/1500/2000)
 }
 
 // --- 历史记录数据模型 ---
@@ -350,7 +351,12 @@ export interface StudioRecord extends BaseHistoryRecord {
     
     // 故事类型特有字段:
     content: string; // 全文内容或摘要
-    chapters?: { title: string, content: string, nodeId?: string }[]; // 已生成的章节列表
+    chapters?: { 
+        id?: string; // [Update] 章节唯一ID，用于引用
+        title: string; 
+        content: string; 
+        nodeId?: string; // 关联的导图节点ID
+    }[]; // 已生成的章节列表
     
     // 核心架构 (8-Map)
     architecture?: ArchitectureMap;

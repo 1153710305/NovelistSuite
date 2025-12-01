@@ -193,7 +193,8 @@ export const Studio: React.FC = () => {
       nextChapterId: undefined, 
       enableRAG: false,
       ragThreshold: 0.25, // Default 0.25
-      embeddingModel: EmbeddingModel.LOCAL_MINILM // Default to LOCAL_MINILM
+      embeddingModel: EmbeddingModel.LOCAL_MINILM, // Default to LOCAL_MINILM
+      prevContextLength: 1000 // Default previous context length
   });
   const [showContextConfig, setShowContextConfig] = useState(false); 
   const [enableContextOptimization, setEnableContextOptimization] = useState(false);
@@ -266,17 +267,69 @@ export const Studio: React.FC = () => {
       return allChapterNodes[0].id === selectedMapNode.id;
   }, [selectedMapNode, allChapterNodes]);
 
+  // 计算有效的上一章 ID (处理 Auto Detect 逻辑)
+  // 返回值可能是 NodeID，也可能是 ChapterID 的引用字符串
+  const effectivePreviousId = useMemo(() => {
+      // 1. 如果用户手动指定了 ID，直接使用
+      if (contextConfig.previousChapterId) return contextConfig.previousChapterId;
+      
+      // 2. 如果是自动模式 (undefined/null/empty)，则计算前一个节点
+      if (selectedMapNode && allChapterNodes.length > 0) {
+          const idx = allChapterNodes.findIndex(n => n.id === selectedMapNode.id);
+          if (idx > 0) {
+              return allChapterNodes[idx - 1].id;
+          }
+      }
+      return undefined;
+  }, [contextConfig.previousChapterId, selectedMapNode, allChapterNodes]);
+
+  // 解析并获取上一章的实际内容和标题
+  const resolvePreviousContext = (targetId: string | undefined): { content: string, title: string, type: 'chapter' | 'outline' } | null => {
+      if (!targetId) return null;
+
+      // 1. Explicit Chapter Reference (prefix 'chapter:')
+      if (targetId.startsWith('chapter:')) {
+          const ref = targetId.split(':')[1];
+          const chapter = activeStoryRecord?.chapters?.find((c, i) => c.id === ref || i.toString() === ref);
+          if (chapter) return { content: chapter.content, title: chapter.title, type: 'chapter' };
+      }
+      
+      // 2. Explicit Node Reference (prefix 'node:')
+      if (targetId.startsWith('node:')) {
+          const nodeId = targetId.split(':')[1];
+          // Try to find chapter with this nodeId first (Generated Content)
+          const chapter = activeStoryRecord?.chapters?.find(c => c.nodeId === nodeId);
+          if (chapter && chapter.content) return { content: chapter.content, title: chapter.title, type: 'chapter' };
+          
+          // Fallback to outline description
+          const node = allChapterNodes.find(n => n.id === nodeId);
+          if (node) return { content: node.description || '', title: node.name, type: 'outline' };
+      }
+
+      // 3. Fallback / Raw ID (Auto-detect logic usually returns raw node ID)
+      const chapter = activeStoryRecord?.chapters?.find(c => c.nodeId === targetId);
+      if (chapter && chapter.content) return { content: chapter.content, title: chapter.title, type: 'chapter' };
+      
+      const node = allChapterNodes.find(n => n.id === targetId);
+      if (node) return { content: node.description || '', title: node.name, type: 'outline' };
+
+      return null;
+  };
+
+  // 获取当前解析后的上一章上下文对象
+  const resolvedPrevContext = useMemo(() => resolvePreviousContext(effectivePreviousId), [effectivePreviousId, activeStoryRecord, allChapterNodes]);
+
   useEffect(() => {
       if (selectedMapNode && allChapterNodes.length > 0) {
           const idx = allChapterNodes.findIndex(n => n.id === selectedMapNode.id);
           if (idx !== -1) {
-              const prev = idx > 0 ? allChapterNodes[idx - 1].id : undefined;
               const next = idx < allChapterNodes.length - 1 ? allChapterNodes[idx + 1].id : undefined;
               setContextConfig(prevConfig => ({
                   ...prevConfig,
-                  previousChapterId: prev,
+                  previousChapterId: undefined, // Reset to auto to prevent stale context
                   nextChapterId: next,
-                  includePrevChapter: idx > 0 && prevConfig.includePrevChapter
+                  // Fix: Default to true unless it's the very first chapter (idx 0), but avoid persisting a false state if switching back
+                  includePrevChapter: idx !== 0
               }));
           }
       }
@@ -426,7 +479,8 @@ export const Studio: React.FC = () => {
       if (!modifyingRecordId || !newChapTitle) return;
       const record = history.find(h => h.id === modifyingRecordId);
       if (!record) return;
-      const newChapter = { title: newChapTitle, content: '', nodeId: undefined };
+      // Inject ID for stable referencing
+      const newChapter = { id: Date.now().toString(), title: newChapTitle, content: '', nodeId: undefined };
       const updatedRecord = { ...record, chapters: [...(record.chapters || []), newChapter] };
       updateHistoryItem(STORAGE_KEYS.HISTORY_STUDIO, record.id, updatedRecord);
       setHistory(prev => prev.map(item => item.id === record.id ? updatedRecord : item));
@@ -590,8 +644,8 @@ export const Studio: React.FC = () => {
       setSelectedMapNode({ ...selectedMapNode, name: editNodeName, description: editNodeDesc });
   }
 
-  const assembleSmartContext = (isLean: boolean): { context: string, prevContent: string | undefined } => {
-      if (!activeStoryRecord?.architecture) return { context: '', prevContent: undefined };
+  const assembleSmartContext = (isLean: boolean): { context: string } => {
+      if (!activeStoryRecord?.architecture) return { context: '' };
       
       let contextStr = buildCoreMetadataContext(activeStoryRecord); // 1. 强制加入核心元数据
 
@@ -602,22 +656,8 @@ export const Studio: React.FC = () => {
               contextStr += isLean ? serializeMapToTextLean(mapRoot) : serializeMapToText(mapRoot);
           }
       });
-      let prevContent: string | undefined = undefined;
-      if (contextConfig.includePrevChapter && !isFirstChapter) {
-          if (contextConfig.previousChapterId && activeStoryRecord.chapters) {
-              const foundChapter = activeStoryRecord.chapters.find(c => c.nodeId === contextConfig.previousChapterId);
-              if (foundChapter && foundChapter.content && foundChapter.content.length > 50) prevContent = foundChapter.content;
-              else {
-                  const foundNode = allChapterNodes.find(n => n.id === contextConfig.previousChapterId);
-                  if (foundNode && foundNode.description) prevContent = `(Outline Summary): ${foundNode.description}`;
-              }
-          } 
-          else if (activeStoryRecord.chapters && activeStoryRecord.chapters.length > 0) {
-              const lastChapter = activeStoryRecord.chapters[activeStoryRecord.chapters.length - 1];
-              if (lastChapter && lastChapter.content && lastChapter.content.length > 10) prevContent = lastChapter.content;
-          }
-      }
-      return { context: contextStr, prevContent };
+      
+      return { context: contextStr };
   };
 
   const handleGenerateNodeContent = async () => {
@@ -683,14 +723,22 @@ export const Studio: React.FC = () => {
 
           updateTaskProgress(taskId, t('process.analyzing_dep'), 15, t('process.analyzing_dep'));
           let prevContent: string | undefined = undefined;
-          if (contextConfig.includePrevChapter && !isFirstChapter) {
-              if (contextConfig.previousChapterId && activeStoryRecord.chapters) {
-                  const foundChapter = activeStoryRecord.chapters.find(c => c.nodeId === contextConfig.previousChapterId);
-                  if (foundChapter && foundChapter.content) prevContent = foundChapter.content;
-                  else {
-                      const foundNode = allChapterNodes.find(n => n.id === contextConfig.previousChapterId);
-                      if (foundNode) prevContent = `(Outline): ${foundNode.description}`;
-                  }
+          
+          // Logic updated to respect both includePrevChapter flag AND explicit manual selection
+          // If previousChapterId is set manually, we should always try to resolve it
+          const shouldIncludePrev = contextConfig.includePrevChapter || !!contextConfig.previousChapterId;
+          
+          if (shouldIncludePrev && resolvedPrevContext) {
+              if (resolvedPrevContext.content) {
+                  // Apply truncation
+                  const length = contextConfig.prevContextLength || 1000;
+                  prevContent = resolvedPrevContext.content.length > length 
+                      ? resolvedPrevContext.content.substring(resolvedPrevContext.content.length - length)
+                      : resolvedPrevContext.content;
+              }
+              else {
+                  // Fallback to outline description
+                  prevContent = `(Outline Summary): ${resolvedPrevContext.content}`;
               }
           }
 
@@ -771,7 +819,8 @@ export const Studio: React.FC = () => {
           );
 
           updateTaskProgress(taskId, t('process.saving'), 95, t('process.saving'));
-          const newChapter = { title: targetNode.name, content: content, nodeId: targetNode.id };
+          // Inject ID for stable referencing
+          const newChapter = { id: Date.now().toString(), title: targetNode.name, content: content, nodeId: targetNode.id };
           const updatedRecord = { ...activeStoryRecord, chapters: [...(activeStoryRecord.chapters || []), newChapter] };
           setActiveStoryRecord(updatedRecord);
           setHistory(prev => prev.map(item => item.id === activeStoryRecord.id ? updatedRecord : item));
@@ -1194,7 +1243,76 @@ export const Studio: React.FC = () => {
                                                   <button onClick={() => setShowContextConfig(!showContextConfig)} className="w-full p-3 flex justify-between items-center bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-bold text-slate-600"><span className="flex items-center gap-2"><Settings2 size={12}/> {t('studio.inspector.contextSettings')}</span>{showContextConfig ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}</button>
                                                   {showContextConfig && (
                                                       <div className="p-3 space-y-3 bg-white border-t border-slate-200">
-                                                          <div><span className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1"><LinkIcon size={10}/> {t('studio.inspector.prevNode')}</span><select value={contextConfig.previousChapterId || ''} onChange={e => setContextConfig({...contextConfig, previousChapterId: e.target.value || undefined})} className="w-full p-1.5 border rounded text-[10px] bg-slate-50 truncate" disabled={isFirstChapter}><option value="">{isFirstChapter ? t('studio.inspector.none') : t('studio.inspector.autoDetect')}</option>{allChapterNodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
+                                                          <div>
+                                                              <span className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1"><LinkIcon size={10}/> Previous Context Source</span>
+                                                              <select 
+                                                                  value={contextConfig.previousChapterId || ''} 
+                                                                  onChange={e => setContextConfig({...contextConfig, previousChapterId: e.target.value || undefined})}
+                                                                  className="w-full p-1.5 border rounded text-[10px] bg-slate-50 truncate"
+                                                              >
+                                                                  <option value="">{t('studio.inspector.autoDetect')}</option>
+                                                                  <optgroup label="已生成正文 (Manuscript)">
+                                                                      {activeStoryRecord?.chapters?.map((c, i) => (
+                                                                          <option key={`chap-${i}`} value={`chapter:${c.id || i}`}>
+                                                                              {c.title.length > 20 ? c.title.substring(0,20)+'...' : c.title} ({c.content.length}字)
+                                                                          </option>
+                                                                      ))}
+                                                                  </optgroup>
+                                                                  <optgroup label="大纲节点 (Blueprint)">
+                                                                      {allChapterNodes.map(n => (
+                                                                          <option key={n.id} value={`node:${n.id}`}>
+                                                                              {n.name}
+                                                                          </option>
+                                                                      ))}
+                                                                  </optgroup>
+                                                              </select>
+                                                          </div>
+                                                          
+                                                          {/* New Controls for Previous Content Length */}
+                                                          {contextConfig.includePrevChapter && resolvedPrevContext && (
+                                                              <div className="mt-2 bg-slate-100 p-2 rounded border border-slate-200 animate-in fade-in slide-in-from-top-1">
+                                                                  <div className="flex justify-between items-center mb-1">
+                                                                       <span className="text-[9px] font-bold text-slate-500">引用长度 (Words)</span>
+                                                                       {/* Status indicator */}
+                                                                       {resolvedPrevContext.type === 'chapter' ? (
+                                                                           <span className="text-[9px] text-green-600 flex items-center gap-1" title={resolvedPrevContext.title}>
+                                                                               <CheckSquare size={8}/> 已锁定: {resolvedPrevContext.title.length > 6 ? resolvedPrevContext.title.substring(0,6)+'...' : resolvedPrevContext.title}
+                                                                           </span>
+                                                                       ) : (
+                                                                           <span className="text-[9px] text-amber-500 flex items-center gap-1">
+                                                                               <AlertTriangle size={8}/> 仅大纲
+                                                                           </span>
+                                                                       )}
+                                                                  </div>
+                                                                  <div className="flex gap-1 mb-2">
+                                                                      {[500, 1000, 1500, 2000].map(len => (
+                                                                          <button
+                                                                              key={len}
+                                                                              onClick={() => setContextConfig({...contextConfig, prevContextLength: len})}
+                                                                              className={`flex-1 py-1 text-[9px] rounded border transition-colors ${contextConfig.prevContextLength === len ? 'bg-teal-500 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-teal-300'}`}
+                                                                          >
+                                                                              {len}
+                                                                          </button>
+                                                                      ))}
+                                                                  </div>
+                                                                  
+                                                                  {/* Preview Content Block */}
+                                                                  {resolvedPrevContext.content && (
+                                                                    <div className="bg-white p-2 rounded border border-slate-200 text-[9px] text-slate-600 max-h-32 overflow-y-auto leading-relaxed font-serif shadow-inner">
+                                                                        <div className="font-bold text-slate-400 mb-1 not-italic flex justify-between">
+                                                                            <span>片段预览</span>
+                                                                            <span className="font-mono">{Math.min(resolvedPrevContext.content.length, contextConfig.prevContextLength || 1000)}字</span>
+                                                                        </div>
+                                                                        <div className="italic opacity-80">
+                                                                            {resolvedPrevContext.content.length > (contextConfig.prevContextLength || 1000) 
+                                                                                ? "..." + resolvedPrevContext.content.slice(-(contextConfig.prevContextLength || 1000))
+                                                                                : resolvedPrevContext.content}
+                                                                        </div>
+                                                                    </div>
+                                                                  )}
+                                                              </div>
+                                                          )}
+
                                                           <div><span className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1"><ArrowRightCircle size={10}/> {t('studio.inspector.nextNode')}</span><select value={contextConfig.nextChapterId || ''} onChange={e => setContextConfig({...contextConfig, nextChapterId: e.target.value || undefined})} className="w-full p-1.5 border rounded text-[10px] bg-slate-50 truncate"><option value="">{t('studio.inspector.none')}</option>{allChapterNodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
                                                           
                                                           {/* RAG Toggle */}
