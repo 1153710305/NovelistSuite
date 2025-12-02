@@ -149,6 +149,9 @@ export const Studio: React.FC = () => {
   const [showRegenModal, setShowRegenModal] = useState(false);
   const [regenIdea, setRegenIdea] = useState('');
   const [regenContextMapKeys, setRegenContextMapKeys] = useState<string[]>([]);
+  // 新增：用于跟踪哪些 Context 开启了 AI 清洗
+  const [regenOptimizeMapKeys, setRegenOptimizeMapKeys] = useState<string[]>([]);
+  
   const [regenPromptId, setRegenPromptId] = useState('');
   const [regenStyleContent, setRegenStyleContent] = useState('');
   const [regenRequirements, setRegenRequirements] = useState('');
@@ -490,9 +493,9 @@ export const Studio: React.FC = () => {
 
   const handleOpenRegenModal = () => {
       if (!activeStoryRecord) return;
-      // 这里的 regenIdea 仅用于显示或作为额外补充，核心上下文由 buildCoreMetadataContext 自动构建
       setRegenIdea(""); 
       setRegenContextMapKeys([]);
+      setRegenOptimizeMapKeys([]); // Reset optimization selections
       setRegenPromptId('');
       setRegenStyleContent('');
       setRegenRequirements('');
@@ -506,81 +509,89 @@ export const Studio: React.FC = () => {
       // 1. Prepare Metadata Context (Always kept, never scrubbed)
       const coreMetadata = buildCoreMetadataContext(activeStoryRecord);
       
-      // 2. Prepare Map Context (Candidate for scrubbing)
-      let mapContext = "";
+      // 2. Prepare Map Context (Split into Raw and To-Optimize buckets)
+      let mapContextRaw = "";
+      let mapContextToOptimize = "";
+      let mapToOptimizeKeys: string[] = []; // for logging
+
       if (regenContextMapKeys.length > 0) {
-          mapContext += `\n[REFERENCE_MAPS / 关联参考导图]\n`;
           regenContextMapKeys.forEach(key => {
-              if (key === selectedMapType) return; // 不引用自己
+              if (key === selectedMapType) return; // Skip self reference
+              
               const val = activeStoryRecord.architecture ? (activeStoryRecord.architecture as any)[key] : null;
               if (val && typeof val !== 'string') {
                   const mapRoot = val as OutlineNode;
-                  mapContext += `\n>>> 导图: ${t('studio.maps.' + key)} <<<\n`;
-                  mapContext += serializeMapToText(mapRoot); 
+                  const contentChunk = `\n>>> 导图: ${t('studio.maps.' + key)} <<<\n` + serializeMapToText(mapRoot);
+                  
+                  if (regenOptimizeMapKeys.includes(key)) {
+                      mapContextToOptimize += contentChunk;
+                      mapToOptimizeKeys.push(key);
+                  } else {
+                      mapContextRaw += contentChunk;
+                  }
               }
           });
       }
 
-      // Check size before starting background task
-      checkContextSize(mapContext, async (checkedMapContext) => {
+      // Context size check logic (applies to total size)
+      const totalSize = coreMetadata.length + mapContextRaw.length + mapContextToOptimize.length;
+      const WARNING_THRESHOLD = 30000;
+
+      const proceedWithRegen = async () => {
           await startBackgroundTask('map_regen', 'regenMap', async (taskId) => {
               updateTaskProgress(taskId, t('process.init'), 5, t('process.init'));
               
-              let processedMapContext = checkedMapContext;
-              const originalMapContext = checkedMapContext; // Snapshot for comparison
-              
-              // 1. 构建 Prompt (真实发送给 API 的指令)
+              // Variable to hold the result of optimization
+              let finalOptimizedContext = "";
+              let originalMapContext = mapContextToOptimize; // For debug comparison
+
+              // 1. 构建 Prompt
               const actualTaskPayload = `[COMMAND]: 重绘导图 - ${selectedMapType}\n[USER_INSTRUCTION]: ${regenIdea}\n[CONSTRAINTS]: ${regenRequirements}\n[STYLE]: ${regenStyleContent}`;
 
-              if (enableContextOptimization && processedMapContext.length > 500) {
-                  // 只清洗啰嗦的导图上下文，不清洗核心元数据
-                  updateTaskProgress(taskId, t('process.optimizing'), 15, t('process.scrubbing'), undefined, {
+              // 2. Execute Optimization if needed
+              if (mapContextToOptimize.length > 100) { // Only optimize if substantial content
+                  updateTaskProgress(taskId, t('process.optimizing'), 15, t('process.scrubbing') + ` (${mapToOptimizeKeys.join(', ')})`, undefined, {
                       systemInstruction: globalPersona,
-                      context: processedMapContext, // Show context before scrubbing
-                      prompt: actualTaskPayload
+                      context: mapContextToOptimize, // Show what is being sent to scrubber
+                      prompt: "Context Scrubbing Task"
                   });
                   
-                  // 关键修复：只传 context 给 optimizer
-                  processedMapContext = await optimizeContextWithAI(processedMapContext, lang);
+                  // Call Optimization API
+                  finalOptimizedContext = await optimizeContextWithAI(mapContextToOptimize, lang);
                   
                   // Calculate compression ratio
-                  const ratio = ((1 - processedMapContext.length / (originalMapContext.length || 1)) * 100).toFixed(1);
+                  const ratio = ((1 - finalOptimizedContext.length / (originalMapContext.length || 1)) * 100).toFixed(1);
                   const logMsg = t('process.opt_success').replace('{ratio}', ratio);
                   
                   updateTaskProgress(taskId, t('process.optimizing'), 30, logMsg, undefined, { 
-                      systemInstruction: globalPersona,
-                      context: processedMapContext, // Show clean context
-                      prompt: actualTaskPayload,
                       comparison: {
-                          originalContext: originalMapContext,
-                          optimizedContext: processedMapContext,
-                          systemInstruction: globalPersona
+                          originalContext: originalMapContext, // Show original chunk
+                          optimizedContext: finalOptimizedContext // Show cleaned chunk
                       }
                   });
               } else {
-                  updateTaskProgress(taskId, t('process.regen_map'), 10, "Using raw context...", undefined, {
-                      systemInstruction: globalPersona,
-                      context: processedMapContext,
-                      prompt: actualTaskPayload
-                  });
+                  // If too small or empty, just use raw
+                  finalOptimizedContext = mapContextToOptimize;
               }
 
-              // Combine Metadata + (Optimized) Map Context
-              const finalContext = coreMetadata + processedMapContext;
+              // 3. Combine Metadata + Raw Context + Optimized Context
+              const finalContext = coreMetadata + mapContextRaw + finalOptimizedContext;
 
               await pauseTask(taskId);
 
               updateTaskProgress(taskId, t('process.regen_map'), 40, t('process.calling_api'), undefined, {
-                  // Update debug info to show the FINAL merged context
-                  context: finalContext 
+                  // Update debug info to show the FINAL merged context used for generation
+                  // We merge everything here for the display
+                  context: finalContext,
+                  prompt: actualTaskPayload
               });
 
               const newRoot = await regenerateSingleMap(
                   selectedMapType, 
-                  regenIdea, // 用户额外补充的 idea
-                  finalContext, // 完整的上下文（含元数据）
+                  regenIdea, 
+                  finalContext, 
                   lang, model, regenStyleContent, 
-                  globalPersona, // 始终传递 System Persona
+                  globalPersona, 
                   (stage, progress, log, metrics, debugInfo) => updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo),
                   regenRequirements
               );
@@ -591,7 +602,23 @@ export const Studio: React.FC = () => {
               setHistory(prev => prev.map(item => item.id === activeStoryRecord.id ? updatedRecord : item));
               return t('process.done');
           });
-      });
+      };
+
+      if (totalSize > WARNING_THRESHOLD) {
+          setContextWarningData({ 
+              original: totalSize, 
+              truncated: WARNING_THRESHOLD, 
+              preview: (mapContextRaw + mapContextToOptimize).substring(0, 200) + "...", 
+              fullContext: "Context check bypassed for background task logic separation" // Not actually used here
+          });
+          // For simplicity in this complex flow, just warn and let user confirm action, 
+          // the actual truncation logic inside generate functions is separate. 
+          // Here we just warn about total payload size.
+          setPendingContextAction(() => proceedWithRegen());
+          setShowContextWarning(true);
+      } else {
+          proceedWithRegen();
+      }
   };
 
   const toggleStoryExpand = (record: StudioRecord) => {
@@ -939,6 +966,17 @@ export const Studio: React.FC = () => {
 
   const handleToggleRegenKey = (type: string) => {
       setRegenContextMapKeys(prev => {
+          if (prev.includes(type)) {
+              // If deselecting, also remove from optimize list
+              setRegenOptimizeMapKeys(opt => opt.filter(k => k !== type));
+              return prev.filter(k => k !== type);
+          }
+          return [...prev, type];
+      });
+  };
+
+  const handleToggleRegenOptimize = (type: string) => {
+      setRegenOptimizeMapKeys(prev => {
           if (prev.includes(type)) return prev.filter(k => k !== type);
           return [...prev, type];
       });
@@ -1050,19 +1088,42 @@ export const Studio: React.FC = () => {
                             </select>
                             <textarea value={regenStyleContent} onChange={(e) => { setRegenStyleContent(e.target.value); if (regenPromptId) setRegenPromptId(''); }} className="w-full p-3 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-700 h-24 leading-relaxed resize-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition-all placeholder:text-slate-400" placeholder="在此输入自定义提示词或风格要求..." />
                        </div>
+                       
+                       {/* Granular Context Selection */}
                        <div>
                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t('studio.tree.selectContext')}</label>
-                           <div className="grid grid-cols-2 gap-2">
-                               {allMaps.filter(t => t !== selectedMapType).map(type => (
-                                   <div key={type} onClick={() => handleToggleRegenKey(type)} className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg hover:bg-slate-50 transition-colors">
-                                       {regenContextMapKeys.includes(type) ? <CheckSquare size={16} className="text-teal-600"/> : <Square size={16} className="text-slate-300"/>} <span className="text-xs">{t(`studio.maps.${type}`)}</span>
-                                   </div>
-                               ))}
+                           <div className="space-y-1">
+                               {allMaps.filter(t => t !== selectedMapType).map(type => {
+                                   const isSelected = regenContextMapKeys.includes(type);
+                                   const isOptimized = regenOptimizeMapKeys.includes(type);
+                                   
+                                   return (
+                                       <div key={type} className={`flex items-center justify-between p-2 border rounded-lg transition-colors ${isSelected ? 'bg-slate-50 border-slate-300' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                                           {/* Left: Select Context */}
+                                           <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => handleToggleRegenKey(type)}>
+                                               {isSelected ? <CheckSquare size={16} className="text-teal-600"/> : <Square size={16} className="text-slate-300"/>} 
+                                               <span className={`text-xs ${isSelected ? 'font-bold text-slate-700' : 'text-slate-500'}`}>{t(`studio.maps.${type}`)}</span>
+                                           </div>
+                                           
+                                           {/* Right: Optimization Toggle (Visible only if selected) */}
+                                           {isSelected && (
+                                               <div className="flex items-center" title={t('studio.tree.optimizeHelp')}>
+                                                   <button 
+                                                       onClick={(e) => { e.stopPropagation(); handleToggleRegenOptimize(type); }}
+                                                       className={`p-1.5 rounded transition-all flex items-center gap-1 ${isOptimized ? 'bg-indigo-100 text-indigo-600' : 'text-slate-300 hover:text-indigo-400'}`}
+                                                       title={t('studio.tree.optimizeItem')}
+                                                   >
+                                                       <Sparkles size={14} className={isOptimized ? "fill-indigo-600" : ""} />
+                                                   </button>
+                                               </div>
+                                           )}
+                                       </div>
+                                   );
+                               })}
                            </div>
-                       </div>
-                       <div className="flex items-center gap-2 border-t pt-4">
-                           <input type="checkbox" checked={enableContextOptimization} onChange={e => setEnableContextOptimization(e.target.checked)} className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"/>
-                           <label className="text-xs font-bold text-slate-600">🤖 {t('studio.inspector.optimizeContext')}</label>
+                           <p className="text-[9px] text-slate-400 mt-2 text-right flex justify-end items-center gap-1">
+                               <Sparkles size={10} className="text-indigo-400"/> = {t('studio.tree.optimizeItem')}
+                           </p>
                        </div>
                    </div>
                    <div className="p-4 border-t flex justify-end gap-2 rounded-b-xl"><button onClick={() => setShowRegenModal(false)} className="px-4 py-2 text-slate-600 rounded-lg hover:bg-slate-100">{t('common.cancel')}</button><button onClick={handleRegenerateMap} disabled={isRegeneratingMap} className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2">{isRegeneratingMap ? <Loader2 className="animate-spin" size={16}/> : <RefreshCw size={16}/>} {t('studio.tree.regenerate')}</button></div>
