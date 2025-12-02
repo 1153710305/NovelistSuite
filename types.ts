@@ -180,14 +180,6 @@ export interface BackgroundTask {
 
 // --- 全局配置与状态 ---
 
-// 网络连接状态枚举
-export enum NetworkStatus {
-    ONLINE = 'online',
-    OFFLINE = 'offline',
-    SLOW = 'slow',
-    ERROR = 'error'
-}
-
 // 模型配置接口
 export interface ModelConfig {
     id: string;             // 模型 ID

@@ -1,69 +1,15 @@
 
 
+
+
 // 引入 Google GenAI SDK
 import { GoogleGenAI, Type, Schema, GenerateContentResponse } from "@google/genai";
 // 引入类型定义
-import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap, AIMetrics, InspirationMetadata, EmbeddingModel, NetworkStatus } from '../types';
+import { OutlineNode, GenerationConfig, ChatMessage, ArchitectureMap, AIMetrics, InspirationMetadata, EmbeddingModel } from '../types';
 // 引入提示词服务
 import { PromptService, InspirationRules } from './promptService';
 // 引入本地 Embedding 库
 import { pipeline } from '@xenova/transformers';
-
-// --- 请求队列管理 (Concurrency Control) ---
-
-class RequestQueue {
-    private queue: Array<() => Promise<any>> = [];
-    private runningCount: number = 0;
-    private maxConcurrent: number = 2; // 默认全局并发限制
-
-    constructor() {
-        // 定期处理队列
-        setInterval(() => this.processNext(), 200);
-    }
-
-    /**
-     * 将请求加入队列
-     * @param requestFn 返回 Promise 的请求函数
-     * @param model 使用的模型 (用于动态调整并发)
-     */
-    async add<T>(requestFn: () => Promise<T>, model?: string): Promise<T> {
-        // 动态调整策略：Pro 模型更慢且限额低，限制为 1；Flash 模型较快，允许 3
-        if (model && model.includes('pro')) {
-            this.maxConcurrent = 1;
-        } else {
-            this.maxConcurrent = 3;
-        }
-
-        return new Promise((resolve, reject) => {
-            this.queue.push(async () => {
-                try {
-                    const result = await requestFn();
-                    resolve(result);
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        });
-    }
-
-    private async processNext() {
-        if (this.runningCount >= this.maxConcurrent || this.queue.length === 0) return;
-
-        this.runningCount++;
-        const request = this.queue.shift();
-
-        if (request) {
-            try {
-                await request();
-            } finally {
-                this.runningCount--;
-                this.processNext(); // 立即尝试处理下一个
-            }
-        }
-    }
-}
-
-const globalRequestQueue = new RequestQueue();
 
 // --- 基础工具函数 ---
 
@@ -175,12 +121,7 @@ const getErrorDetails = (error: any): string => {
 };
 
 /**
- * 带指数退避的自动重试函数 (增强版：Token 保护)
- * 策略：
- * 1. 仅重试瞬态错误 (429, 503, Network)。
- * 2. 绝对不重试客户端错误 (400, 401, 403, 404, Safety Block)，避免浪费 Token。
- * 3. 引入 Jitter (随机抖动) 避免并发请求同时重试造成拥堵。
- * 
+ * 带指数退避的自动重试函数
  * @param fn 执行的异步函数
  * @param retries 剩余重试次数
  * @param baseDelay 基础延迟时间 (毫秒)
@@ -191,29 +132,14 @@ const retryWithBackoff = async <T>(fn: () => Promise<T>, retries = 3, baseDelay 
     } catch (error: any) {
         const errStr = getErrorDetails(error);
         
-        // 【关键优化】: 定义不可重试的错误 (Token 浪费陷阱)
-        const isFatal = (
-            errStr.includes('400') || // Bad Request (Prompt问题)
-            errStr.includes('401') || // Unauthorized
-            errStr.includes('403') || // Forbidden (API Key问题)
-            errStr.includes('404') || // Not Found (模型不存在)
-            errStr.includes('safety') || // 安全拦截 (重试通常也无效)
-            errStr.includes('blocked')
-        );
-
-        if (isFatal) {
-            console.error("[Gemini] Fatal error encountered, stopping retry:", errStr);
-            throw error;
-        }
-
-        // 检查是否为可重试的错误类型 (网络或服务端瞬态问题)
+        // 检查是否为可重试的错误类型
         const isRetryable = (
             errStr.includes('429') ||  // 配额超限
             errStr.includes('resource_exhausted') || 
             errStr.includes('quota') || 
             errStr.includes('503') ||  // 服务不可用
             errStr.includes('504') ||  // 网关超时
-            errStr.includes('500') ||  // 服务器内部错误 (有时重试有效)
+            errStr.includes('500') ||  // 服务器内部错误
             errStr.includes('overloaded') || 
             errStr.includes('fetch failed') || 
             errStr.includes('failed to fetch') || 
@@ -224,14 +150,14 @@ const retryWithBackoff = async <T>(fn: () => Promise<T>, retries = 3, baseDelay 
 
         if (retries > 0 && isRetryable) {
             const isRateLimit = errStr.includes('429') || errStr.includes('quota') || errStr.includes('resource_exhausted');
+            const isNetworkError = errStr.includes('fetch') || errStr.includes('network');
             
             let delay = baseDelay;
-            // 针对 429 错误增加更长的等待时间 (5-10秒)
+            // 针对 429 错误增加更长的等待时间 (5-8秒)，避免瞬时重试再次失败
             if (isRateLimit) delay = (baseDelay * 3) + Math.random() * 2000;
-            // 增加随机抖动 (Jitter) +/- 20%
-            delay = delay * (0.8 + Math.random() * 0.4);
+            if (isNetworkError) delay = (baseDelay * 1.5) + Math.random() * 500;
             
-            console.warn(`[Gemini] API 错误 (${isRateLimit ? '429 限流' : '网络波动'}), ${Math.round(delay)}ms 后重试... 剩余次数: ${retries}`);
+            console.warn(`[Gemini] API 错误 (${isRateLimit ? '配额/限流' : '网络/服务'}), ${Math.round(delay)}ms 后重试... 剩余次数: ${retries}`);
             await new Promise(resolve => setTimeout(resolve, delay));
             
             return retryWithBackoff(fn, retries - 1, baseDelay * 2);
@@ -261,25 +187,6 @@ const handleGeminiError = (error: any, context: string): string => {
     }
 
     return `${userMsg}\n\n[详细错误]: ${detailMsg.substring(0, 500)}...`;
-};
-
-/**
- * 网络诊断工具
- */
-export const diagnoseNetwork = async (): Promise<{ status: NetworkStatus, latency: number }> => {
-    const start = Date.now();
-    try {
-        // 尝试连接 Google API 端点 (轻量级)
-        // 注意：由于 CORS，这可能在浏览器中失败，这里用一个公共 CDN 或 Image 代替检测互联网
-        await fetch('https://www.google.com/images/branding/googlelogo/2x/googlelogo_light_color_92x30dp.png', { mode: 'no-cors', cache: 'no-store' });
-        const latency = Date.now() - start;
-        return {
-            status: latency > 1000 ? NetworkStatus.SLOW : NetworkStatus.ONLINE,
-            latency
-        };
-    } catch (e) {
-        return { status: NetworkStatus.OFFLINE, latency: 0 };
-    }
 };
 
 // --- 向量化检索增强 (RAG) 实现 ---
@@ -317,14 +224,13 @@ async function generateEmbedding(text: string, model: string = "local-minilm"): 
         }
     }
 
-    // 2. 处理 Google Gemini API (通过队列管理)
+    // 2. 处理 Google Gemini API
     const ai = getAiClient();
     try {
-        const result = await globalRequestQueue.add(() => retryWithBackoff<any>(() => ai.models.embedContent({
+        const result = await retryWithBackoff<any>(() => ai.models.embedContent({
             model: model, 
-            // 修复: EmbedContentParameters 使用 contents 字段而不是 content
-            contents: { parts: [{ text }] }
-        })), model);
+            content: { parts: [{ text }] }
+        }));
         return result.embedding?.values || [];
     } catch (e: any) {
         const errStr = getErrorDetails(e);
@@ -460,8 +366,8 @@ export const retrieveRelevantContext = async (
 
 /**
  * AI 上下文简化与结构化 (Context Scrubbing)
- * 核心升级：采用 "Schema Separation" 策略，强制分离指令、任务和数据。
- * **网络优化**: 增加大文本分块处理 (Chunking)。如果 rawContext 超过 30k 字符，分块并行处理。
+ * 核心升级：采用 "Schema Separation" 策略，强制分离指令、任务和数据，防止指令被清洗掉。
+ * 2024-05 Update: 强化“高密度压缩”逻辑，防止字符膨胀。
  */
 export const optimizeContextWithAI = async (
     rawContext: string,
@@ -469,27 +375,16 @@ export const optimizeContextWithAI = async (
 ): Promise<string> => {
     if (!rawContext || rawContext.length < 50) return rawContext;
 
-    // 分块阈值
-    const CHUNK_SIZE = 30000;
-    
-    if (rawContext.length > CHUNK_SIZE) {
-        console.log(`[Context] Input too large (${rawContext.length} chars), splitting into chunks...`);
-        const chunks = [];
-        for (let i = 0; i < rawContext.length; i += CHUNK_SIZE) {
-            chunks.push(rawContext.substring(i, i + CHUNK_SIZE));
-        }
-        
-        // 并行处理块 (依赖全局队列控制并发)
-        const results = await Promise.all(chunks.map(chunk => optimizeContextWithAI(chunk, lang)));
-        return results.join("\n\n");
-    }
-
     const ai = getAiClient();
-    const model = 'gemini-2.5-flash'; // 必须使用 2.5 Flash 或更高
+    // 升级：使用 2.5 Flash 而非 Lite，以确保清洗逻辑（特别是去模糊化）的执行质量
+    const model = 'gemini-2.5-flash'; 
     const isZh = lang === 'zh';
     
+    // 严格的 JSON Schema 指令 - 强调【压缩】
+    // 将 "knowledge_graph" 的定义改为更扁平的结构，直接要求输出短语列表
     const systemPrompt = isZh ? `
     任务：**上下文高密度压缩与清洗**。
+    
     目标：将输入的背景资料转换为**极简、高密度**的 JSON 格式。
     **核心要求：**
     1. **提取事实**：只保留背景知识（世界观、角色、剧情事实）。
@@ -528,20 +423,21 @@ export const optimizeContextWithAI = async (
     ${systemPrompt}
 
     [RAW INPUT BUNDLE]:
-    ${rawContext} 
+    ${rawContext.substring(0, 60000)} 
     `;
 
     try {
-        // 使用队列包装请求
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model,
             contents: prompt,
             config: { responseMimeType: "application/json" } // Force JSON
-        })), model);
+        }));
         
         const jsonText = cleanJson(response.text || "{}");
         const parsed = JSON.parse(jsonText);
         
+        // 重新组装为高密度结构化文本，供生成模型使用
+        // 修正：不再输出 [CMD] 和 [TASK]，只保留纯粹的 [ENTS] 和 [FACTS]，防止污染上下文
         let reconstructed = "";
         
         if (parsed.entities && Array.isArray(parsed.entities) && parsed.entities.length > 0) {
@@ -552,7 +448,7 @@ export const optimizeContextWithAI = async (
             reconstructed += `[FACTS]: ` + parsed.facts.join('; ');
         }
         
-        // Fallback for old schema
+        // Fallback for old schema if model hallucinates old format
         if (!parsed.entities && !parsed.facts && parsed.knowledge_graph) {
              const kg = parsed.knowledge_graph;
              if (kg.facts) reconstructed += `[FACTS]: ` + kg.facts.join('; ');
@@ -568,7 +464,8 @@ export const optimizeContextWithAI = async (
 };
 
 /**
- * 提示词格式转换
+ * 提示词格式转换 (结构化 <-> 自然语言)
+ * 核心要求：意思一致，转回时必须一模一样（尽可能无损）。
  */
 export const transformPromptFormat = async (
     text: string, 
@@ -601,10 +498,10 @@ export const transformPromptFormat = async (
     `;
 
     try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model,
             contents: prompt
-        })), model);
+        }));
         return response.text || text;
     } catch (e) {
         return text;
@@ -638,6 +535,7 @@ export const analyzeTrendKeywords = async (
     ${PromptService.getLangInstruction(lang)}
     `;
 
+    // Create display prompt hiding long instructions for debug
     const displayPrompt = `
     请使用 Google Search 搜索最新的"${platformNames} ${genderStr} 小说排行榜"。
     [...Analysis Instruction Hidden...]
@@ -654,15 +552,16 @@ export const analyzeTrendKeywords = async (
     }
 
     try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
                 tools: [{ googleSearch: {} }]
             }
-        })), model);
+        }));
         
+        // Pass API payload after response
         if (onDebug) {
              onDebug({
                  apiPayload: {
@@ -726,7 +625,7 @@ export const generateDailyStories = async (
     };
 
     const executeGen = async (targetModel: string) => {
-         return await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+         return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model: targetModel,
             contents: prompt,
             config: { 
@@ -734,7 +633,7 @@ export const generateDailyStories = async (
                 responseSchema: schema,
                 systemInstruction: finalSystemInstruction
             }
-        })), targetModel);
+        }));
     };
 
     try {
@@ -921,8 +820,7 @@ export const generateStoryFromIdea = async (
 };
 
 /**
- * 章节生成 (流式响应优化版)
- * 使用 generateContentStream 替代 unary call，避免大文本生成时的超时。
+ * 章节生成
  */
 export const generateChapterContent = async (
     node: OutlineNode, 
@@ -939,9 +837,14 @@ export const generateChapterContent = async (
     const ai = getAiClient();
     
     let fullContext = context;
+    
+    // 强化上一章结尾的上下文注入，明确标识
+    // 注意：previousContent 已经由调用方进行了截取，这里直接使用
     if (previousContent) {
         fullContext += `\n\n【上一章结尾】\n(请承接此处的剧情和悬念)\n${previousContent}\n\n`;
     }
+
+    // 强化下一章预告的上下文注入
     if (nextChapterInfo) {
         fullContext += `\n\n=== 【🚀 下一章预告 (Next Chapter Preview)】 ===\n目标章节：${nextChapterInfo.title}\n章节梗概：${nextChapterInfo.desc || '未知'}\n`;
         if (nextChapterInfo.childrenText) {
@@ -951,65 +854,60 @@ export const generateChapterContent = async (
     }
 
     const safeContext = truncateContext(fullContext, 40000);
+    // PromptService.writeChapter embeds context directly. 
     const prompt = `${PromptService.writeChapter(node.name, node.description || '', safeContext, wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
     const finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
-    const displayPrompt = `${PromptService.writeChapter(node.name, node.description || '', '...[Context Layer Hidden]...', wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
+    
+    // Create a display-friendly prompt that hides the massive context
+    // We pass a placeholder string to writeChapter so the structure is preserved but content is hidden
+    const displayPrompt = `${PromptService.writeChapter(node.name, node.description || '', '...[Context Layer Hidden - See Context Tab]...', wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
 
-    if (onUpdate) onUpdate("章节生成", 20, "API 握手成功，开始流式传输...", undefined, { 
-        prompt: displayPrompt,
+    if (onUpdate) onUpdate("章节生成", 20, "构建 Prompt...", undefined, { 
+        prompt: displayPrompt, // Use display version
         context: safeContext, 
         model, 
         systemInstruction: finalSystemInstruction
     });
 
-    try {
-        const startTime = Date.now();
-        
-        // 使用流式 API
-        const streamResult = await globalRequestQueue.add(() => ai.models.generateContentStream({
-            model: model,
-            contents: prompt,
+    const executeGen = async (targetModel: string) => {
+        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+            model: targetModel, 
+            contents: prompt, 
             config: {
                 systemInstruction: finalSystemInstruction
             }
-        }), model);
+        }));
+    };
 
-        let accumulatedText = "";
-        let chunkCount = 0;
+    try {
+        const startTime = Date.now();
+        let response: GenerateContentResponse;
+        let usedModel = model;
 
-        for await (const chunk of streamResult) {
-            const chunkText = chunk.text || "";
-            accumulatedText += chunkText;
-            chunkCount++;
-            
-            // 每接收 10 个 Chunk 更新一次 UI，避免过于频繁的重渲染
-            if (onUpdate && chunkCount % 5 === 0) {
-                const currentLength = accumulatedText.length;
-                const percent = Math.min(95, 20 + Math.floor((currentLength / wordCount) * 75));
-                onUpdate("正在写作...", percent, `已生成 ${currentLength} 字...`);
+        try {
+            response = await executeGen(model);
+        } catch (e: any) {
+            const errStr = getErrorDetails(e);
+            if ((errStr.includes('429') || errStr.includes('resource_exhausted')) && model !== 'gemini-flash-lite-latest') {
+                usedModel = 'gemini-flash-lite-latest';
+                if (onUpdate) onUpdate("章节生成", 25, `配额不足，切换至备用模型: ${usedModel}...`);
+                console.warn(`[Gemini] Quota exceeded for ${model}, falling back to ${usedModel}`);
+                response = await executeGen(usedModel);
+            } else {
+                throw e;
             }
         }
 
-        // 最终更新
-        const metrics = {
-            model: model,
-            inputTokens: 0, // 流式响应通常不直接返回 total token，需估算或后续获取
-            outputTokens: accumulatedText.length, // 近似值
-            totalTokens: accumulatedText.length,
-            latency: Date.now() - startTime
-        };
-
+        const metrics = extractMetrics(response, usedModel, startTime);
         if (onUpdate) onUpdate("章节生成", 100, "完成", metrics, {
             apiPayload: {
                 request: `System: ${finalSystemInstruction}\n\nUser: ${prompt}`,
-                response: accumulatedText.substring(0, 100) + "..." // Log partial
+                response: response.text || ""
             }
         });
         
-        return accumulatedText || "生成失败，内容为空。";
-    } catch(error) { 
-        throw new Error(handleGeminiError(error, 'generateChapterContent')); 
-    }
+        return response.text || "生成失败，请重试。";
+    } catch(error) { throw new Error(handleGeminiError(error, 'generateChapterContent')); }
 }
 
 /**
@@ -1028,13 +926,13 @@ export const rewriteChapterWithContext = async (
      const prompt = `${instruction}\n\n【背景设定/上下文】：\n${truncateContext(context, 20000)}\n\n【原文】：\n${content}\n\n${PromptService.getLangInstruction(lang)}`;
      
      try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
-        })), model);
+        }));
         return response.text || content;
      } catch(error) {
          throw new Error(handleGeminiError(error, 'rewriteChapterWithContext'));
@@ -1048,13 +946,13 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
     const ai = getAiClient();
     const prompt = `${PromptService.manipulateText(text, mode)} ${PromptService.getLangInstruction(lang)}`;
     try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
-        })), model);
+        }));
         return response.text || "处理失败。";
     } catch(error) { throw new Error(handleGeminiError(error, 'manipulateText')); }
 };
@@ -1066,13 +964,13 @@ export const analyzeText = async (textOrUrl: string, focus: 'pacing' | 'characte
     const ai = getAiClient();
     const prompt = `请分析以下文本的 ${focus === 'viral_factors' ? '爆款因子' : focus === 'pacing' ? '节奏密度' : '角色弧光'}。\n${PromptService.getLangInstruction(lang)}\n内容：${textOrUrl.substring(0, 10000)}`;
     try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
-        })), model);
+        }));
         return response.text || "暂无分析结果。";
     } catch (error) { throw new Error(handleGeminiError(error, 'analyzeText')); }
 };
@@ -1081,12 +979,11 @@ export const generateImage = async (prompt: string, model: string = 'imagen-4.0-
     const ai = getAiClient();
     try {
         let base64Image: string | undefined;
-        // 图像生成通常较慢，且有独立配额，也加入队列管理
         if (model.includes('flash-image')) {
-            const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ model, contents: { parts: [{ text: prompt }] }, config: { imageConfig: { aspectRatio: aspectRatio as any } } })), model);
+            const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ model, contents: { parts: [{ text: prompt }] }, config: { imageConfig: { aspectRatio: aspectRatio as any } } }));
             base64Image = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
         } else {
-            const response = await globalRequestQueue.add(() => retryWithBackoff<any>(() => ai.models.generateImages({ model, prompt, config: { numberOfImages: 1, aspectRatio: aspectRatio as any, outputMimeType: 'image/jpeg' } })), model);
+            const response = await retryWithBackoff<any>(() => ai.models.generateImages({ model, prompt, config: { numberOfImages: 1, aspectRatio: aspectRatio as any, outputMimeType: 'image/jpeg' } }));
             base64Image = response.generatedImages?.[0]?.image?.imageBytes;
         }
         if (base64Image) return `data:image/jpeg;base64,${base64Image}`;
@@ -1098,11 +995,11 @@ export const generateIllustrationPrompt = async (context: string, lang: string, 
     const ai = getAiClient();
     const prompt = PromptService.illustrationPrompt(context);
     try {
-        const response = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: { systemInstruction: "You are an expert prompt engineer for Midjourney/Stable Diffusion." }
-        })), model);
+        }));
         return response.text?.trim() || "A detailed fantasy illustration";
     } catch (error) { return "Fantasy scene"; }
 }
@@ -1119,9 +1016,7 @@ export const streamChatResponse = async (messages: ChatMessage[], newMessage: st
     });
     let fullResponse = '';
     try {
-        // Chat 交互通常需要实时性，可以不走 globalQueue 或者给予高优先级
-        // 这里为了统一管理，依然走队列，但用户感知可能稍有延迟
-        const result = await globalRequestQueue.add(() => chat.sendMessageStream({ message: newMessage }), model);
+        const result = await chat.sendMessageStream({ message: newMessage });
         for await (const chunk of result) {
             const text = chunk.text;
             if (text) { fullResponse += text; onChunk(fullResponse); }
@@ -1217,24 +1112,25 @@ export const regenerateSingleMap = async (
 
     const prompt = `任务：重绘导图 - ${mapType}\n基于核心构思：${idea}${promptContext}\n${specificInstruction}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
     
-    const displayPrompt = `任务：重绘导图 - ${mapType}\n基于核心构思：${idea}\n【参考上下文】: ...[Context Layer Hidden]...\n${specificInstruction}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
+    // Create a display-friendly prompt hiding potentially large context
+    const displayPrompt = `任务：重绘导图 - ${mapType}\n基于核心构思：${idea}\n【参考上下文】: ...[Context Layer Hidden - See Context Tab]...\n${specificInstruction}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
 
     if (onUpdate) onUpdate("构建提示词", 10, undefined, undefined, { 
-        prompt: displayPrompt,
+        prompt: displayPrompt, // Use display version
         context, 
         model,
         systemInstruction: finalSystemInstruction
     });
 
     const executeGen = async (targetModel: string) => {
-        return await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model: targetModel, 
             contents: prompt, 
             config: { 
                 responseMimeType: "application/json", 
                 systemInstruction: finalSystemInstruction
             } 
-        })), targetModel);
+        }));
     };
 
     const startTime = Date.now();
@@ -1246,7 +1142,6 @@ export const regenerateSingleMap = async (
             res = await executeGen(model);
         } catch (e: any) {
             const errStr = getErrorDetails(e);
-            // 429 降级逻辑
             if ((errStr.includes('429') || errStr.includes('resource_exhausted')) && model !== 'gemini-flash-lite-latest') {
                 usedModel = 'gemini-flash-lite-latest';
                 if (onUpdate) onUpdate("解析结果", 15, `配额不足，切换至备用模型: ${usedModel}...`);
@@ -1267,13 +1162,17 @@ export const regenerateSingleMap = async (
         
         let rawObj = JSON.parse(cleanJson(res.text || "{}"));
         
-        // 智能解包逻辑 (Smart Unwrapping)
+        // 智能解包逻辑 (Smart Unwrapping) v2
+        // Case 1: Array wrapper [ {name...} ] -> {name...}
         if (Array.isArray(rawObj)) {
             if (rawObj.length > 0) rawObj = rawObj[0];
             else rawObj = {}; 
         }
 
+        // Case 2: Object wrapper { "mindmap": {name...} } or { "world": {name...} }
+        // 检查根对象是否是有效的节点（必须有 name 或 children）
         if (!rawObj.name && !rawObj.children) {
+            // 尝试寻找内部包含有效节点属性的子对象
             const keys = Object.keys(rawObj);
             for (const key of keys) {
                 const val = rawObj[key];
@@ -1285,21 +1184,23 @@ export const regenerateSingleMap = async (
             }
         }
         
+        // 有效性兜底：如果依然无效，手动构建一个错误提示节点，防止 UI 空白
         if (!rawObj.name) {
              rawObj.name = `${mapType} (生成不完整)`;
              rawObj.description = "AI 返回的数据结构不完整或为空。请检查上下文长度或重试。";
              rawObj.type = rootType;
         }
-        
+        // 强制修正根节点类型
         if (!rawObj.type || rawObj.type !== rootType) rawObj.type = rootType;
         
         if (!Array.isArray(rawObj.children)) rawObj.children = [];
 
+        // 这里的空数据兜底非常重要
         if (rawObj.children.length === 0) {
              rawObj.children.push({
                  name: "生成结果为空",
                  type: childType,
-                 description: "模型未返回有效子节点。建议减少上下文引用后重试。",
+                 description: "模型未返回有效子节点。这通常是因为 Context 过长导致截断，或者 Prompt 限制过严。建议减少上下文引用后重试。",
                  children: []
              });
         }
@@ -1316,11 +1217,11 @@ export const expandNodeContent = async (parentNode: OutlineNode, context: string
     const structurePrompt = `Return a JSON object with a 'children' array containing the new sub-nodes. Structure: { children: [{ name, type, description, children? }] }`;
     const prompt = `扩展节点：${parentNode.name}\n上下文：${context}\n${style ? `风格/指令：${style}` : ''}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
     try {
-        const res = await globalRequestQueue.add(() => retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
+        const res = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
             model, 
             contents: prompt, 
             config: { responseMimeType: "application/json", systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang) } 
-        })), model);
+        }));
         return JSON.parse(cleanJson(res.text || "{}")).children?.map(assignIds) || [];
     } catch (error) { throw new Error(handleGeminiError(error, 'expandNodeContent')); }
 }

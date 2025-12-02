@@ -1,5 +1,3 @@
-
-
 /**
  * @file components/Layout.tsx
  * @description 应用程序的主布局组件 (Shell)。
@@ -9,19 +7,17 @@
  * 2. **路由视图容器**: 渲染当前选中的页面组件 (`children`)。
  * 3. **全局设置**: 集成语言切换、模型选择和数据管理入口。
  * 4. **全局组件挂载**: 挂载任务监控器 (TaskMonitor) 和引导页 (Onboarding)。
- * 5. **网络监控**: 实时显示网络健康状态。
  */
 
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, TrendingUp, PenTool, Network, Feather, Settings, HelpCircle, LogOut, Palette, ChevronLeft, ChevronRight, Menu, MessageSquare, Database, Bot, Info, UserCog, ChevronDown, ChevronUp, Wifi, WifiOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { LayoutDashboard, TrendingUp, PenTool, Network, Feather, Settings, HelpCircle, LogOut, Palette, ChevronLeft, ChevronRight, Menu, MessageSquare, Database, Bot, Info, UserCog, ChevronDown, ChevronUp } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { Onboarding } from './Onboarding';
 import { DataManagerModal } from './DataManagerModal'; 
 import { GlobalPersonaModal } from './GlobalPersonaModal'; // 新增
 import { TaskMonitor } from './TaskMonitor';
-import { AVAILABLE_MODELS, NetworkStatus } from '../types';
-import { diagnoseNetwork } from '../services/geminiService';
+import { AVAILABLE_MODELS } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;      // 当前路由页面内容
@@ -44,22 +40,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
   const [showDataManager, setShowDataManager] = useState(false); // 数据管理模态框开关
   const [showPersonaModal, setShowPersonaModal] = useState(false); // 全局身份模态框开关
   
-  // 网络状态
-  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(NetworkStatus.ONLINE);
-  
   // 设置区域折叠状态 (默认折叠)
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
-
-  // 定期检查网络
-  useEffect(() => {
-      const checkNet = async () => {
-          const { status } = await diagnoseNetwork();
-          setNetworkStatus(status);
-      };
-      checkNet(); // Initial check
-      const timer = setInterval(checkNet, 30000); // Check every 30s
-      return () => clearInterval(timer);
-  }, []);
 
   // 导航菜单配置
   const navItems = [
@@ -290,20 +272,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
             </div>
         </div>
 
-        {/* 底部状态栏 */}
-        {!isCollapsed ? (
-            <div className="p-4 border-t border-slate-800 text-xs text-slate-500 flex justify-between items-center">
-                <div className="flex items-center gap-1">
-                    {networkStatus === NetworkStatus.ONLINE && <Wifi size={12} className="text-green-500"/>}
-                    {networkStatus === NetworkStatus.SLOW && <Wifi size={12} className="text-yellow-500"/>}
-                    {networkStatus === NetworkStatus.OFFLINE && <WifiOff size={12} className="text-red-500"/>}
-                    <span className={networkStatus === NetworkStatus.OFFLINE ? "text-red-500" : ""}>{networkStatus === NetworkStatus.ONLINE ? 'Online' : networkStatus === NetworkStatus.SLOW ? 'Slow' : 'Offline'}</span>
-                </div>
-                <span>v1.7.7</span>
-            </div>
-        ) : (
-            <div className="p-4 border-t border-slate-800 flex justify-center">
-                 {networkStatus === NetworkStatus.ONLINE ? <Wifi size={14} className="text-green-500"/> : <WifiOff size={14} className="text-red-500"/>}
+        {/* 版本信息 */}
+        {!isCollapsed && (
+            <div className="p-4 border-t border-slate-800 text-xs text-slate-500">
+            <p>{t('nav.powered')}</p>
+            <p>v1.7.7</p>
             </div>
         )}
       </aside>
