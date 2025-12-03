@@ -77,12 +77,18 @@
     ```bash
     npm install
     ```
-2.  **启动开发服**:
+2.  **配置环境**:
+    复制 `.env.example` 为 `.env`，并填入您的 Google API Key：
     ```bash
-    npm start
+    cp .env.example .env
+    # 编辑 .env 文件，填入 GEMINI_API_KEY=your_key_here
     ```
-3.  **配置密钥**:
-    项目启动后，系统会自动读取环境变量中的 `API_KEY`。在生产环境中，请确保构建环境包含此变量。
+3.  **启动开发服**:
+    ```bash
+    npm run dev
+    ```
+4.  **本地运行注意**:
+    本项目已针对本地 Vite 环境进行了适配（修复了 index.html 中的 importmap 冲突）。请确保使用 `npm run dev` 启动。
 
 ---
 **开发者**: InkFlow Team
