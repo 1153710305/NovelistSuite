@@ -19,10 +19,17 @@ import { pipeline } from '@xenova/transformers';
  * 显式设置超时时间为 300000ms (5分钟)，防止浏览器端 Fetch 提前中断。
  */
 const getAiClient = () => {
-  return new GoogleGenAI({ 
-      apiKey: process.env.API_KEY,
-      requestOptions: { timeout: 300000 } 
-  } as any);
+    const key = process.env.API_KEY;
+    console.log("[GeminiService] Initializing Client with Key:", key ? `${key.substring(0, 8)}...` : "undefined");
+
+    if (!key || key.includes('your_api_key')) {
+        console.error("[GeminiService] Invalid API Key detected!");
+    }
+
+    return new GoogleGenAI({
+        apiKey: key,
+        requestOptions: { timeout: 300000 }
+    } as any);
 };
 
 // 本地模型单例，防止重复加载
@@ -38,7 +45,7 @@ const cleanJson = (text: string): string => {
     if (!text) return "{}";
     // 移除 markdown 标记
     let clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-    
+
     // 寻找 JSON 的起始位置 (对象或数组)
     const firstBrace = clean.indexOf('{');
     const firstBracket = clean.indexOf('[');
@@ -100,18 +107,18 @@ const extractMetrics = (response: any, model: string, startTime: number): AIMetr
 const getErrorDetails = (error: any): string => {
     if (!error) return "unknown error";
     if (typeof error === 'string') return error.toLowerCase();
-    
+
     // 如果是 Error 对象，组合 message 和 stack
     if (error instanceof Error) {
         // 如果 error.message 本身就是 JSON 字符串，尝试解析
         try {
-             const jsonMsg = JSON.parse(error.message);
-             return JSON.stringify(jsonMsg) + ' ' + (error.stack || '');
+            const jsonMsg = JSON.parse(error.message);
+            return JSON.stringify(jsonMsg) + ' ' + (error.stack || '');
         } catch {
-             return (error.message + ' ' + (error.stack || '')).toLowerCase();
+            return (error.message + ' ' + (error.stack || '')).toLowerCase();
         }
     }
-    
+
     // 尝试 JSON 序列化以捕获包含在对象中的错误码 (如 Google GenAI 返回的结构)
     try {
         return JSON.stringify(error).toLowerCase();
@@ -131,35 +138,35 @@ const retryWithBackoff = async <T>(fn: () => Promise<T>, retries = 3, baseDelay 
         return await fn();
     } catch (error: any) {
         const errStr = getErrorDetails(error);
-        
+
         // 检查是否为可重试的错误类型
         const isRetryable = (
             errStr.includes('429') ||  // 配额超限
-            errStr.includes('resource_exhausted') || 
-            errStr.includes('quota') || 
+            errStr.includes('resource_exhausted') ||
+            errStr.includes('quota') ||
             errStr.includes('503') ||  // 服务不可用
             errStr.includes('504') ||  // 网关超时
             errStr.includes('500') ||  // 服务器内部错误
-            errStr.includes('overloaded') || 
-            errStr.includes('fetch failed') || 
-            errStr.includes('failed to fetch') || 
-            errStr.includes('timeout') || 
-            errStr.includes('network') || 
+            errStr.includes('overloaded') ||
+            errStr.includes('fetch failed') ||
+            errStr.includes('failed to fetch') ||
+            errStr.includes('timeout') ||
+            errStr.includes('network') ||
             errStr.includes('econnreset')
         );
 
         if (retries > 0 && isRetryable) {
             const isRateLimit = errStr.includes('429') || errStr.includes('quota') || errStr.includes('resource_exhausted');
             const isNetworkError = errStr.includes('fetch') || errStr.includes('network');
-            
+
             let delay = baseDelay;
             // 针对 429 错误增加更长的等待时间 (5-8秒)，避免瞬时重试再次失败
             if (isRateLimit) delay = (baseDelay * 3) + Math.random() * 2000;
             if (isNetworkError) delay = (baseDelay * 1.5) + Math.random() * 500;
-            
+
             console.warn(`[Gemini] API 错误 (${isRateLimit ? '配额/限流' : '网络/服务'}), ${Math.round(delay)}ms 后重试... 剩余次数: ${retries}`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            
+
             return retryWithBackoff(fn, retries - 1, baseDelay * 2);
         }
         throw error;
@@ -228,31 +235,31 @@ async function generateEmbedding(text: string, model: string = "local-minilm"): 
     const ai = getAiClient();
     try {
         const result = await retryWithBackoff<any>(() => ai.models.embedContent({
-            model: model, 
+            model: model,
             content: { parts: [{ text }] }
         }));
         return result.embedding?.values || [];
     } catch (e: any) {
         const errStr = getErrorDetails(e);
         console.warn("Embedding failed:", errStr);
-        
+
         let friendlyMsg = errStr;
         if (errStr.includes("404")) friendlyMsg = "Model Not Found (404). Check if model exists or API key has access.";
         if (errStr.includes("403")) friendlyMsg = "Permission Denied (403). API Key invalid or restricted.";
         if (errStr.includes("429")) friendlyMsg = "Quota Exceeded (429). Rate limit reached.";
         if (errStr.includes("value must be a list")) friendlyMsg = "Invalid Input Format. Model might be deprecated.";
-        
+
         return { error: friendlyMsg };
     }
 }
 
 export const retrieveRelevantContext = async (
     queryText: string,
-    nodes: OutlineNode[], 
+    nodes: OutlineNode[],
     topK: number = 10,
     onProgress?: (msg: string) => void,
     minScore: number = 0.25,
-    embeddingModel: string = "local-minilm" 
+    embeddingModel: string = "local-minilm"
 ): Promise<{ context: string, updatedNodes: OutlineNode[] }> => {
     // 1. Flatten all nodes
     let allNodes: OutlineNode[] = [];
@@ -281,14 +288,14 @@ export const retrieveRelevantContext = async (
     for (const node of allNodes) {
         if (!node.embedding || node.embedding.length === 0) {
             const textToEmbed = `${node.name}: ${node.description}`;
-            
+
             // Rate limit protection ONLY for remote API
             if (embeddingModel !== EmbeddingModel.LOCAL_MINILM) {
-                await new Promise(r => setTimeout(r, 100)); 
+                await new Promise(r => setTimeout(r, 100));
             }
-            
+
             const result = await generateEmbedding(textToEmbed, embeddingModel);
-            
+
             if (Array.isArray(result)) {
                 if (result.length > 0) {
                     node.embedding = result;
@@ -310,14 +317,14 @@ export const retrieveRelevantContext = async (
     // 3. Generate Embedding for Query
     if (onProgress) onProgress("Analyzing query intent...");
     const queryResult = await generateEmbedding(queryText, embeddingModel);
-    
+
     if (!Array.isArray(queryResult)) {
         finalContext += `> 错误: 查询词向量化失败 (Query Embedding Failed). Model: ${embeddingModel}\n`;
         finalContext += `> 原因: ${queryResult.error}\n`;
         finalContext += `> 建议: 推荐使用 'Local (Offline)' 模型或 'text-embedding-004'。\n`;
         return { context: finalContext, updatedNodes: nodes };
     }
-    
+
     const queryEmbedding = queryResult;
 
     if (queryEmbedding.length === 0) {
@@ -332,7 +339,7 @@ export const retrieveRelevantContext = async (
     }));
 
     scoredNodes.sort((a, b) => b.score - a.score);
-    
+
     // Debug Stats
     const maxScore = scoredNodes.length > 0 ? scoredNodes[0].score.toFixed(4) : "N/A";
     finalContext += `> 统计: 扫描节点 ${allNodes.length} 个 | 最高相似度: ${maxScore} | 设定阈值: ${minScore} | Embedding模型: ${embeddingModel}\n`;
@@ -342,7 +349,7 @@ export const retrieveRelevantContext = async (
     }
 
     // 5. Filter & Select
-    const topCandidates = scoredNodes.slice(0, topK * 2); 
+    const topCandidates = scoredNodes.slice(0, topK * 2);
     const validNodes = topCandidates.filter(item => item.score > minScore).slice(0, topK);
 
     if (validNodes.length === 0) {
@@ -354,11 +361,11 @@ export const retrieveRelevantContext = async (
         }
     } else {
         validNodes.forEach((item, idx) => {
-            finalContext += `[Ref #${idx+1} | Score: ${item.score.toFixed(2)}] [${item.node.type}] ${item.node.name}: ${item.node.description}\n`;
+            finalContext += `[Ref #${idx + 1} | Score: ${item.score.toFixed(2)}] [${item.node.type}] ${item.node.name}: ${item.node.description}\n`;
         });
     }
 
-    return { context: finalContext, updatedNodes: nodes }; 
+    return { context: finalContext, updatedNodes: nodes };
 };
 
 
@@ -377,9 +384,9 @@ export const optimizeContextWithAI = async (
 
     const ai = getAiClient();
     // 升级：使用 2.5 Flash 而非 Lite，以确保清洗逻辑（特别是去模糊化）的执行质量
-    const model = 'gemini-2.5-flash'; 
+    const model = 'gemini-2.5-flash';
     const isZh = lang === 'zh';
-    
+
     // 严格的 JSON Schema 指令 - 强调【压缩】
     // 将 "knowledge_graph" 的定义改为更扁平的结构，直接要求输出短语列表
     const systemPrompt = isZh ? `
@@ -432,29 +439,29 @@ export const optimizeContextWithAI = async (
             contents: prompt,
             config: { responseMimeType: "application/json" } // Force JSON
         }));
-        
+
         const jsonText = cleanJson(response.text || "{}");
         const parsed = JSON.parse(jsonText);
-        
+
         // 重新组装为高密度结构化文本，供生成模型使用
         // 修正：不再输出 [CMD] 和 [TASK]，只保留纯粹的 [ENTS] 和 [FACTS]，防止污染上下文
         let reconstructed = "";
-        
+
         if (parsed.entities && Array.isArray(parsed.entities) && parsed.entities.length > 0) {
             reconstructed += `[ENTS]: ` + parsed.entities.map((e: any) => `${e.n}(${e.d})`).join('; ') + "\n";
         }
-        
+
         if (parsed.facts && Array.isArray(parsed.facts) && parsed.facts.length > 0) {
             reconstructed += `[FACTS]: ` + parsed.facts.join('; ');
         }
-        
+
         // Fallback for old schema if model hallucinates old format
         if (!parsed.entities && !parsed.facts && parsed.knowledge_graph) {
-             const kg = parsed.knowledge_graph;
-             if (kg.facts) reconstructed += `[FACTS]: ` + kg.facts.join('; ');
-             if (kg.entities) reconstructed += `\n[ENTS]: ` + kg.entities.map((e:any) => `${e.name}(${e.desc})`).join('; ');
+            const kg = parsed.knowledge_graph;
+            if (kg.facts) reconstructed += `[FACTS]: ` + kg.facts.join('; ');
+            if (kg.entities) reconstructed += `\n[ENTS]: ` + kg.entities.map((e: any) => `${e.name}(${e.desc})`).join('; ');
         }
-        
+
         return reconstructed;
 
     } catch (error) {
@@ -468,12 +475,12 @@ export const optimizeContextWithAI = async (
  * 核心要求：意思一致，转回时必须一模一样（尽可能无损）。
  */
 export const transformPromptFormat = async (
-    text: string, 
+    text: string,
     targetFormat: 'structured' | 'natural',
     lang: string
 ): Promise<string> => {
     const ai = getAiClient();
-    const model = 'gemini-flash-lite-latest'; 
+    const model = 'gemini-flash-lite-latest';
 
     let instruction = "";
     if (targetFormat === 'structured') {
@@ -512,18 +519,18 @@ export const transformPromptFormat = async (
  * 分析趋势关键词
  */
 export const analyzeTrendKeywords = async (
-    sources: string[], 
+    sources: string[],
     gender: string,
-    lang: string, 
-    model: string, 
+    lang: string,
+    model: string,
     systemInstruction?: string,
-    onDebug?: (debugInfo: any) => void 
+    onDebug?: (debugInfo: any) => void
 ): Promise<string> => {
     const ai = getAiClient();
     const platformNames = sources.map(s => {
-        if(s === 'qidian') return '起点中文网';
-        if(s === 'fanqie') return '番茄小说';
-        if(s === 'jinjiang') return '晋江文学城';
+        if (s === 'qidian') return '起点中文网';
+        if (s === 'fanqie') return '番茄小说';
+        if (s === 'jinjiang') return '晋江文学城';
         return s;
     }).join('、');
     const genderStr = gender === 'male' ? '男频' : '女频';
@@ -542,39 +549,39 @@ export const analyzeTrendKeywords = async (
     `;
 
     if (onDebug) {
-        onDebug({ 
-            prompt: displayPrompt, 
-            model: model, 
+        onDebug({
+            prompt: displayPrompt,
+            model: model,
             systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
             context: `Grounding Search: ${platformNames} ${genderStr}`,
-            sourceData: "Requesting Google Search..." 
+            sourceData: "Requesting Google Search..."
         });
     }
 
     try {
-        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
                 tools: [{ googleSearch: {} }]
             }
         }));
-        
+
         // Pass API payload after response
         if (onDebug) {
-             onDebug({
-                 apiPayload: {
-                     request: `System: ${systemInstruction || PromptService.getGlobalSystemInstruction(lang)}\n\nUser: ${prompt}`,
-                     response: response.text || ""
-                 }
-             });
+            onDebug({
+                apiPayload: {
+                    request: `System: ${systemInstruction || PromptService.getGlobalSystemInstruction(lang)}\n\nUser: ${prompt}`,
+                    response: response.text || ""
+                }
+            });
         }
-        
+
         return response.text?.trim() || "热门趋势";
-    } catch (error) { 
+    } catch (error) {
         console.error("Trend Analysis Failed", error);
-        return "玄幻"; 
+        return "玄幻";
     }
 }
 
@@ -582,10 +589,10 @@ export const analyzeTrendKeywords = async (
  * 每日灵感生成
  */
 export const generateDailyStories = async (
-    trendFocus: string, 
-    sources: string[], 
-    targetAudience: string, 
-    lang: string, 
+    trendFocus: string,
+    sources: string[],
+    targetAudience: string,
+    lang: string,
     model: string,
     systemInstruction: string,
     customRules?: InspirationRules,
@@ -596,40 +603,40 @@ export const generateDailyStories = async (
     const finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
 
     const schema: Schema = {
-      type: Type.ARRAY,
-      items: {
-          type: Type.OBJECT,
-          properties: {
-              title: { type: Type.STRING },
-              synopsis: { type: Type.STRING },
-              metadata: {
-                  type: Type.OBJECT,
-                  properties: {
-                      source: { type: Type.STRING },
-                      gender: { type: Type.STRING },
-                      majorCategory: { type: Type.STRING },
-                      theme: { type: Type.STRING },
-                      characterArchetype: { type: Type.STRING },
-                      plotType: { type: Type.STRING },
-                      trope: { type: Type.STRING },
-                      goldenFinger: { type: Type.STRING },
-                      coolPoint: { type: Type.STRING },
-                      burstPoint: { type: Type.STRING },
-                      memoryAnchor: { type: Type.STRING }
-                  },
-                  required: ["source", "gender", "majorCategory", "trope", "goldenFinger", "coolPoint", "burstPoint", "memoryAnchor"] // Added memoryAnchor
-              }
-          },
-          required: ["title", "synopsis", "metadata"]
-      }
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                title: { type: Type.STRING },
+                synopsis: { type: Type.STRING },
+                metadata: {
+                    type: Type.OBJECT,
+                    properties: {
+                        source: { type: Type.STRING },
+                        gender: { type: Type.STRING },
+                        majorCategory: { type: Type.STRING },
+                        theme: { type: Type.STRING },
+                        characterArchetype: { type: Type.STRING },
+                        plotType: { type: Type.STRING },
+                        trope: { type: Type.STRING },
+                        goldenFinger: { type: Type.STRING },
+                        coolPoint: { type: Type.STRING },
+                        burstPoint: { type: Type.STRING },
+                        memoryAnchor: { type: Type.STRING }
+                    },
+                    required: ["source", "gender", "majorCategory", "trope", "goldenFinger", "coolPoint", "burstPoint", "memoryAnchor"] // Added memoryAnchor
+                }
+            },
+            required: ["title", "synopsis", "metadata"]
+        }
     };
 
     const executeGen = async (targetModel: string) => {
-         return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model: targetModel,
             contents: prompt,
-            config: { 
-                responseMimeType: "application/json", 
+            config: {
+                responseMimeType: "application/json",
                 responseSchema: schema,
                 systemInstruction: finalSystemInstruction
             }
@@ -637,13 +644,13 @@ export const generateDailyStories = async (
     };
 
     try {
-        if (onUpdate) onUpdate("正在连接 Gemini...", 20, `Model: ${model}`, undefined, { 
-            prompt, 
+        if (onUpdate) onUpdate("正在连接 Gemini...", 20, `Model: ${model}`, undefined, {
+            prompt,
             model,
             systemInstruction: finalSystemInstruction,
             context: `Trend: ${trendFocus}, Audience: ${targetAudience}`
         });
-        
+
         const startTime = Date.now();
         let response: GenerateContentResponse;
         let usedModel = model;
@@ -662,7 +669,7 @@ export const generateDailyStories = async (
                 throw e;
             }
         }
-        
+
         const metrics = extractMetrics(response, usedModel, startTime);
         if (onUpdate) onUpdate("解析结果", 98, "正在清洗 JSON", metrics, {
             apiPayload: {
@@ -670,9 +677,9 @@ export const generateDailyStories = async (
                 response: response.text || ""
             }
         });
-        
+
         const text = cleanJson(response.text || "[]");
-        JSON.parse(text); 
+        JSON.parse(text);
         return text;
     } catch (error: any) {
         throw new Error(handleGeminiError(error, 'generateDailyStories'));
@@ -684,17 +691,17 @@ export const generateDailyStories = async (
  */
 const assignIds = (node: OutlineNode | undefined): OutlineNode => {
     if (!node) {
-        return { 
-            id: Math.random().toString().substring(2, 11), 
-            name: '生成失败节点', 
-            type: 'book', 
-            description: '该节点生成失败，请重试。' 
+        return {
+            id: Math.random().toString().substring(2, 11),
+            name: '生成失败节点',
+            type: 'book',
+            description: '该节点生成失败，请重试。'
         };
     }
     if (!node.id) node.id = Math.random().toString(36).substring(2, 11);
     // 确保 children 数组存在
     if (!node.children) node.children = [];
-    
+
     // 递归处理子节点
     if (node.children.length > 0) {
         node.children = node.children.map(assignIds);
@@ -706,20 +713,20 @@ const assignIds = (node: OutlineNode | undefined): OutlineNode => {
  * 小说架构生成 (8-Map System)
  */
 export const generateNovelArchitecture = async (
-    idea: string, 
-    lang: string, 
+    idea: string,
+    lang: string,
     model: string,
     systemInstruction: string,
     onProgress?: (stage: string, percent: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void
 ): Promise<ArchitectureMap & { synopsis: string }> => {
-    
-    if (onProgress) onProgress('初始化', 10, "正在创建空白架构...", undefined, { 
-        model: 'Local Template Engine', 
+
+    if (onProgress) onProgress('初始化', 10, "正在创建空白架构...", undefined, {
+        model: 'Local Template Engine',
         prompt: 'N/A (Local Generation)',
         systemInstruction: systemInstruction,
         context: `Idea: ${idea}`
     });
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
 
     const createRoot = (name: string, type: any, description: string = "点击编辑以添加详情..."): OutlineNode => ({
@@ -763,21 +770,21 @@ export const extractContextFromTree = (root: OutlineNode): string => {
  * 故事生成入口 (Workflow)
  */
 export const generateStoryFromIdea = async (
-    idea: string, 
-    config: GenerationConfig, 
-    lang: string, 
+    idea: string,
+    config: GenerationConfig,
+    lang: string,
     model: string,
     stylePrompt: string | undefined,
-    systemInstruction: string, 
+    systemInstruction: string,
     onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void
-): Promise<{ 
-    title: string, 
-    content: string, 
-    architecture: ArchitectureMap | null, 
-    chapters?: {title:string, content:string, nodeId?: string}[],
+): Promise<{
+    title: string,
+    content: string,
+    architecture: ArchitectureMap | null,
+    chapters?: { title: string, content: string, nodeId?: string }[],
     metadata?: InspirationMetadata
 }> => {
-    
+
     let cleanTitle = "新书草稿";
     let synopsis = idea;
     let metadataStr = "";
@@ -788,18 +795,18 @@ export const generateStoryFromIdea = async (
         if (parsed.title) cleanTitle = parsed.title;
         if (parsed.synopsis) synopsis = parsed.synopsis;
         if (parsed.metadata) {
-             metadata = parsed.metadata;
-             metadataStr = `\n【元数据】\n标签：${parsed.metadata.theme || ''}\n`;
+            metadata = parsed.metadata;
+            metadataStr = `\n【元数据】\n标签：${parsed.metadata.theme || ''}\n`;
         }
-    } catch(e) {}
+    } catch (e) { }
 
     try {
         if (onUpdate) {
             onUpdate("构建架构", 10, "正在初始化 8-图架构模板...", undefined, {
-                context: `【简介】\n${synopsis}${metadataStr}` 
+                context: `【简介】\n${synopsis}${metadataStr}`
             });
         }
-        
+
         const architecture = await generateNovelArchitecture(synopsis, lang, model, systemInstruction, (stage, percent, log, metrics, debugInfo) => {
             if (onUpdate) onUpdate(stage, Math.floor(percent * 0.9), log, metrics, debugInfo);
         });
@@ -823,21 +830,21 @@ export const generateStoryFromIdea = async (
  * 章节生成
  */
 export const generateChapterContent = async (
-    node: OutlineNode, 
-    context: string, 
-    lang: string, 
-    model: string, 
-    stylePrompt: string | undefined, 
+    node: OutlineNode,
+    context: string,
+    lang: string,
+    model: string,
+    stylePrompt: string | undefined,
     wordCount: number = 2000,
-    systemInstruction?: string, 
+    systemInstruction?: string,
     onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void,
-    previousContent?: string, 
+    previousContent?: string,
     nextChapterInfo?: { title: string, desc?: string, childrenText?: string }
 ): Promise<string> => {
     const ai = getAiClient();
-    
+
     let fullContext = context;
-    
+
     // 强化上一章结尾的上下文注入，明确标识
     // 注意：previousContent 已经由调用方进行了截取，这里直接使用
     if (previousContent) {
@@ -857,22 +864,22 @@ export const generateChapterContent = async (
     // PromptService.writeChapter embeds context directly. 
     const prompt = `${PromptService.writeChapter(node.name, node.description || '', safeContext, wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
     const finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
-    
+
     // Create a display-friendly prompt that hides the massive context
     // We pass a placeholder string to writeChapter so the structure is preserved but content is hidden
     const displayPrompt = `${PromptService.writeChapter(node.name, node.description || '', '...[Context Layer Hidden - See Context Tab]...', wordCount, stylePrompt)} ${PromptService.getLangInstruction(lang)}`;
 
-    if (onUpdate) onUpdate("章节生成", 20, "构建 Prompt...", undefined, { 
+    if (onUpdate) onUpdate("章节生成", 20, "构建 Prompt...", undefined, {
         prompt: displayPrompt, // Use display version
-        context: safeContext, 
-        model, 
+        context: safeContext,
+        model,
         systemInstruction: finalSystemInstruction
     });
 
     const executeGen = async (targetModel: string) => {
-        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model: targetModel, 
-            contents: prompt, 
+        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model: targetModel,
+            contents: prompt,
             config: {
                 systemInstruction: finalSystemInstruction
             }
@@ -905,38 +912,38 @@ export const generateChapterContent = async (
                 response: response.text || ""
             }
         });
-        
+
         return response.text || "生成失败，请重试。";
-    } catch(error) { throw new Error(handleGeminiError(error, 'generateChapterContent')); }
+    } catch (error) { throw new Error(handleGeminiError(error, 'generateChapterContent')); }
 }
 
 /**
  * 带上下文的重写
  */
 export const rewriteChapterWithContext = async (
-    content: string, 
-    context: string, 
-    lang: string, 
-    model: string, 
+    content: string,
+    context: string,
+    lang: string,
+    model: string,
     customInstruction?: string,
     systemInstruction?: string
 ): Promise<string> => {
-     const ai = getAiClient();
-     const instruction = customInstruction || "请重写以下内容，保持核心情节不变，但提升文笔和画面感。";
-     const prompt = `${instruction}\n\n【背景设定/上下文】：\n${truncateContext(context, 20000)}\n\n【原文】：\n${content}\n\n${PromptService.getLangInstruction(lang)}`;
-     
-     try {
-        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
+    const ai = getAiClient();
+    const instruction = customInstruction || "请重写以下内容，保持核心情节不变，但提升文笔和画面感。";
+    const prompt = `${instruction}\n\n【背景设定/上下文】：\n${truncateContext(context, 20000)}\n\n【原文】：\n${content}\n\n${PromptService.getLangInstruction(lang)}`;
+
+    try {
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
         }));
         return response.text || content;
-     } catch(error) {
-         throw new Error(handleGeminiError(error, 'rewriteChapterWithContext'));
-     }
+    } catch (error) {
+        throw new Error(handleGeminiError(error, 'rewriteChapterWithContext'));
+    }
 };
 
 /**
@@ -946,15 +953,15 @@ export const manipulateText = async (text: string, mode: 'continue' | 'rewrite' 
     const ai = getAiClient();
     const prompt = `${PromptService.manipulateText(text, mode)} ${PromptService.getLangInstruction(lang)}`;
     try {
-        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
         }));
         return response.text || "处理失败。";
-    } catch(error) { throw new Error(handleGeminiError(error, 'manipulateText')); }
+    } catch (error) { throw new Error(handleGeminiError(error, 'manipulateText')); }
 };
 
 /**
@@ -964,9 +971,9 @@ export const analyzeText = async (textOrUrl: string, focus: 'pacing' | 'characte
     const ai = getAiClient();
     const prompt = `请分析以下文本的 ${focus === 'viral_factors' ? '爆款因子' : focus === 'pacing' ? '节奏密度' : '角色弧光'}。\n${PromptService.getLangInstruction(lang)}\n内容：${textOrUrl.substring(0, 10000)}`;
     try {
-        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
             config: {
                 systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang)
             }
@@ -995,9 +1002,9 @@ export const generateIllustrationPrompt = async (context: string, lang: string, 
     const ai = getAiClient();
     const prompt = PromptService.illustrationPrompt(context);
     try {
-        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
             config: { systemInstruction: "You are an expert prompt engineer for Midjourney/Stable Diffusion." }
         }));
         return response.text?.trim() || "A detailed fantasy illustration";
@@ -1007,8 +1014,8 @@ export const generateIllustrationPrompt = async (context: string, lang: string, 
 export const streamChatResponse = async (messages: ChatMessage[], newMessage: string, model: string, systemInstruction: string | undefined, onChunk: (text: string) => void): Promise<string> => {
     const ai = getAiClient();
     const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
-    const chat = ai.chats.create({ 
-        model, 
+    const chat = ai.chats.create({
+        model,
         history,
         config: {
             systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction('zh')
@@ -1033,26 +1040,26 @@ export const streamChatResponse = async (messages: ChatMessage[], newMessage: st
  * 重绘单个导图
  */
 export const regenerateSingleMap = async (
-    mapType: string, 
-    idea: string, 
-    context: string, 
-    lang: string, 
-    model: string, 
-    style: string | undefined, 
-    systemInstruction: string, 
+    mapType: string,
+    idea: string,
+    context: string,
+    lang: string,
+    model: string,
+    style: string | undefined,
+    systemInstruction: string,
     onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void,
-    mandatoryRequirements?: string 
+    mandatoryRequirements?: string
 ) => {
     const ai = getAiClient();
-    
+
     // 动态决定子节点类型，修复“生成细纲后无法生成草稿”的问题
-    let childType = "setting"; 
+    let childType = "setting";
     let rootType = mapType; // 默认根节点类型为导图类型
 
     // 针对不同导图类型进行类型微调
     if (mapType === 'chapters') {
         // 如果是章节细纲，根节点通常是卷(volume)或书(book)，子节点必须是 chapter
-        rootType = 'volume'; 
+        rootType = 'volume';
         childType = 'chapter';
     } else if (mapType === 'character') {
         childType = 'character';
@@ -1101,35 +1108,35 @@ export const regenerateSingleMap = async (
 
     const promptContext = context ? `\n【参考上下文】:\n${context}` : "";
     let finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
-    
+
     if (style) {
         finalSystemInstruction += `\n\n### CRITICAL REQUIREMENTS (文风/指令) ###\n用户指定了以下强制性要求：\n${style}\n如果上下文与此冲突，以本要求为准。`;
     }
-    
+
     if (mandatoryRequirements) {
         finalSystemInstruction += `\n\n### ⛔ OVERRIDE RULES (绝对硬性约束) ###\n用户指定了以下必须无条件满足的约束条件：\n${mandatoryRequirements}\n注意：如果上下文 (Context) 中的信息与此要求冲突，请务必修改或重绘，必须严格遵守上述硬性约束！`;
     }
 
     const prompt = `任务：重绘导图 - ${mapType}\n基于核心构思：${idea}${promptContext}\n${specificInstruction}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
-    
+
     // Create a display-friendly prompt hiding potentially large context
     const displayPrompt = `任务：重绘导图 - ${mapType}\n基于核心构思：${idea}\n【参考上下文】: ...[Context Layer Hidden - See Context Tab]...\n${specificInstruction}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
 
-    if (onUpdate) onUpdate("构建提示词", 10, undefined, undefined, { 
+    if (onUpdate) onUpdate("构建提示词", 10, undefined, undefined, {
         prompt: displayPrompt, // Use display version
-        context, 
+        context,
         model,
         systemInstruction: finalSystemInstruction
     });
 
     const executeGen = async (targetModel: string) => {
-        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model: targetModel, 
-            contents: prompt, 
-            config: { 
-                responseMimeType: "application/json", 
+        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model: targetModel,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
                 systemInstruction: finalSystemInstruction
-            } 
+            }
         }));
     };
 
@@ -1159,14 +1166,14 @@ export const regenerateSingleMap = async (
                 response: res.text || ""
             }
         });
-        
+
         let rawObj = JSON.parse(cleanJson(res.text || "{}"));
-        
+
         // 智能解包逻辑 (Smart Unwrapping) v2
         // Case 1: Array wrapper [ {name...} ] -> {name...}
         if (Array.isArray(rawObj)) {
             if (rawObj.length > 0) rawObj = rawObj[0];
-            else rawObj = {}; 
+            else rawObj = {};
         }
 
         // Case 2: Object wrapper { "mindmap": {name...} } or { "world": {name...} }
@@ -1183,26 +1190,26 @@ export const regenerateSingleMap = async (
                 }
             }
         }
-        
+
         // 有效性兜底：如果依然无效，手动构建一个错误提示节点，防止 UI 空白
         if (!rawObj.name) {
-             rawObj.name = `${mapType} (生成不完整)`;
-             rawObj.description = "AI 返回的数据结构不完整或为空。请检查上下文长度或重试。";
-             rawObj.type = rootType;
+            rawObj.name = `${mapType} (生成不完整)`;
+            rawObj.description = "AI 返回的数据结构不完整或为空。请检查上下文长度或重试。";
+            rawObj.type = rootType;
         }
         // 强制修正根节点类型
         if (!rawObj.type || rawObj.type !== rootType) rawObj.type = rootType;
-        
+
         if (!Array.isArray(rawObj.children)) rawObj.children = [];
 
         // 这里的空数据兜底非常重要
         if (rawObj.children.length === 0) {
-             rawObj.children.push({
-                 name: "生成结果为空",
-                 type: childType,
-                 description: "模型未返回有效子节点。这通常是因为 Context 过长导致截断，或者 Prompt 限制过严。建议减少上下文引用后重试。",
-                 children: []
-             });
+            rawObj.children.push({
+                name: "生成结果为空",
+                type: childType,
+                description: "模型未返回有效子节点。这通常是因为 Context 过长导致截断，或者 Prompt 限制过严。建议减少上下文引用后重试。",
+                children: []
+            });
         }
 
         return assignIds(rawObj);
@@ -1217,10 +1224,10 @@ export const expandNodeContent = async (parentNode: OutlineNode, context: string
     const structurePrompt = `Return a JSON object with a 'children' array containing the new sub-nodes. Structure: { children: [{ name, type, description, children? }] }`;
     const prompt = `扩展节点：${parentNode.name}\n上下文：${context}\n${style ? `风格/指令：${style}` : ''}\n${structurePrompt}\n${PromptService.getLangInstruction(lang)}`;
     try {
-        const res = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({ 
-            model, 
-            contents: prompt, 
-            config: { responseMimeType: "application/json", systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang) } 
+        const res = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: { responseMimeType: "application/json", systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang) }
         }));
         return JSON.parse(cleanJson(res.text || "{}")).children?.map(assignIds) || [];
     } catch (error) { throw new Error(handleGeminiError(error, 'expandNodeContent')); }
