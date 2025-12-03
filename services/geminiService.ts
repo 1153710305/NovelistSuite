@@ -32,6 +32,45 @@ const getAiClient = () => {
     } as any);
 };
 
+/**
+ * 获取 Fast 模式配置
+ * Fast 模式通过优化参数来提高响应速度,同时保持输出质量
+ * @param fastMode 是否启用 Fast 模式
+ * @param taskType 任务类型 (用于针对性优化)
+ * @returns 优化后的配置参数
+ */
+export const getFastModeConfig = (fastMode: boolean, taskType?: string) => {
+    if (!fastMode) {
+        // 正常模式 - 使用默认参数
+        return {
+            temperature: 1.0,
+            topP: 0.95,
+            topK: 40
+        };
+    }
+
+    // Fast 模式 - 优化参数
+    // 降低 temperature 提高确定性,减少随机性,加快生成速度
+    // 调整 topP 和 topK 减少候选token数量
+    const baseConfig = {
+        temperature: 0.7,  // 降低温度,提高确定性
+        topP: 0.9,         // 略微降低,减少候选范围
+        topK: 30           // 减少候选token数量
+    };
+
+    // 根据任务类型进一步优化
+    if (taskType === 'simple' || taskType === 'polish') {
+        // 简单任务可以更激进
+        return {
+            temperature: 0.5,
+            topP: 0.85,
+            topK: 20
+        };
+    }
+
+    return baseConfig;
+};
+
 // 本地模型单例，防止重复加载
 let localEmbedder: any = null;
 

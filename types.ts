@@ -188,6 +188,15 @@ export interface ModelConfig {
     dailyLimit: number;     // 每日建议请求上限 (RPD)
     rpm: number;            // 每分钟请求上限 (RPM)
     contextWindow: number;  // 上下文窗口大小 (Tokens)
+    supportsFastMode?: boolean; // 是否支持 Fast 模式
+}
+
+// Fast 模式配置接口
+export interface FastModeConfig {
+    temperature: number;        // 温度参数 (降低以提高确定性)
+    maxOutputTokens?: number;   // 最大输出 tokens (可选限制)
+    topP?: number;              // Top-P 采样参数
+    topK?: number;              // Top-K 采样参数
 }
 
 // 可用模型列表配置
@@ -200,7 +209,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
         descKey: 'models.descLite',
         dailyLimit: 1500,
         rpm: 15,
-        contextWindow: 1048576
+        contextWindow: 1048576,
+        supportsFastMode: true
     },
     {
         id: 'gemini-2.5-flash',
@@ -208,7 +218,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
         descKey: 'models.descFlash',
         dailyLimit: 1500,
         rpm: 15,
-        contextWindow: 1048576
+        contextWindow: 1048576,
+        supportsFastMode: true
     },
     {
         id: 'gemini-2.5-pro',
@@ -216,7 +227,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
         descKey: 'models.descGemini25Pro',
         dailyLimit: 100,
         rpm: 5,
-        contextWindow: 2097152
+        contextWindow: 2097152,
+        supportsFastMode: true
     },
     {
         id: 'gemini-3-pro-preview',
@@ -224,7 +236,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
         descKey: 'models.descPro',
         dailyLimit: 50,
         rpm: 2,
-        contextWindow: 2097152
+        contextWindow: 2097152,
+        supportsFastMode: true
     },
     {
         id: 'gemini-2.0-flash-exp',
@@ -232,7 +245,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
         descKey: 'models.descGemini20Flash',
         dailyLimit: 1500,
         rpm: 15,
-        contextWindow: 1048576
+        contextWindow: 1048576,
+        supportsFastMode: true
     },
 
     // === 阿里千问系列 ===
