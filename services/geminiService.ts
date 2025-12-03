@@ -559,6 +559,7 @@ export const analyzeTrendKeywords = async (
     }
 
     try {
+        const startTime = Date.now();
         const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model,
             contents: prompt,
@@ -568,13 +569,17 @@ export const analyzeTrendKeywords = async (
             }
         }));
 
-        // Pass API payload after response
+        // Extract metrics
+        const metrics = extractMetrics(response, model, startTime);
+
+        // Pass complete API payload and metrics after response
         if (onDebug) {
             onDebug({
                 apiPayload: {
                     request: `System: ${systemInstruction || PromptService.getGlobalSystemInstruction(lang)}\n\nUser: ${prompt}`,
                     response: response.text || ""
-                }
+                },
+                metrics: metrics
             });
         }
 
