@@ -1158,7 +1158,7 @@ export const regenerateSingleMap = async (
         childType = 'mission';
     }
 
-    // 强制性的递归结构提示 - 增强版,注入具体的 type
+    // 强制性的递归结构提示 - 增强版 v4,注入具体的 type,强调多层级
     const structurePrompt = `
     ========================================
     【输出格式】: JSON (严格模式)
@@ -1167,7 +1167,7 @@ export const regenerateSingleMap = async (
     你必须返回一个代表根节点的 JSON 对象。
     禁止用数组包裹,禁止用 {"root": ...} 这样的额外层级。
     
-    【目标结构示例】:
+    【目标结构示例】(注意多层级):
     {
       "name": "根节点名称",
       "type": "${rootType}",
@@ -1177,13 +1177,33 @@ export const regenerateSingleMap = async (
            "name": "子节点1", 
            "type": "${childType}", 
            "description": "简短描述(不超过80字)", 
-           "children": [] 
+           "children": [
+             {
+               "name": "二级子节点1-1",
+               "type": "${childType}",
+               "description": "更具体的描述",
+               "children": []
+             },
+             {
+               "name": "二级子节点1-2",
+               "type": "${childType}",
+               "description": "更具体的描述",
+               "children": []
+             }
+           ]
          },
          { 
            "name": "子节点2", 
            "type": "${childType}", 
            "description": "简短描述(不超过80字)", 
-           "children": [] 
+           "children": [
+             {
+               "name": "二级子节点2-1",
+               "type": "${childType}",
+               "description": "更具体的描述",
+               "children": []
+             }
+           ]
          }
       ]
     }
@@ -1198,13 +1218,15 @@ export const regenerateSingleMap = async (
        - description 只用于概述,不要列举详细内容
     
     2. ✅ 必须创建足够的子节点:
-       - 根节点的 children 数组至少要有 3-8 个子节点
+       - 根节点的 children 数组至少要有 4-8 个子节点
        - 每个子节点必须有 'type'='${childType}'
        - 子节点的 name 要具体明确,不要用"其他"、"更多"等模糊词
     
-    3. ✅ 合理使用递归结构:
-       - 如果某个子节点内容复杂,继续创建它的 children
-       - 建议层级深度: 2-3层
+    3. ✅ 必须创建多层级结构:
+       - **目标层级深度: 3-4层** (这是重点!)
+       - 如果某个子节点内容复杂,必须继续创建它的 children
+       - 不要把复杂内容都写在 description 里,而是拆分成子节点
+       - 至少50%的一级子节点应该有自己的二级子节点
        - 叶子节点的 children 可以是空数组 []
     
     4. ⚠️ 严禁的错误做法:
@@ -1212,6 +1234,7 @@ export const regenerateSingleMap = async (
        - ❌ 只创建1-2个子节点,其他内容都塞在 description
        - ❌ 使用"包括但不限于"、"等等"这样的模糊表述
        - ❌ 子节点 name 重复或过于笼统
+       - ❌ 只有一层子节点,没有继续展开
     
     5. ✅ 正确的做法示例:
        错误: { "name": "角色", "description": "主角张三,配角李四,反派王五..." }
@@ -1219,11 +1242,32 @@ export const regenerateSingleMap = async (
          "name": "角色", 
          "description": "小说主要角色设定",
          "children": [
-           { "name": "主角-张三", "description": "..." },
-           { "name": "配角-李四", "description": "..." },
-           { "name": "反派-王五", "description": "..." }
+           { 
+             "name": "主角-张三", 
+             "description": "热血少年,修仙天才",
+             "children": [
+               { "name": "性格特点", "description": "坚韧不拔,重情重义" },
+               { "name": "修炼天赋", "description": "拥有罕见的雷灵根" },
+               { "name": "核心关系", "description": "师父是玄天宗长老" }
+             ]
+           },
+           { 
+             "name": "配角-李四", 
+             "description": "主角的好友",
+             "children": [
+               { "name": "性格特点", "description": "机智幽默,善于谋略" },
+               { "name": "核心关系", "description": "世家子弟" }
+             ]
+           },
+           { "name": "反派-王五", "description": "魔道高手" }
          ]
        }
+    
+    6. ✅ 层级展开策略:
+       - 第1层: 主要分类 (4-8个节点)
+       - 第2层: 具体项目 (每个分类下2-5个节点)
+       - 第3层: 详细属性 (复杂项目下1-3个节点)
+       - 第4层: 可选的更细节内容
     `;
 
     let specificInstruction = "";
@@ -1231,42 +1275,67 @@ export const regenerateSingleMap = async (
         specificInstruction = `
 【力量体系专项要求】:
 - 必须将每个等级/境界拆分成独立的子节点
-- 每个等级节点包含: 名称、修炼条件、能力特征
-- 至少创建 5-10 个等级节点
-- 示例结构: 根节点"修仙体系" -> 子节点["炼气期", "筑基期", "金丹期"...]
+- 每个等级节点下必须继续展开子节点,包含: 修炼条件、能力特征、突破方法等
+- 至少创建 5-10 个等级节点,每个等级至少2-3个子属性
+- 示例结构: 
+  根节点"修仙体系" -> 
+    "炼气期" -> ["修炼条件", "能力特征", "突破方法"]
+    "筑基期" -> ["修炼条件", "能力特征", "突破方法"]
         `;
     } else if (mapType === 'world') {
         specificInstruction = `
 【世界观专项要求】:
 - 必须创建至少 4 个一级子节点: 地理、历史、势力、法则
-- 每个一级节点下继续细分二级节点
-- 地理节点示例: "地理" -> ["东部大陆", "西部海域", "中央山脉"]
-- 势力节点示例: "势力" -> ["正道联盟", "魔教", "散修联盟"]
+- 每个一级节点下必须继续细分二级和三级节点
+- 地理节点示例: 
+  "地理" -> 
+    "东部大陆" -> ["主要城市", "地形特征", "气候环境"]
+    "西部海域" -> ["岛屿分布", "海洋生物", "航线"]
+- 势力节点示例: 
+  "势力" -> 
+    "正道联盟" -> ["主要门派", "势力范围", "核心理念"]
+    "魔教" -> ["教主", "分支", "活动区域"]
         `;
     } else if (mapType === 'chapters') {
         specificInstruction = `
 【章节细纲专项要求】:
 - 每个子节点必须代表一个独立的章节
-- 章节节点必须包含: 吸引人的标题、简短剧情梗概(50字内)
-- 至少创建 10 个章节节点
+- 每个章节下必须展开子节点,包含: 场景、冲突、转折等
+- 至少创建 10 个章节节点,重要章节需要2-4个子节点
 - 章节标题要有悬念感,避免平淡
-- 示例: "第1章 重生归来" -> description: "主角意外重生到十年前,决心改变命运"
+- 示例: 
+  "第1章 重生归来" -> 
+    "场景: 主角醒来" -> description: "发现回到十年前"
+    "冲突: 记忆混乱" -> description: "两世记忆交织"
+    "转折: 决心改变" -> description: "立志改写命运"
         `;
     } else if (mapType === 'character') {
         specificInstruction = `
 【角色档案专项要求】:
 - 必须为每个重要角色创建独立的子节点
+- 每个角色下必须展开子节点,包含: 性格特点、背景故事、核心关系、能力特长等
 - 至少包含: 主角、主要配角(2-3个)、主要反派(1-2个)
-- 每个角色节点包含: 姓名、性格特点、核心关系
-- 不要把所有角色信息堆在一个节点里
+- 每个角色至少3-5个子属性节点
+- 示例:
+  "主角-张三" ->
+    "性格特点" -> description: "坚韧不拔,重情重义"
+    "背景故事" -> description: "孤儿出身,被师父收养"
+    "核心关系" -> description: "师父是玄天宗长老"
+    "能力特长" -> description: "拥有罕见的雷灵根"
         `;
     } else if (mapType === 'events') {
         specificInstruction = `
 【事件时间轴专项要求】:
 - 每个重大事件必须是独立的子节点
+- 每个事件下必须展开子节点,包含: 起因、经过、结果、影响等
 - 按时间顺序排列事件节点
-- 至少创建 8-12 个事件节点
-- 每个事件包含: 事件名称、简短描述、影响
+- 至少创建 8-12 个事件节点,重要事件需要3-4个子节点
+- 示例:
+  "事件1: 宗门大比" ->
+    "起因" -> description: "选拔弟子参加外门试炼"
+    "经过" -> description: "主角力压群雄夺冠"
+    "结果" -> description: "获得进入内门资格"
+    "影响" -> description: "引起长老关注"
         `;
     } else if (mapType === 'mission') {
         specificInstruction = `
@@ -1353,53 +1422,80 @@ export const regenerateSingleMap = async (
             }
         });
 
-        let rawObj = JSON.parse(cleanJson(res.text || "{}"));
+        console.log('[regenerateSingleMap] 原始响应文本:', res.text?.substring(0, 500));
 
-        // 智能解包逻辑 (Smart Unwrapping) v2
+        let rawObj = JSON.parse(cleanJson(res.text || "{}"));
+        console.log('[regenerateSingleMap] 解析后的原始对象:', JSON.stringify(rawObj, null, 2).substring(0, 1000));
+
+        // 智能解包逻辑 (Smart Unwrapping) v3 - 增强版
         // Case 1: Array wrapper [ {name...} ] -> {name...}
         if (Array.isArray(rawObj)) {
-            if (rawObj.length > 0) rawObj = rawObj[0];
-            else rawObj = {};
+            console.log('[regenerateSingleMap] 检测到数组包装,长度:', rawObj.length);
+            if (rawObj.length > 0) {
+                rawObj = rawObj[0];
+                console.log('[regenerateSingleMap] 解包数组后:', JSON.stringify(rawObj, null, 2).substring(0, 500));
+            } else {
+                rawObj = {};
+            }
         }
 
         // Case 2: Object wrapper { "mindmap": {name...} } or { "world": {name...} }
         // 检查根对象是否是有效的节点（必须有 name 或 children）
         if (!rawObj.name && !rawObj.children) {
+            console.log('[regenerateSingleMap] 根对象缺少name和children,尝试智能解包...');
             // 尝试寻找内部包含有效节点属性的子对象
             const keys = Object.keys(rawObj);
+            console.log('[regenerateSingleMap] 可用的键:', keys);
+
             for (const key of keys) {
                 const val = rawObj[key];
                 if (val && typeof val === 'object' && !Array.isArray(val) && (val.name || Array.isArray(val.children))) {
-                    console.warn(`Detected wrapped JSON response under key '${key}', unwrapping...`);
+                    console.warn(`[regenerateSingleMap] 检测到包装的JSON响应,键名: '${key}', 正在解包...`);
                     rawObj = val;
                     break;
                 }
             }
         }
 
+        console.log('[regenerateSingleMap] 解包后的最终对象:', JSON.stringify(rawObj, null, 2).substring(0, 1000));
+
         // 有效性兜底：如果依然无效，手动构建一个错误提示节点，防止 UI 空白
         if (!rawObj.name) {
+            console.warn('[regenerateSingleMap] 缺少name字段,使用默认值');
             rawObj.name = `${mapType} (生成不完整)`;
             rawObj.description = "AI 返回的数据结构不完整或为空。请检查上下文长度或重试。";
             rawObj.type = rootType;
         }
-        // 强制修正根节点类型
-        if (!rawObj.type || rawObj.type !== rootType) rawObj.type = rootType;
 
-        if (!Array.isArray(rawObj.children)) rawObj.children = [];
+        // 强制修正根节点类型
+        if (!rawObj.type || rawObj.type !== rootType) {
+            console.log(`[regenerateSingleMap] 修正根节点类型: ${rawObj.type} -> ${rootType}`);
+            rawObj.type = rootType;
+        }
+
+        if (!Array.isArray(rawObj.children)) {
+            console.warn('[regenerateSingleMap] children不是数组,初始化为空数组');
+            rawObj.children = [];
+        }
+
+        console.log(`[regenerateSingleMap] 最终children数量: ${rawObj.children.length}`);
 
         // 这里的空数据兜底非常重要
         if (rawObj.children.length === 0) {
+            console.error('[regenerateSingleMap] ⚠️ children数组为空! 原始响应:', res.text?.substring(0, 1000));
             rawObj.children.push({
                 name: "生成结果为空",
                 type: childType,
                 description: "模型未返回有效子节点。这通常是因为 Context 过长导致截断，或者 Prompt 限制过严。建议减少上下文引用后重试。",
                 children: []
             });
+        } else {
+            console.log('[regenerateSingleMap] ✅ 成功解析children:', rawObj.children.map((c: any) => c.name));
         }
 
         return assignIds(rawObj);
     } catch (error: any) {
+        console.error('[regenerateSingleMap] 错误:', error);
         throw new Error(handleGeminiError(error, 'regenerateSingleMap'));
     }
 }
