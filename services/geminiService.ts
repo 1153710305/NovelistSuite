@@ -236,7 +236,7 @@ async function generateEmbedding(text: string, model: string = "local-minilm"): 
     try {
         const result = await retryWithBackoff<any>(() => ai.models.embedContent({
             model: model,
-            content: { parts: [{ text }] }
+            contents: [{ parts: [{ text }] }]
         }));
         return result.embedding?.values || [];
     } catch (e: any) {
