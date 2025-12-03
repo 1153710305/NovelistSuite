@@ -4,8 +4,10 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storag
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload } from 'lucide-react';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
+import { ModelHealthChecker } from '../components/ModelHealthChecker';
+
 
 interface AdminProps {
     onLogout: () => void;
@@ -19,6 +21,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showHealthChecker, setShowHealthChecker] = useState(false); // 模型健康检测器显示状态
 
     // 本地编辑状态，用于模型配置
     const [editingConfigs, setEditingConfigs] = useState<Record<string, any>>({});
@@ -35,7 +38,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
             setEditingConfigs(initEdit);
         } else {
             let key = '';
-            switch(activeTab) {
+            switch (activeTab) {
                 case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
                 case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
                 case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
@@ -47,12 +50,12 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const handleRefresh = () => setRefreshKey(prev => prev + 1);
 
     const handleClearAll = () => {
-        if(confirm('Are you sure you want to wipe this category?')) {
+        if (confirm('Are you sure you want to wipe this category?')) {
             if (activeTab === 'logs') {
                 Logger.clearLogs();
             } else {
                 let key = '';
-                switch(activeTab) {
+                switch (activeTab) {
                     case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
                     case 'studio': key = STORAGE_KEYS.HISTORY_STUDIO; break;
                     case 'architect': key = STORAGE_KEYS.HISTORY_ARCHITECT; break;
@@ -70,8 +73,8 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         });
 
         const dataStr = JSON.stringify(allData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        const exportFileDefaultName = `inkflow_full_backup_${new Date().toISOString().slice(0,10)}.json`;
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const exportFileDefaultName = `inkflow_full_backup_${new Date().toISOString().slice(0, 10)}.json`;
 
         const linkElement = document.createElement('a');
         linkElement.setAttribute('href', dataUri);
@@ -86,7 +89,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
             fileReader.onload = (e) => {
                 try {
                     const importedData = JSON.parse(e.target?.result as string);
-                    
+
                     if (typeof importedData === 'object' && importedData !== null) {
                         // Confirm overwrite
                         if (confirm(t('admin.confirmImport'))) {
@@ -100,7 +103,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                     importedCount++;
                                 }
                             });
-                            
+
                             alert(t('admin.importSuccess') + ` (${importedCount} keys restored)`);
                             window.location.reload();
                         }
@@ -163,29 +166,29 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                         </div>
                     </div>
                     <div className="flex gap-3">
-                         {/* Hidden File Input for Import */}
-                         <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            style={{ display: 'none' }} 
-                            accept=".json" 
-                            onChange={handleImportAll} 
-                         />
-                         
-                         <button 
+                        {/* Hidden File Input for Import */}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            accept=".json"
+                            onChange={handleImportAll}
+                        />
+
+                        <button
                             onClick={() => fileInputRef.current?.click()}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors border border-slate-300"
                         >
                             <Upload size={18} /> {t('admin.importAll')}
                         </button>
 
-                         <button 
+                        <button
                             onClick={handleExportAll}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors border border-slate-300"
                         >
                             <Download size={18} /> {t('admin.exportAll')}
                         </button>
-                        <button 
+                        <button
                             onClick={onLogout}
                             className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
                         >
@@ -202,11 +205,10 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
-                                        activeTab === tab.id 
-                                        ? 'bg-white text-teal-600 shadow-sm ring-1 ring-slate-200' 
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${activeTab === tab.id
+                                        ? 'bg-white text-teal-600 shadow-sm ring-1 ring-slate-200'
                                         : 'text-slate-500 hover:bg-slate-200'
-                                    }`}
+                                        }`}
                                 >
                                     <tab.icon size={16} /> {tab.label}
                                 </button>
@@ -230,9 +232,17 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <div className="p-6">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-lg font-bold text-slate-800">{t('admin.config.title')}</h3>
-                                    <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
-                                        <RotateCcw size={14}/> {t('admin.config.reset')}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowHealthChecker(true)}
+                                            className="flex items-center gap-2 text-sm text-teal-600 hover:bg-teal-50 px-3 py-1.5 rounded transition-colors border border-teal-200"
+                                        >
+                                            <Activity size={14} /> 测试模型健康
+                                        </button>
+                                        <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
+                                            <RotateCcw size={14} /> {t('admin.config.reset')}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-sm border-collapse">
@@ -249,35 +259,35 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                             {modelConfigs.map((model) => (
                                                 <tr key={model.id} className="hover:bg-slate-50">
                                                     <td className="p-4 font-medium text-slate-700">
-                                                        {t(model.nameKey)} 
+                                                        {t(model.nameKey)}
                                                         <div className="text-xs text-slate-400 font-mono mt-1">{model.id}</div>
                                                     </td>
                                                     <td className="p-4">
-                                                        <input 
-                                                            type="number" 
+                                                        <input
+                                                            type="number"
                                                             value={editingConfigs[model.id]?.rpm ?? model.rpm}
                                                             onChange={(e) => handleConfigChange(model.id, 'rpm', e.target.value)}
                                                             className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
                                                         />
                                                     </td>
                                                     <td className="p-4">
-                                                        <input 
-                                                            type="number" 
+                                                        <input
+                                                            type="number"
                                                             value={editingConfigs[model.id]?.dailyLimit ?? model.dailyLimit}
                                                             onChange={(e) => handleConfigChange(model.id, 'dailyLimit', e.target.value)}
                                                             className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
                                                         />
                                                     </td>
                                                     <td className="p-4">
-                                                        <input 
-                                                            type="number" 
+                                                        <input
+                                                            type="number"
                                                             value={editingConfigs[model.id]?.contextWindow ?? model.contextWindow}
                                                             onChange={(e) => handleConfigChange(model.id, 'contextWindow', e.target.value)}
                                                             className="w-32 p-2 border border-slate-200 rounded text-sm bg-white"
                                                         />
                                                     </td>
                                                     <td className="p-4">
-                                                        <button 
+                                                        <button
                                                             onClick={() => saveConfig(model.id)}
                                                             className="p-2 bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition-colors"
                                                             title={t('admin.config.save')}
@@ -309,11 +319,10 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                             <tr key={log.id} className={`hover:bg-slate-50 ${log.level === LogLevel.ERROR ? 'bg-red-50' : ''}`}>
                                                 <td className="p-3 text-slate-500 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</td>
                                                 <td className="p-3">
-                                                    <span className={`px-1.5 py-0.5 rounded font-bold ${
-                                                        log.level === LogLevel.INFO ? 'text-blue-600 bg-blue-50' :
+                                                    <span className={`px-1.5 py-0.5 rounded font-bold ${log.level === LogLevel.INFO ? 'text-blue-600 bg-blue-50' :
                                                         log.level === LogLevel.WARN ? 'text-amber-600 bg-amber-50' :
-                                                        log.level === LogLevel.ERROR ? 'text-red-600 bg-red-100' : 'text-purple-600'
-                                                    }`}>
+                                                            log.level === LogLevel.ERROR ? 'text-red-600 bg-red-100' : 'text-purple-600'
+                                                        }`}>
                                                         {log.level}
                                                     </span>
                                                 </td>
@@ -326,11 +335,11 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                                         </pre>
                                                     )}
                                                 </td>
-                                                <td className="p-3 text-slate-400 text-[10px]">{log.sessionId.slice(0,6)}</td>
+                                                <td className="p-3 text-slate-400 text-[10px]">{log.sessionId.slice(0, 6)}</td>
                                             </tr>
                                         ))}
                                         {logs.length === 0 && (
-                                             <tr><td colSpan={5} className="p-8 text-center text-slate-400">No logs found.</td></tr>
+                                            <tr><td colSpan={5} className="p-8 text-center text-slate-400">No logs found.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -358,19 +367,19 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                                 <td className="p-4 text-slate-600">{formatDate(item.timestamp)}</td>
                                                 <td className="p-4">
                                                     <div className="max-w-lg truncate text-slate-800 font-medium">
-                                                        {activeTab === 'lab' ? item.inputText : 
-                                                         activeTab === 'studio' ? (item.trendFocus || 'No Topic') : 
-                                                         item.premise}
+                                                        {activeTab === 'lab' ? item.inputText :
+                                                            activeTab === 'studio' ? (item.trendFocus || 'No Topic') :
+                                                                item.premise}
                                                     </div>
                                                     <div className="max-w-lg truncate text-slate-400 text-xs mt-1">
-                                                         {activeTab === 'lab' ? (item.snippet || '') : 
-                                                         activeTab === 'studio' ? (item.content ? item.content.substring(0, 50) : '') : 
-                                                         item.outline?.name}
+                                                        {activeTab === 'lab' ? (item.snippet || '') :
+                                                            activeTab === 'studio' ? (item.content ? item.content.substring(0, 50) : '') :
+                                                                item.outline?.name}
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-medium border border-slate-200">
-                                                         {activeTab === 'lab' ? item.mode : 'General'}
+                                                        {activeTab === 'lab' ? item.mode : 'General'}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -382,6 +391,14 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                     </div>
                 </div>
             </div>
+
+            {/* 模型健康检测器 */}
+            {showHealthChecker && (
+                <ModelHealthChecker
+                    apiKey={process.env.API_KEY || ''}
+                    onClose={() => setShowHealthChecker(false)}
+                />
+            )}
         </div>
     );
 };

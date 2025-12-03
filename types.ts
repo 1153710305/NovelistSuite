@@ -19,41 +19,41 @@
 
 // 小说平台枚举
 export enum NovelPlatform {
-  QIDIAN = 'Qidian',   // 起点中文网
-  JINJIANG = 'Jinjiang', // 晋江文学城
-  FANQIE = 'Fanqie'    // 番茄小说
+    QIDIAN = 'Qidian',   // 起点中文网
+    JINJIANG = 'Jinjiang', // 晋江文学城
+    FANQIE = 'Fanqie'    // 番茄小说
 }
 
 // 模拟的市场小说数据结构
 export interface Novel {
-  id: string;          // 小说唯一ID
-  title: string;       // 书名
-  author: string;      // 作者名
-  category: string;    // 分类 (如：玄幻、都市)
-  hotScore: number;    // 热度值
-  platform: NovelPlatform; // 所属平台
-  summary: string;     // 简介摘要
+    id: string;          // 小说唯一ID
+    title: string;       // 书名
+    author: string;      // 作者名
+    category: string;    // 分类 (如：玄幻、都市)
+    hotScore: number;    // 热度值
+    platform: NovelPlatform; // 所属平台
+    summary: string;     // 简介摘要
 }
 
 // 简单的故事生成结果 (用于灵感卡片)
 export interface GeneratedStory {
-  title: string;       // 标题
-  genre: string;       // 流派
-  synopsis: string;    // 简介
-  hook: string;        // 钩子/看点
+    title: string;       // 标题
+    genre: string;       // 流派
+    synopsis: string;    // 简介
+    hook: string;        // 钩子/看点
 }
 
 // --- 核心结构：递归大纲节点 ---
 // 用于思维导图 (MindMap) 和层级大纲 (Architect) 的核心数据结构
 export interface OutlineNode {
-  id?: string;        // 节点的唯一标识符 (UUID)
-  name: string;       // 节点名称 (如章节名、角色名)
-  // 节点类型：书、卷、幕、章、景、角色、设定、体系、物品、事件
-  type: 'book' | 'volume' | 'act' | 'chapter' | 'scene' | 'character' | 'setting' | 'system' | 'item' | 'event'; 
-  description?: string; // 节点的描述或概要
-  content?: string;   // 节点对应的正文内容 (主要用于章节/场景节点)
-  children?: OutlineNode[]; // 子节点列表 (实现递归树结构)
-  embedding?: number[]; // [New] 向量化数据，用于 RAG 检索 (Web-LLM Local Vector Store)
+    id?: string;        // 节点的唯一标识符 (UUID)
+    name: string;       // 节点名称 (如章节名、角色名)
+    // 节点类型：书、卷、幕、章、景、角色、设定、体系、物品、事件
+    type: 'book' | 'volume' | 'act' | 'chapter' | 'scene' | 'character' | 'setting' | 'system' | 'item' | 'event';
+    description?: string; // 节点的描述或概要
+    content?: string;   // 节点对应的正文内容 (主要用于章节/场景节点)
+    children?: OutlineNode[]; // 子节点列表 (实现递归树结构)
+    embedding?: number[]; // [New] 向量化数据，用于 RAG 检索 (Web-LLM Local Vector Store)
 }
 
 // 提示词模板接口
@@ -85,15 +85,15 @@ export interface CoverRecord {
 
 // 写作模式枚举 (用于 AI 工具栏)
 export enum WritingMode {
-  DAILY_SHORTS = 'daily_shorts', // 每日短篇生成
-  CONTINUE = 'continue',         // 续写模式
-  REWRITE = 'rewrite',           // 重写模式
-  POLISH = 'polish'              // 润色模式
+    DAILY_SHORTS = 'daily_shorts', // 每日短篇生成
+    CONTINUE = 'continue',         // 续写模式
+    REWRITE = 'rewrite',           // 重写模式
+    POLISH = 'polish'              // 润色模式
 }
 
 // 可用的数据源平台列表 (用于趋势分析)
 export const AVAILABLE_SOURCES = [
-    'douyin', 'kuaishou', 'bilibili', 'baidu', 'weibo', 
+    'douyin', 'kuaishou', 'bilibili', 'baidu', 'weibo',
     'xiaohongshu', 'fanqie', 'qidian', 'jinjiang', 'zhihu'
 ];
 
@@ -191,31 +191,92 @@ export interface ModelConfig {
 }
 
 // 可用模型列表配置
-// 注意：限制基于 Google AI Studio 免费层级估算，实际以官方文档为准
+// 注意：限制基于各平台免费层级估算，实际以官方文档为准
 export const AVAILABLE_MODELS: ModelConfig[] = [
-    { 
-        id: 'gemini-flash-lite-latest', 
-        nameKey: 'models.lite', 
+    // === Google Gemini 系列 ===
+    {
+        id: 'gemini-flash-lite-latest',
+        nameKey: 'models.lite',
         descKey: 'models.descLite',
-        dailyLimit: 1500, 
-        rpm: 15,
-        contextWindow: 1048576 
-    },
-    { 
-        id: 'gemini-2.5-flash', 
-        nameKey: 'models.flash', 
-        descKey: 'models.descFlash',
-        dailyLimit: 1500, 
+        dailyLimit: 1500,
         rpm: 15,
         contextWindow: 1048576
     },
-    { 
-        id: 'gemini-3-pro-preview', 
-        nameKey: 'models.pro', 
+    {
+        id: 'gemini-2.5-flash',
+        nameKey: 'models.flash',
+        descKey: 'models.descFlash',
+        dailyLimit: 1500,
+        rpm: 15,
+        contextWindow: 1048576
+    },
+    {
+        id: 'gemini-2.5-pro',
+        nameKey: 'models.gemini25pro',
+        descKey: 'models.descGemini25Pro',
+        dailyLimit: 100,
+        rpm: 5,
+        contextWindow: 2097152
+    },
+    {
+        id: 'gemini-3-pro-preview',
+        nameKey: 'models.pro',
         descKey: 'models.descPro',
-        dailyLimit: 50, 
+        dailyLimit: 50,
         rpm: 2,
-        contextWindow: 2097152 
+        contextWindow: 2097152
+    },
+    {
+        id: 'gemini-2.0-flash-exp',
+        nameKey: 'models.gemini20flash',
+        descKey: 'models.descGemini20Flash',
+        dailyLimit: 1500,
+        rpm: 15,
+        contextWindow: 1048576
+    },
+
+    // === 阿里千问系列 ===
+    {
+        id: 'qwen-turbo',
+        nameKey: 'models.qwenTurbo',
+        descKey: 'models.descQwenTurbo',
+        dailyLimit: 1000,
+        rpm: 10,
+        contextWindow: 8192
+    },
+    {
+        id: 'qwen-plus',
+        nameKey: 'models.qwenPlus',
+        descKey: 'models.descQwenPlus',
+        dailyLimit: 500,
+        rpm: 5,
+        contextWindow: 32768
+    },
+    {
+        id: 'qwen-max',
+        nameKey: 'models.qwenMax',
+        descKey: 'models.descQwenMax',
+        dailyLimit: 100,
+        rpm: 2,
+        contextWindow: 32768
+    },
+
+    // === 字节豆包系列 ===
+    {
+        id: 'doubao-lite-4k',
+        nameKey: 'models.doubaoLite',
+        descKey: 'models.descDoubaoLite',
+        dailyLimit: 1000,
+        rpm: 10,
+        contextWindow: 4096
+    },
+    {
+        id: 'doubao-pro-32k',
+        nameKey: 'models.doubaoPro',
+        descKey: 'models.descDoubaoPro',
+        dailyLimit: 500,
+        rpm: 5,
+        contextWindow: 32768
     }
 ];
 
@@ -343,26 +404,26 @@ export interface StudioRecord extends BaseHistoryRecord {
     title?: string;        // 标题
     storyType?: 'short' | 'long'; // 篇幅类型
     config?: GenerationConfig; // 生成配置
-    
+
     // 灵感类型特有字段:
     trendFocus?: string;   // 趋势焦点
     sources?: string[];    // 数据来源
     metadata?: InspirationMetadata; // 灵感元数据
-    
+
     // 故事类型特有字段:
     content: string; // 全文内容或摘要
-    chapters?: { 
+    chapters?: {
         id?: string; // [Update] 章节唯一ID，用于引用
-        title: string; 
-        content: string; 
+        title: string;
+        content: string;
         nodeId?: string; // 关联的导图节点ID
     }[]; // 已生成的章节列表
-    
+
     // 核心架构 (8-Map)
     architecture?: ArchitectureMap;
-    
+
     // 遗留兼容字段
-    outline?: OutlineNode; 
+    outline?: OutlineNode;
 }
 
 // 架构师模块记录
@@ -376,18 +437,18 @@ export interface ArchitectRecord extends BaseHistoryRecord {
 // --- 日志类型 ---
 
 export enum LogLevel {
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-  DEBUG = 'DEBUG'
+    INFO = 'INFO',
+    WARN = 'WARN',
+    ERROR = 'ERROR',
+    DEBUG = 'DEBUG'
 }
 
 export interface LogEntry {
-  id: string;         // 日志 ID
-  sessionId: string;  // 会话 ID
-  timestamp: number;  // 时间戳
-  level: LogLevel;    // 日志级别
-  category: string;   // 分类
-  message: string;    // 消息
-  data?: any;         // 附加数据
+    id: string;         // 日志 ID
+    sessionId: string;  // 会话 ID
+    timestamp: number;  // 时间戳
+    level: LogLevel;    // 日志级别
+    category: string;   // 分类
+    message: string;    // 消息
+    data?: any;         // 附加数据
 }
