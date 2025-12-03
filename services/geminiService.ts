@@ -537,8 +537,8 @@ export const analyzeTrendKeywords = async (
 
     const prompt = `
     请使用 Google Search 搜索最新的"${platformNames} ${genderStr} 小说排行榜"。
-    查找当前排名靠前的网络小说，分析它们的书名和题材。
-    根据搜索到的真实数据，${PromptService.analyzeTrend(sources)}
+    查找当前排名靠前的网络小说,分析它们的书名和题材。
+    根据搜索到的真实数据,${PromptService.analyzeTrend(sources)}
     ${PromptService.getLangInstruction(lang)}
     `;
 
@@ -548,11 +548,14 @@ export const analyzeTrendKeywords = async (
     [...Analysis Instruction Hidden...]
     `;
 
+    const finalSystemInstruction = systemInstruction || PromptService.getGlobalSystemInstruction(lang);
+
+    // 初始调试信息
     if (onDebug) {
         onDebug({
             prompt: displayPrompt,
             model: model,
-            systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
+            systemInstruction: finalSystemInstruction,
             context: `Grounding Search: ${platformNames} ${genderStr}`,
             sourceData: "Requesting Google Search..."
         });
@@ -564,7 +567,7 @@ export const analyzeTrendKeywords = async (
             model,
             contents: prompt,
             config: {
-                systemInstruction: systemInstruction || PromptService.getGlobalSystemInstruction(lang),
+                systemInstruction: finalSystemInstruction,
                 tools: [{ googleSearch: {} }]
             }
         }));
@@ -576,16 +579,95 @@ export const analyzeTrendKeywords = async (
         if (onDebug) {
             onDebug({
                 apiPayload: {
-                    request: `System: ${systemInstruction || PromptService.getGlobalSystemInstruction(lang)}\n\nUser: ${prompt}`,
+                    request: `System: ${finalSystemInstruction}\n\nUser: ${prompt}`,
                     response: response.text || ""
                 },
                 metrics: metrics
             });
         }
 
-        return response.text?.trim() || "热门趋势";
-    } catch (error) {
+        // 后处理:清洗AI返回的文本,提取纯净关键词
+        let rawResult = response.text?.trim() || "热门趋势";
+        let cleanedKeyword = rawResult;
+
+        // 1. 去除常见描述性前缀
+        const prefixPatterns = [
+            /^根据.*?[，,：:]/,
+            /^搜索.*?[，,：:]/,
+            /^分析.*?[，,：:]/,
+            /^推荐.*?[，,：:]/,
+            /^一些.*?[，,：:]/,
+            /^当前.*?[，,：:]/,
+            /^热门.*?[，,：:]/,
+            /^上榜.*?[，,：:]/,
+            /^被推荐.*?[，,：:]/
+        ];
+
+        for (const pattern of prefixPatterns) {
+            cleanedKeyword = cleanedKeyword.replace(pattern, '');
+        }
+
+        // 2. 按行分割,取第一个非空行
+        const lines = cleanedKeyword.split(/[\n\r]+/).map(l => l.trim()).filter(l => l);
+        if (lines.length > 0) {
+            cleanedKeyword = lines[0];
+        }
+
+        // 3. 去除序号
+        cleanedKeyword = cleanedKeyword.replace(/^[\d一二三四五]+[、.．。)\)]\s*/, '');
+
+        // 4. 去除markdown格式
+        cleanedKeyword = cleanedKeyword.replace(/[*_`]/g, '');
+
+        // 5. 去除引号
+        cleanedKeyword = cleanedKeyword.replace(/["「」『』""'']/g, '');
+
+        // 6. 提取冒号前的内容
+        if (cleanedKeyword.includes('：') || cleanedKeyword.includes(':')) {
+            const parts = cleanedKeyword.split(/[：:]/);
+            if (parts[0].length >= 2 && parts[0].length <= 10) {
+                cleanedKeyword = parts[0];
+            }
+        }
+
+        // 7. 如果太长,尝试按标点分割
+        if (cleanedKeyword.length > 15) {
+            const segments = cleanedKeyword.split(/[，,。.！!？?、]/);
+            if (segments.length > 0 && segments[0].length >= 2 && segments[0].length <= 10) {
+                cleanedKeyword = segments[0];
+            } else {
+                cleanedKeyword = cleanedKeyword.substring(0, 10);
+            }
+        }
+
+        // 8. 最终清理
+        cleanedKeyword = cleanedKeyword.trim().replace(/^[^\u4e00-\u9fa5a-zA-Z]+|[^\u4e00-\u9fa5a-zA-Z]+$/g, '');
+
+        // 9. 验证结果
+        if (!cleanedKeyword || cleanedKeyword.length < 2) {
+            console.warn('[analyzeTrendKeywords] 清洗后关键词无效,使用默认值。原始结果:', rawResult);
+            cleanedKeyword = '玄幻';
+        }
+
+        return cleanedKeyword;
+    } catch (error: any) {
         console.error("Trend Analysis Failed", error);
+
+        // 失败时也传递调试信息
+        if (onDebug) {
+            const errorDetails = getErrorDetails(error);
+            onDebug({
+                error: true,
+                errorMessage: errorDetails,
+                apiPayload: {
+                    request: `System: ${finalSystemInstruction}\n\nUser: ${prompt}`,
+                    response: `Error: ${errorDetails}`
+                },
+                // 尝试提取部分指标(如果有)
+                metrics: error.response ? extractMetrics(error.response, model, Date.now()) : undefined
+            });
+        }
+
         return "玄幻";
     }
 }
@@ -1076,39 +1158,138 @@ export const regenerateSingleMap = async (
         childType = 'mission';
     }
 
-    // 强制性的递归结构提示 - 增强版，注入具体的 type
+    // 强制性的递归结构提示 - 增强版,注入具体的 type
     const structurePrompt = `
-    OUTPUT FORMAT: JSON (Strict)
+    ========================================
+    【输出格式】: JSON (严格模式)
+    ========================================
     
-    You MUST return a SINGLE JSON Object representing the root node. 
-    DO NOT wrap it in a list or another object like {"root": ...}.
+    你必须返回一个代表根节点的 JSON 对象。
+    禁止用数组包裹,禁止用 {"root": ...} 这样的额外层级。
     
-    Target Structure Example:
+    【目标结构示例】:
     {
-      "name": "Root Node Name",
+      "name": "根节点名称",
       "type": "${rootType}",
-      "description": "Overview...",
+      "description": "简短概述(不超过100字)",
       "children": [
-         { "name": "Child 1", "type": "${childType}", "description": "...", "children": [] },
-         { "name": "Child 2", "type": "${childType}", "description": "...", "children": [] }
+         { 
+           "name": "子节点1", 
+           "type": "${childType}", 
+           "description": "简短描述(不超过80字)", 
+           "children": [] 
+         },
+         { 
+           "name": "子节点2", 
+           "type": "${childType}", 
+           "description": "简短描述(不超过80字)", 
+           "children": [] 
+         }
       ]
     }
     
-    CRITICAL STRUCTURE RULES:
-    1. The output MUST be a VALID JSON object representing the ROOT node.
-    2. The root object MUST have 'name', 'type'='${rootType}', 'description', and 'children' array.
-    3. The child nodes inside 'children' array MUST have 'type'='${childType}'.
-    4. Do NOT summarize complex lists in the 'description'. You MUST create child nodes.
-    5. Recursively nest child nodes using the 'children' array.
+    ========================================
+    【关键结构规则】(必须严格遵守):
+    ========================================
+    
+    1. ⚠️ 禁止在 description 中堆砌大量内容!
+       - 每个节点的 description 必须简洁(50-100字)
+       - 如果有多个要点,必须拆分成多个子节点
+       - description 只用于概述,不要列举详细内容
+    
+    2. ✅ 必须创建足够的子节点:
+       - 根节点的 children 数组至少要有 3-8 个子节点
+       - 每个子节点必须有 'type'='${childType}'
+       - 子节点的 name 要具体明确,不要用"其他"、"更多"等模糊词
+    
+    3. ✅ 合理使用递归结构:
+       - 如果某个子节点内容复杂,继续创建它的 children
+       - 建议层级深度: 2-3层
+       - 叶子节点的 children 可以是空数组 []
+    
+    4. ⚠️ 严禁的错误做法:
+       - ❌ 把所有内容写在根节点的 description 里
+       - ❌ 只创建1-2个子节点,其他内容都塞在 description
+       - ❌ 使用"包括但不限于"、"等等"这样的模糊表述
+       - ❌ 子节点 name 重复或过于笼统
+    
+    5. ✅ 正确的做法示例:
+       错误: { "name": "角色", "description": "主角张三,配角李四,反派王五..." }
+       正确: { 
+         "name": "角色", 
+         "description": "小说主要角色设定",
+         "children": [
+           { "name": "主角-张三", "description": "..." },
+           { "name": "配角-李四", "description": "..." },
+           { "name": "反派-王五", "description": "..." }
+         ]
+       }
     `;
 
     let specificInstruction = "";
     if (mapType === 'system') {
-        specificInstruction = "For a Power System: Break it down into hierarchical Ranks/Levels. Each Rank MUST be a separate child node.";
+        specificInstruction = `
+【力量体系专项要求】:
+- 必须将每个等级/境界拆分成独立的子节点
+- 每个等级节点包含: 名称、修炼条件、能力特征
+- 至少创建 5-10 个等级节点
+- 示例结构: 根节点"修仙体系" -> 子节点["炼气期", "筑基期", "金丹期"...]
+        `;
     } else if (mapType === 'world') {
-        specificInstruction = "For World Setting: Create distinct child nodes for Geography, History, and Factions.";
+        specificInstruction = `
+【世界观专项要求】:
+- 必须创建至少 4 个一级子节点: 地理、历史、势力、法则
+- 每个一级节点下继续细分二级节点
+- 地理节点示例: "地理" -> ["东部大陆", "西部海域", "中央山脉"]
+- 势力节点示例: "势力" -> ["正道联盟", "魔教", "散修联盟"]
+        `;
     } else if (mapType === 'chapters') {
-        specificInstruction = "For Chapter Outline: Create a sequential list of chapters. Each child node MUST represent a chapter with a catchy title and summary.";
+        specificInstruction = `
+【章节细纲专项要求】:
+- 每个子节点必须代表一个独立的章节
+- 章节节点必须包含: 吸引人的标题、简短剧情梗概(50字内)
+- 至少创建 10 个章节节点
+- 章节标题要有悬念感,避免平淡
+- 示例: "第1章 重生归来" -> description: "主角意外重生到十年前,决心改变命运"
+        `;
+    } else if (mapType === 'character') {
+        specificInstruction = `
+【角色档案专项要求】:
+- 必须为每个重要角色创建独立的子节点
+- 至少包含: 主角、主要配角(2-3个)、主要反派(1-2个)
+- 每个角色节点包含: 姓名、性格特点、核心关系
+- 不要把所有角色信息堆在一个节点里
+        `;
+    } else if (mapType === 'events') {
+        specificInstruction = `
+【事件时间轴专项要求】:
+- 每个重大事件必须是独立的子节点
+- 按时间顺序排列事件节点
+- 至少创建 8-12 个事件节点
+- 每个事件包含: 事件名称、简短描述、影响
+        `;
+    } else if (mapType === 'mission') {
+        specificInstruction = `
+【任务状态专项要求】:
+- 每个阶段的任务/状态必须是独立的子节点
+- 至少创建 5-8 个任务节点
+- 每个任务包含: 任务名称、目标、奖励/后果
+        `;
+    } else if (mapType === 'anchor') {
+        specificInstruction = `
+【伏笔锚点专项要求】:
+- 每个伏笔/关键物品必须是独立的子节点
+- 至少创建 4-6 个伏笔节点
+- 每个伏笔包含: 名称、埋设位置、揭示时机
+        `;
+    } else if (mapType === 'structure') {
+        specificInstruction = `
+【宏观结构专项要求】:
+- 必须将小说拆分成多个卷/篇章
+- 每卷必须是独立的子节点
+- 至少创建 3-5 个卷节点
+- 每卷包含: 卷名、核心冲突、预期章节数
+        `;
     }
 
     const promptContext = context ? `\n【参考上下文】:\n${context}` : "";

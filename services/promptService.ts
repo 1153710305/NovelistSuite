@@ -65,10 +65,10 @@ export const PromptService = {
      */
     getGlobalSystemInstruction: (lang: string): string => {
         const instruction = lang === 'zh' ? DEFAULT_PERSONA_ZH : DEFAULT_PERSONA_EN;
-        const langConstraint = lang === 'zh' 
-            ? "\n【重要】：请必须使用简体中文 (Simplified Chinese) 进行输出。" 
+        const langConstraint = lang === 'zh'
+            ? "\n【重要】：请必须使用简体中文 (Simplified Chinese) 进行输出。"
             : "\nIMPORTANT: Provide the output in English.";
-            
+
         return `${instruction}${langConstraint}`;
     },
 
@@ -77,8 +77,8 @@ export const PromptService = {
      * 强制 AI 输出特定语言，特别是中文网文风格。
      */
     getLangInstruction: (lang: string): string => {
-        return lang === 'zh' 
-            ? "【重要】：请必须使用简体中文 (Simplified Chinese) 进行输出。文笔要通俗流畅，符合中国网络小说阅读习惯。" 
+        return lang === 'zh'
+            ? "【重要】：请必须使用简体中文 (Simplified Chinese) 进行输出。文笔要通俗流畅，符合中国网络小说阅读习惯。"
             : "IMPORTANT: Provide the output in English.";
     },
 
@@ -88,12 +88,22 @@ export const PromptService = {
      */
     analyzeTrend: (sources: string[]): string => {
         return `
-        任务：作为一名资深网文市场分析师，请根据以下来源的近期热门内容，提取一个最具“爆款潜力”的题材关键词或核心梗。
-        来源参考：${sources.join(', ')}
-        
-        要求：
-        1. 只返回一个具体的关键词（例如：“赛博修仙”、“规则怪谈”、“年代文后妈”、“全家读心”）。
-        2. 不要解释，不要标点，只要那个词。
+请使用 Google Search 搜索最新的网络小说排行榜，来源：${sources.join('、')}。
+
+【任务】：分析当前最热门的题材，提取一个最具"爆款潜力"的核心关键词。
+
+【输出格式】：
+- 只输出一个2-6字的关键词
+- 不要任何解释、标点、序号
+- 不要说"根据搜索"、"推荐"等描述性文字
+- 直接输出关键词本身
+
+【示例】：
+正确：赛博修仙
+错误：根据搜索到的信息，推荐"赛博修仙"
+错误：1. 赛博修仙
+
+现在请输出关键词：
         `;
     },
 
@@ -106,8 +116,8 @@ export const PromptService = {
      * @param rules 用户自定义的生成规则 (可选)
      */
     dailyInspiration: (trend: string, audience: string, rules?: InspirationRules): string => {
-        const audienceDesc = audience === 'male' 
-            ? "男频（热血、升级、系统、争霸）" 
+        const audienceDesc = audience === 'male'
+            ? "男频（热血、升级、系统、争霸）"
             : "女频（情感、细腻、CP感、大女主/甜宠）";
 
         // 处理自定义规则，如果未提供则使用默认值
@@ -190,7 +200,7 @@ export const PromptService = {
      */
     writeChapter: (title: string, desc: string, context: string, wordCount: number, style?: string): string => {
         let styleInstruction = style ? `\n【用户自定义文风/要求】：\n${style}` : "";
-        
+
         return `
         任务：撰写网络小说章节 (番茄/起点爆款风格)。
         

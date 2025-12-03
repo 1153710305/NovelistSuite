@@ -379,14 +379,65 @@ export const Studio: React.FC = () => {
                 updateTaskProgress(taskId, t('process.analyzingTrend'), 50, undefined, metrics, debugInfo);
             });
 
-            // 优化显示：只提取核心关键词，避免显示过多分析内容
-            let displayTrend = trend;
-            const lines = trend.split('\n').map(l => l.trim()).filter(l => l);
+            // 优化显示：提取纯净的关键词
+            let displayTrend = trend.trim();
+
+            // 1. 去除常见的描述性前缀
+            const prefixPatterns = [
+                /^根据.*?[，,：:]/,
+                /^搜索.*?[，,：:]/,
+                /^分析.*?[，,：:]/,
+                /^推荐.*?[，,：:]/,
+                /^一些.*?[，,：:]/,
+                /^当前.*?[，,：:]/,
+                /^热门.*?[，,：:]/
+            ];
+
+            for (const pattern of prefixPatterns) {
+                displayTrend = displayTrend.replace(pattern, '');
+            }
+
+            // 2. 按行分割,取第一个非空行
+            const lines = displayTrend.split(/[\n\r]+/).map(l => l.trim()).filter(l => l);
             if (lines.length > 0) {
-                // 尝试提取第一行作为关键词 (通常 Prompt 要求第一行是关键词)
-                // 移除 "1. ", "**", 以及可能的冒号后解释
-                displayTrend = lines[0].replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').split(/[:：]/)[0].trim();
-                if (displayTrend.length > 20) displayTrend = displayTrend.substring(0, 20);
+                displayTrend = lines[0];
+            }
+
+            // 3. 去除序号 (1. 2. 一、等)
+            displayTrend = displayTrend.replace(/^[\d一二三四五]+[、.．。)\)]\s*/, '');
+
+            // 4. 去除markdown格式 (**, __, 等)
+            displayTrend = displayTrend.replace(/[*_`]/g, '');
+
+            // 5. 去除引号
+            displayTrend = displayTrend.replace(/["「」『』""'']/g, '');
+
+            // 6. 提取冒号前的内容(如果有冒号,通常冒号前是关键词)
+            if (displayTrend.includes('：') || displayTrend.includes(':')) {
+                const parts = displayTrend.split(/[：:]/);
+                if (parts[0].length >= 2 && parts[0].length <= 10) {
+                    displayTrend = parts[0];
+                }
+            }
+
+            // 7. 如果还是太长,尝试提取前面的短语
+            if (displayTrend.length > 20) {
+                // 尝试按标点分割
+                const segments = displayTrend.split(/[，,。.！!？?、]/);
+                if (segments.length > 0 && segments[0].length >= 2 && segments[0].length <= 10) {
+                    displayTrend = segments[0];
+                } else {
+                    // 如果还是太长,直接截取前10个字符
+                    displayTrend = displayTrend.substring(0, 10);
+                }
+            }
+
+            // 8. 最终清理:去除首尾空格和特殊字符
+            displayTrend = displayTrend.trim().replace(/^[^\u4e00-\u9fa5a-zA-Z]+|[^\u4e00-\u9fa5a-zA-Z]+$/g, '');
+
+            // 9. 如果提取失败,使用默认值
+            if (!displayTrend || displayTrend.length < 2) {
+                displayTrend = '玄幻';
             }
 
             setStudioState(prev => ({ ...prev, trendFocus: displayTrend }));
