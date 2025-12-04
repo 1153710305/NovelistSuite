@@ -145,7 +145,7 @@ export interface AIMetrics {
 // 后台任务对象 (用于 TaskMonitor 和 AppContext)
 export interface BackgroundTask {
     id: string;             // 任务唯一ID
-    type: 'inspiration' | 'story' | 'map_regen' | 'draft'; // 任务类型
+    type: 'inspiration' | 'story' | 'map_regen' | 'draft' | 'expand_node'; // 任务类型
     labelKey?: string;      // 用于 UI 显示的国际化 Key
     status: 'running' | 'completed' | 'error' | 'cancelled' | 'paused'; // 任务状态 (Added paused)
     progress: number;       // 进度百分比 (0 - 100)

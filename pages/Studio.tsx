@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Sparkles, RefreshCw, Loader2, ChevronDown, ChevronUp, BookOpen, Tag, Globe, Network, Wrench, RefreshCcw, CheckSquare, Square, Zap as ZapIcon, AlertTriangle, Hash, FileText, History, Trash2, PenLine, Wand2, Settings2, Link as LinkIcon, ArrowRightCircle, Flame, Target, Anchor, Eraser
+    Sparkles, RefreshCw, Loader2, ChevronDown, ChevronUp, BookOpen, Tag, Globe, Network, Wrench, RefreshCcw, CheckSquare, Square, Zap as ZapIcon, AlertTriangle, Hash, FileText, History, Trash2, PenLine, Wand2, Settings2, Link as LinkIcon, ArrowRightCircle, Flame, Target, Anchor, Eraser, GitBranch
 } from 'lucide-react';
 
 import {
@@ -158,6 +158,17 @@ export const Studio: React.FC = () => {
 
     const [showContextWarning, setShowContextWarning] = useState(false);
     const [contextWarningData, setContextWarningData] = useState<{ original: number, truncated: number, preview: string, fullContext: string }>({ original: 0, truncated: 0, preview: '', fullContext: '' });
+
+    // 扩展节点相关状态
+    const [showExpandModal, setShowExpandModal] = useState(false);
+    const [expandingNode, setExpandingNode] = useState<OutlineNode | null>(null);
+    const [expandIdea, setExpandIdea] = useState('');
+    const [expandRequirements, setExpandRequirements] = useState('');
+    const [expandPromptId, setExpandPromptId] = useState('');
+    const [expandStyleContent, setExpandStyleContent] = useState('');
+    const [expandContextMapKeys, setExpandContextMapKeys] = useState<string[]>([]);
+    const [expandOptimizeMapKeys, setExpandOptimizeMapKeys] = useState<string[]>([]);
+    const [isExpandingNode, setIsExpandingNode] = useState(false);
     const [pendingContextAction, setPendingContextAction] = useState<((truncatedContext: string) => void) | null>(null);
 
     const [showNewChapModal, setShowNewChapModal] = useState(false);
@@ -735,6 +746,101 @@ export const Studio: React.FC = () => {
         setSelectedMapNode({ ...selectedMapNode, name: editNodeName, description: editNodeDesc });
     }
 
+    // 打开扩展节点模态框
+    const handleOpenExpandModal = () => {
+        if (!selectedMapNode) return;
+        setExpandingNode(selectedMapNode);
+        setExpandIdea(`基于 "${selectedMapNode.name}" 扩展更多子节点`);
+        setExpandRequirements('');
+        setExpandStyleContent('');
+        setExpandPromptId('');
+        setExpandContextMapKeys([]);
+        setExpandOptimizeMapKeys([]);
+        setShowExpandModal(true);
+    };
+
+    // 执行节点扩展
+    const handleExpandNode = async () => {
+        if (!expandingNode || !activeStoryRecord) return;
+
+        setIsExpandingNode(true);
+
+        try {
+            await startBackgroundTask('expand_node', 'expandNode', async (taskId) => {
+                updateTaskProgress(taskId, '准备扩展', 5, '正在准备扩展节点...');
+
+                // 构建上下文 (类似重新生成)
+                const coreMetadata = buildCoreMetadataContext(activeStoryRecord);
+
+                // 收集选中的上下文
+                let contextText = '';
+                for (const mapKey of expandContextMapKeys) {
+                    const mapData = activeStoryRecord.architecture?.[mapKey];
+                    if (mapData) {
+                        contextText += `\\n[${mapKey.toUpperCase()}]:\\n${serializeMapToText(mapData)}\\n`;
+                    }
+                }
+
+                // 如果需要优化上下文
+                let optimizedContext = contextText;
+                if (expandOptimizeMapKeys.length > 0) {
+                    updateTaskProgress(taskId, '优化上下文', 15, '正在清洗上下文...');
+                    const toOptimize = expandOptimizeMapKeys.map(key => {
+                        const mapData = activeStoryRecord.architecture?.[key];
+                        return mapData ? serializeMapToText(mapData) : '';
+                    }).join('\\n');
+                    optimizedContext = await optimizeContextWithAI(toOptimize, lang, enableCache);
+                }
+
+                const finalContext = coreMetadata + contextText + optimizedContext;
+
+                await pauseTask(taskId);
+
+                updateTaskProgress(taskId, '生成子节点', 40, '正在为节点生成子内容...');
+
+                // 调用 AI 生成子节点
+                const newChildren = await regenerateSingleMap(
+                    selectedMapType,
+                    `扩展节点: ${expandingNode.name}\\n${expandIdea}`,
+                    finalContext,
+                    lang,
+                    model,
+                    expandStyleContent,
+                    globalPersona,
+                    (stage, progress, log, metrics, debugInfo) => updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo),
+                    expandRequirements
+                );
+
+                // 合并新生成的子节点到原节点
+                if (newChildren && newChildren.children) {
+                    const mergedNode = {
+                        ...expandingNode,
+                        children: [...(expandingNode.children || []), ...newChildren.children]
+                    };
+
+                    // 更新树结构
+                    const currentTree = activeStoryRecord.architecture[selectedMapType];
+                    const newTree = updateNodeInTree(currentTree, expandingNode.id!, mergedNode);
+                    const newArchitecture = { ...activeStoryRecord.architecture, [selectedMapType]: newTree };
+                    const updatedRecord = { ...activeStoryRecord, architecture: newArchitecture };
+
+                    setActiveStoryRecord(updatedRecord);
+                    updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { architecture: newArchitecture });
+
+                    updateTaskProgress(taskId, '完成', 100, `成功为 "${expandingNode.name}" 添加了 ${newChildren.children.length} 个子节点`);
+                    setShowExpandModal(false);
+                    setExpandingNode(null);
+                } else {
+                    throw new Error('生成结果为空');
+                }
+            });
+        } catch (error: any) {
+            console.error('[ExpandNode] Error:', error);
+        } finally {
+            setIsExpandingNode(false);
+        }
+    };
+
     const assembleSmartContext = (isLean: boolean): { context: string } => {
         if (!activeStoryRecord?.architecture) return { context: '' };
 
@@ -1046,6 +1152,24 @@ export const Studio: React.FC = () => {
         });
     };
 
+    // 扩展节点的上下文选择切换
+    const handleToggleExpandKey = (type: string) => {
+        setExpandContextMapKeys(prev => {
+            if (prev.includes(type)) {
+                setExpandOptimizeMapKeys(opt => opt.filter(k => k !== type));
+                return prev.filter(k => k !== type);
+            }
+            return [...prev, type];
+        });
+    };
+
+    const handleToggleExpandOptimize = (type: string) => {
+        setExpandOptimizeMapKeys(prev => {
+            if (prev.includes(type)) return prev.filter(k => k !== type);
+            return [...prev, type];
+        });
+    };
+
     const handleContextWarningDecision = (truncate: boolean) => {
         if (!pendingContextAction) return;
         setShowContextWarning(false);
@@ -1191,6 +1315,120 @@ export const Studio: React.FC = () => {
                             </div>
                         </div>
                         <div className="p-4 border-t flex justify-end gap-2 rounded-b-xl"><button onClick={() => setShowRegenModal(false)} className="px-4 py-2 text-slate-600 rounded-lg hover:bg-slate-100">{t('common.cancel')}</button><button onClick={handleRegenerateMap} disabled={isRegeneratingMap} className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2">{isRegeneratingMap ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />} {t('studio.tree.regenerate')}</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* 扩展节点模态框 */}
+            {showExpandModal && expandingNode && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
+                    <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl flex flex-col max-h-[85vh]">
+                        <div className="p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50 flex justify-between rounded-t-xl">
+                            <h3 className="font-bold flex items-center gap-2">
+                                <GitBranch size={16} className="text-purple-600" />
+                                扩展节点: {expandingNode.name}
+                            </h3>
+                            <button onClick={() => setShowExpandModal(false)}>×</button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs">
+                                <p className="text-purple-800 font-medium mb-1">当前节点信息:</p>
+                                <p className="text-purple-600"><strong>名称:</strong> {expandingNode.name}</p>
+                                {expandingNode.description && (
+                                    <p className="text-purple-600 mt-1"><strong>描述:</strong> {expandingNode.description.substring(0, 100)}{expandingNode.description.length > 100 ? '...' : ''}</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">扩展想法 (Expansion Idea)</label>
+                                    <button onClick={() => setExpandIdea('')} className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-1"><Eraser size={10} /> 清空</button>
+                                </div>
+                                <textarea
+                                    value={expandIdea}
+                                    onChange={e => setExpandIdea(e.target.value)}
+                                    className="w-full p-3 border border-slate-200 rounded-lg text-sm h-32 leading-relaxed font-mono text-xs focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-slate-900 bg-white"
+                                    placeholder="输入扩展想法，例如：增加更多子情节、细化角色关系、扩展世界观细节..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-red-600 uppercase mb-2 flex items-center gap-1"><AlertTriangle size={12} /> 约束条件</label>
+                                <textarea
+                                    value={expandRequirements}
+                                    onChange={(e) => setExpandRequirements(e.target.value)}
+                                    className="w-full p-3 border border-red-200 rounded-lg text-xs bg-red-50 text-slate-700 h-24 leading-relaxed resize-none focus:bg-white focus:ring-2 focus:ring-red-200 transition-all placeholder:text-slate-400"
+                                    placeholder="可选：添加约束条件，例如：不要超过5个子节点、保持风格一致..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">风格提示词</label>
+                                <select
+                                    value={expandPromptId}
+                                    onChange={(e) => {
+                                        const pid = e.target.value;
+                                        setExpandPromptId(pid);
+                                        const p = promptLibrary.find(item => item.id === pid);
+                                        if (p) setExpandStyleContent(p.content);
+                                    }}
+                                    className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white mb-2"
+                                >
+                                    <option value="">默认风格</option>
+                                    {promptLibrary.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                                <textarea
+                                    value={expandStyleContent}
+                                    onChange={(e) => { setExpandStyleContent(e.target.value); if (expandPromptId) setExpandPromptId(''); }}
+                                    className="w-full p-3 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-700 h-24 leading-relaxed resize-none focus:bg-white focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-slate-400"
+                                    placeholder="在此输入自定义提示词或风格要求..."
+                                />
+                            </div>
+
+                            {/* 上下文选择 */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">选择参考上下文</label>
+                                <div className="space-y-1">
+                                    {allMaps.filter(t => t !== selectedMapType).map(type => {
+                                        const isSelected = expandContextMapKeys.includes(type);
+                                        const isOptimized = expandOptimizeMapKeys.includes(type);
+
+                                        return (
+                                            <div key={type} className={`flex items-center justify-between p-2 border rounded-lg transition-colors ${isSelected ? 'bg-slate-50 border-slate-300' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                                                <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => handleToggleExpandKey(type)}>
+                                                    {isSelected ? <CheckSquare size={16} className="text-purple-600" /> : <Square size={16} className="text-slate-300" />}
+                                                    <span className={`text-xs ${isSelected ? 'font-bold text-slate-700' : 'text-slate-500'}`}>{t(`studio.maps.${type}`)}</span>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="flex items-center">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleToggleExpandOptimize(type); }}
+                                                            className={`p-1.5 rounded transition-all flex items-center gap-1 ${isOptimized ? 'bg-indigo-100 text-indigo-600' : 'text-slate-300 hover:text-indigo-400'}`}
+                                                        >
+                                                            <Sparkles size={14} className={isOptimized ? "fill-indigo-600" : ""} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-[9px] text-slate-400 mt-2 text-right flex justify-end items-center gap-1">
+                                    <Sparkles size={10} className="text-indigo-400" /> = AI清洗优化
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t flex justify-end gap-2 rounded-b-xl">
+                            <button onClick={() => setShowExpandModal(false)} className="px-4 py-2 text-slate-600 rounded-lg hover:bg-slate-100">取消</button>
+                            <button
+                                onClick={handleExpandNode}
+                                disabled={isExpandingNode}
+                                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 flex items-center gap-2"
+                            >
+                                {isExpandingNode ? <Loader2 className="animate-spin" size={16} /> : <GitBranch size={16} />}
+                                开始扩展
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1359,7 +1597,16 @@ export const Studio: React.FC = () => {
                                             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                                                 <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.name')}</label><input value={editNodeName} onChange={e => setEditNodeName(e.target.value)} className="w-full p-2 border border-slate-200 rounded text-sm font-bold bg-slate-50 focus:bg-white transition-colors text-slate-900" /></div>
                                                 <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('studio.inspector.desc')}</label><textarea value={editNodeDesc} onChange={e => setEditNodeDesc(e.target.value)} rows={6} className="w-full p-2 border border-slate-200 rounded text-xs leading-relaxed bg-slate-50 focus:bg-white transition-colors text-slate-900" /></div>
-                                                <button onClick={handleSaveNodeEdit} className="w-full py-2 bg-slate-100 text-slate-600 rounded text-xs font-bold hover:bg-slate-200 mb-4">{t('studio.inspector.save')}</button>
+                                                <button onClick={handleSaveNodeEdit} className="w-full py-2 bg-slate-100 text-slate-600 rounded text-xs font-bold hover:bg-slate-200 mb-2">{t('studio.inspector.save')}</button>
+
+                                                {/* 扩展节点按钮 */}
+                                                <button
+                                                    onClick={handleOpenExpandModal}
+                                                    className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded text-xs font-bold hover:from-purple-600 hover:to-pink-600 mb-4 flex items-center justify-center gap-2"
+                                                >
+                                                    <GitBranch size={14} />
+                                                    扩展节点
+                                                </button>
 
                                                 {/* Context Control Panel - Only for Chapters (Restrict drafting UI) */}
                                                 {selectedMapType === 'chapters' && (selectedMapNode.type === 'chapter' || selectedMapNode.type === 'scene') && (
