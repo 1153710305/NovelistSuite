@@ -523,11 +523,15 @@ export const optimizeContextWithAI = async (
 
         // 如果重构结果为空，说明提取失败，返回原文以防丢失信息
         if (!reconstructed.trim()) {
-            console.warn('[ContextOptimization] Reconstructed text is empty, returning raw context.');
+            console.warn('[ContextOptimization] ⚠️ Reconstructed text is empty! AI may have failed to extract entities/facts.');
+            console.warn('[ContextOptimization] Raw AI Response:', jsonText.substring(0, 500));
+            console.warn('[ContextOptimization] Parsed Object:', JSON.stringify(parsed).substring(0, 500));
+            console.warn('[ContextOptimization] Returning raw context to prevent data loss.');
             return rawContext;
         }
 
-        console.log(`[ContextOptimization] Success. Ratio: ${(reconstructed.length / rawContext.length * 100).toFixed(1)}%`);
+        const compressionRatio = ((1 - reconstructed.length / rawContext.length) * 100).toFixed(1);
+        console.log(`[ContextOptimization] ✅ Success! Compression: ${compressionRatio}% (${rawContext.length} → ${reconstructed.length} chars)`);
 
         // 写入缓存
         if (enableCache) {
@@ -542,7 +546,8 @@ export const optimizeContextWithAI = async (
         return reconstructed;
 
     } catch (error) {
-        console.error("[ContextOptimization] Fatal error, using raw context.", error);
+        console.error("[ContextOptimization] ❌ Fatal error during optimization:", error);
+        console.error("[ContextOptimization] Returning raw context to prevent data loss.");
         return rawContext;
     }
 };

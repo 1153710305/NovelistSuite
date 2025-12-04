@@ -619,6 +619,7 @@ export const Studio: React.FC = () => {
                 // Variable to hold the result of optimization
                 let finalOptimizedContext = "";
                 let originalMapContext = mapContextToOptimize; // For debug comparison
+                const originalLength = mapContextToOptimize.length; // 保存原始长度用于计算压缩率
 
                 // 1. 构建 Prompt
                 const actualTaskPayload = `[COMMAND]: 重绘导图 - ${selectedMapType}\n[USER_INSTRUCTION]: ${regenIdea}\n[CONSTRAINTS]: ${regenRequirements}\n[STYLE]: ${regenStyleContent}`;
@@ -634,8 +635,8 @@ export const Studio: React.FC = () => {
                     // Call Optimization API
                     finalOptimizedContext = await optimizeContextWithAI(mapContextToOptimize, lang, enableCache);
 
-                    // Calculate compression ratio
-                    const ratio = ((1 - finalOptimizedContext.length / (originalMapContext.length || 1)) * 100).toFixed(1);
+                    // Calculate compression ratio - 使用保存的原始长度
+                    const ratio = ((1 - finalOptimizedContext.length / (originalLength || 1)) * 100).toFixed(1);
                     const logMsg = t('process.opt_success').replace('{ratio}', ratio);
 
                     updateTaskProgress(taskId, t('process.optimizing'), 30, logMsg, undefined, {
