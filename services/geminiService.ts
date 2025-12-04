@@ -443,18 +443,47 @@ const computeStringHash = (str: string): string => {
     return hash.toString(16);
 };
 
+export interface OptimizationResult {
+    text: string;
+    success: boolean;
+    compressionRatio: number;
+    originalLength: number;
+    optimizedLength: number;
+    message?: string; // [New] 失败原因或成功备注
+}
+
 export const optimizeContextWithAI = async (
     rawContext: string,
     lang: string,
     enableCache: boolean = true // 默认开启
-): Promise<string> => {
-    if (!rawContext || rawContext.length < 50) return rawContext;
+): Promise<OptimizationResult> => {
+    const originalLength = rawContext.length;
+
+    // 构造默认失败结果
+    const createFailedResult = (text: string, msg: string): OptimizationResult => ({
+        text,
+        success: false,
+        compressionRatio: 0,
+        originalLength,
+        optimizedLength: text.length,
+        message: msg
+    });
+
+    if (!rawContext || rawContext.length < 50) return createFailedResult(rawContext, "内容过短(<50字符),无需清洗");
 
     // 1. 检查缓存
     const cacheKey = `${lang}:${computeStringHash(rawContext)}`;
     if (enableCache && contextCache.has(cacheKey)) {
         console.log('[ContextOptimization] Cache hit! Returning cached result.');
-        return contextCache.get(cacheKey)!;
+        const cachedText = contextCache.get(cacheKey)!;
+        return {
+            text: cachedText,
+            success: true,
+            compressionRatio: parseFloat(((1 - cachedText.length / originalLength) * 100).toFixed(1)),
+            originalLength,
+            optimizedLength: cachedText.length,
+            message: "命中缓存"
+        };
     }
 
     const ai = getAiClient();
@@ -487,7 +516,11 @@ export const optimizeContextWithAI = async (
         } catch (e) {
             console.warn(`[ContextOptimization] ${model} failed, falling back to gemini-flash-lite-latest`, e);
             model = 'gemini-flash-lite-latest';
-            jsonText = await executeOptimization(model);
+            try {
+                jsonText = await executeOptimization(model);
+            } catch (retryError) {
+                return createFailedResult(rawContext, `AI调用失败: ${retryError instanceof Error ? retryError.message : '未知错误'}`);
+            }
         }
 
         const cleanedJson = cleanJson(jsonText);
@@ -500,7 +533,7 @@ export const optimizeContextWithAI = async (
             console.error('[ContextOptimization] JSON Parse Error:', e, '\nCleaned Text:', cleanedJson);
             // 如果 JSON 解析失败，尝试直接返回清洗后的文本（如果它看起来像文本而非 JSON）
             // 但这里我们要求 JSON，所以这通常意味着失败
-            throw e;
+            return createFailedResult(rawContext, "AI返回格式错误(JSON解析失败)");
         }
 
         // 重新组装为高密度结构化文本
@@ -527,10 +560,10 @@ export const optimizeContextWithAI = async (
             console.warn('[ContextOptimization] Raw AI Response:', jsonText.substring(0, 500));
             console.warn('[ContextOptimization] Parsed Object:', JSON.stringify(parsed).substring(0, 500));
             console.warn('[ContextOptimization] Returning raw context to prevent data loss.');
-            return rawContext;
+            return createFailedResult(rawContext, "AI未能提取有效信息(结果为空)");
         }
 
-        const compressionRatio = ((1 - reconstructed.length / rawContext.length) * 100).toFixed(1);
+        const compressionRatio = parseFloat(((1 - reconstructed.length / rawContext.length) * 100).toFixed(1));
         console.log(`[ContextOptimization] ✅ Success! Compression: ${compressionRatio}% (${rawContext.length} → ${reconstructed.length} chars)`);
 
         // 写入缓存
@@ -543,12 +576,19 @@ export const optimizeContextWithAI = async (
             contextCache.set(cacheKey, reconstructed);
         }
 
-        return reconstructed;
+        return {
+            text: reconstructed,
+            success: true,
+            compressionRatio,
+            originalLength,
+            optimizedLength: reconstructed.length,
+            message: "优化成功"
+        };
 
     } catch (error) {
         console.error("[ContextOptimization] ❌ Fatal error during optimization:", error);
         console.error("[ContextOptimization] Returning raw context to prevent data loss.");
-        return rawContext;
+        return createFailedResult(rawContext, `系统异常: ${error instanceof Error ? error.message : '未知错误'}`);
     }
 };
 

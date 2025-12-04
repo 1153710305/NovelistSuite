@@ -633,16 +633,21 @@ export const Studio: React.FC = () => {
                     });
 
                     // Call Optimization API
-                    finalOptimizedContext = await optimizeContextWithAI(mapContextToOptimize, lang, enableCache);
+                    const optResult = await optimizeContextWithAI(mapContextToOptimize, lang, enableCache);
+                    finalOptimizedContext = optResult.text;
 
-                    // Calculate compression ratio - 使用保存的原始长度
-                    const ratio = ((1 - finalOptimizedContext.length / (originalLength || 1)) * 100).toFixed(1);
-                    const logMsg = t('process.opt_success').replace('{ratio}', ratio);
+                    // Calculate compression ratio - 使用返回结果中的压缩率
+                    const ratio = optResult.compressionRatio.toFixed(1);
+                    const logMsg = optResult.success
+                        ? t('process.opt_success').replace('{ratio}', ratio)
+                        : `⚠️ 智能清洗未生效: ${optResult.message || '未知原因'}`;
 
                     updateTaskProgress(taskId, t('process.optimizing'), 30, logMsg, undefined, {
                         comparison: {
                             originalContext: originalMapContext, // Show original chunk
-                            optimizedContext: finalOptimizedContext // Show cleaned chunk
+                            optimizedContext: finalOptimizedContext, // Show cleaned chunk
+                            success: optResult.success, // Show success status
+                            message: optResult.message // Show failure reason
                         }
                     });
                 } else {
@@ -982,10 +987,12 @@ export const Studio: React.FC = () => {
                 });
 
                 // 只优化 context
-                context = await optimizeContextWithAI(context, lang, enableCache);
+                const optResult = await optimizeContextWithAI(context, lang, enableCache);
+                context = optResult.text;
 
-                const ratio = ((1 - context.length / (originalContext.length || 1)) * 100);
-                const displayRatio = ratio < 0 ? `结构化膨胀` : t('process.opt_success').replace('{ratio}', ratio.toFixed(1));
+                const displayRatio = optResult.compressionRatio < 0
+                    ? `结构化膨胀`
+                    : (optResult.success ? t('process.opt_success').replace('{ratio}', optResult.compressionRatio.toFixed(1)) : `⚠️ 智能清洗未生效: ${optResult.message || '未知原因'}`);
 
                 updateTaskProgress(taskId, t('process.optimizing'), 25, displayRatio, undefined, {
                     systemInstruction: globalPersona,
@@ -994,7 +1001,9 @@ export const Studio: React.FC = () => {
                     comparison: {
                         originalContext: originalContext,
                         optimizedContext: context,
-                        systemInstruction: globalPersona
+                        systemInstruction: globalPersona,
+                        success: optResult.success,
+                        message: optResult.message
                     }
                 });
             } else {

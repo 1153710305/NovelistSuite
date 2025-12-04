@@ -169,6 +169,9 @@ export interface BackgroundTask {
             originalPrompt?: string;
             optimizedPrompt?: string;
             systemInstruction?: string;
+            success?: boolean;
+            compressionRatio?: number;
+            message?: string; // [New] 失败原因或成功备注
         };
         // [New] 真实发送给 API 的 Payload (Request/Response)
         apiPayload?: {

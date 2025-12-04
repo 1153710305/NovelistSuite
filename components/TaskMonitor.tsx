@@ -284,9 +284,9 @@ export const TaskMonitor: React.FC = () => {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className={`w-2 h-2 rounded-full ${task.status === 'running' ? 'bg-teal-500 animate-pulse' :
-                                                    task.status === 'paused' ? 'bg-yellow-500' :
-                                                        task.status === 'completed' ? 'bg-green-500' :
-                                                            task.status === 'cancelled' ? 'bg-slate-400' : 'bg-red-500'
+                                                task.status === 'paused' ? 'bg-yellow-500' :
+                                                    task.status === 'completed' ? 'bg-green-500' :
+                                                        task.status === 'cancelled' ? 'bg-slate-400' : 'bg-red-500'
                                                 }`}></span>
                                             <span className="font-bold text-sm text-slate-800">
                                                 {task.labelKey ? t(`taskMonitor.labels.${task.labelKey}`) : task.type}
@@ -407,10 +407,35 @@ export const TaskMonitor: React.FC = () => {
                                 {/* Comparison View */}
                                 {openComparisonIds.has(task.id) && task.debugInfo?.comparison && (
                                     <div className="bg-slate-800 rounded p-3 mb-3 text-xs text-slate-300 space-y-4 font-mono border border-slate-700 shadow-inner animate-in fade-in duration-200">
-                                        <div className="flex items-center gap-2 border-b border-slate-700 pb-2 mb-2">
-                                            <Columns size={14} className="text-purple-400" />
-                                            <span className="font-bold text-purple-400">{t('taskMonitor.debug.comparison')}</span>
+                                        <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Columns size={14} className="text-purple-400" />
+                                                <span className="font-bold text-purple-400">{t('taskMonitor.debug.comparison')}</span>
+                                            </div>
+                                            {task.debugInfo.comparison.success !== undefined && (
+                                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${task.debugInfo.comparison.success ? 'bg-teal-900/30 text-teal-400 border border-teal-800' : 'bg-red-900/30 text-red-400 border border-red-800'}`}>
+                                                    {task.debugInfo.comparison.success ? (
+                                                        <>
+                                                            <CheckCircle size={10} />
+                                                            <span>Saved {task.debugInfo.comparison.compressionRatio}%</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <AlertTriangle size={10} />
+                                                            <span>Failed</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
+
+                                        {/* Failure Reason / Success Message */}
+                                        {task.debugInfo.comparison.message && (
+                                            <div className={`mb-3 px-2 py-1.5 rounded text-[10px] border flex items-start gap-2 ${task.debugInfo.comparison.success ? 'bg-teal-900/10 border-teal-800/30 text-teal-300' : 'bg-red-900/10 border-red-800/30 text-red-300'}`}>
+                                                <Info size={12} className="mt-0.5 flex-shrink-0" />
+                                                <span>{task.debugInfo.comparison.message}</span>
+                                            </div>
+                                        )}
 
                                         <div className="grid grid-cols-2 gap-3">
                                             {/* Original Column */}
@@ -635,9 +660,9 @@ export const TaskMonitor: React.FC = () => {
                                 <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-3">
                                     <div
                                         className={`h-full transition-all duration-300 ${task.status === 'error' ? 'bg-red-500' :
-                                                task.status === 'cancelled' ? 'bg-slate-400' :
-                                                    task.status === 'paused' ? 'bg-yellow-500' :
-                                                        task.status === 'completed' ? 'bg-green-500' : 'bg-teal-500'
+                                            task.status === 'cancelled' ? 'bg-slate-400' :
+                                                task.status === 'paused' ? 'bg-yellow-500' :
+                                                    task.status === 'completed' ? 'bg-green-500' : 'bg-teal-500'
                                             }`}
                                         style={{ width: `${task.progress}%` }}
                                     ></div>
