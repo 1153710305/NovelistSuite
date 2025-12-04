@@ -199,6 +199,13 @@ export interface FastModeConfig {
     topK?: number;              // Top-K 采样参数
 }
 
+// 上下文缓存配置
+export interface CacheConfig {
+    enabled: boolean;           // 是否启用缓存
+    minTokenThreshold: number;  // 最小 Token 阈值 (低于此值不缓存)
+    ttlSeconds: number;         // 缓存存活时间 (秒)
+}
+
 // 可用模型列表配置
 // 注意：限制基于各平台免费层级估算，实际以官方文档为准
 export const AVAILABLE_MODELS: ModelConfig[] = [

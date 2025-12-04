@@ -415,19 +415,43 @@ export const retrieveRelevantContext = async (
  * 核心升级：采用 "Schema Separation" 策略，强制分离指令、任务和数据，防止指令被清洗掉。
  * 2024-05 Update: 强化“高密度压缩”逻辑，防止字符膨胀。
  */
+// 简单的内存缓存，用于存储已优化的上下文
+const contextCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 20;
+
+/**
+ * 计算简单的字符串 Hash (用于缓存 Key)
+ */
+const computeStringHash = (str: string): string => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(16);
+};
+
 export const optimizeContextWithAI = async (
     rawContext: string,
-    lang: string
+    lang: string,
+    enableCache: boolean = true // 默认开启
 ): Promise<string> => {
     if (!rawContext || rawContext.length < 50) return rawContext;
 
+    // 1. 检查缓存
+    const cacheKey = `${lang}:${computeStringHash(rawContext)}`;
+    if (enableCache && contextCache.has(cacheKey)) {
+        console.log('[ContextOptimization] Cache hit! Returning cached result.');
+        return contextCache.get(cacheKey)!;
+    }
+
     const ai = getAiClient();
-    // 升级：使用 2.5 Flash 而非 Lite，以确保清洗逻辑（特别是去模糊化）的执行质量
-    const model = 'gemini-2.5-flash';
+    // 默认使用 2.5 Flash, 如果失败则回退到 Lite
+    let model = 'gemini-2.5-flash';
     const isZh = lang === 'zh';
 
     // 严格的 JSON Schema 指令 - 强调【压缩】
-    // 将 "knowledge_graph" 的定义改为更扁平的结构，直接要求输出短语列表
     const systemPrompt = isZh ? `
     任务：**上下文高密度压缩与清洗**。
     
@@ -472,18 +496,39 @@ export const optimizeContextWithAI = async (
     ${rawContext.substring(0, 60000)} 
     `;
 
-    try {
+    const executeOptimization = async (targetModel: string) => {
         const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
-            model,
+            model: targetModel,
             contents: prompt,
             config: { responseMimeType: "application/json" } // Force JSON
         }));
+        return response.text || "{}";
+    };
 
-        const jsonText = cleanJson(response.text || "{}");
-        const parsed = JSON.parse(jsonText);
+    try {
+        let jsonText = "";
+        try {
+            jsonText = await executeOptimization(model);
+        } catch (e) {
+            console.warn(`[ContextOptimization] ${model} failed, falling back to gemini-flash-lite-latest`, e);
+            model = 'gemini-flash-lite-latest';
+            jsonText = await executeOptimization(model);
+        }
 
-        // 重新组装为高密度结构化文本，供生成模型使用
-        // 修正：不再输出 [CMD] 和 [TASK]，只保留纯粹的 [ENTS] 和 [FACTS]，防止污染上下文
+        const cleanedJson = cleanJson(jsonText);
+        console.log('[ContextOptimization] Raw JSON:', jsonText.substring(0, 200));
+
+        let parsed: any = {};
+        try {
+            parsed = JSON.parse(cleanedJson);
+        } catch (e) {
+            console.error('[ContextOptimization] JSON Parse Error:', e, '\nCleaned Text:', cleanedJson);
+            // 如果 JSON 解析失败，尝试直接返回清洗后的文本（如果它看起来像文本而非 JSON）
+            // 但这里我们要求 JSON，所以这通常意味着失败
+            throw e;
+        }
+
+        // 重新组装为高密度结构化文本
         let reconstructed = "";
 
         if (parsed.entities && Array.isArray(parsed.entities) && parsed.entities.length > 0) {
@@ -494,17 +539,35 @@ export const optimizeContextWithAI = async (
             reconstructed += `[FACTS]: ` + parsed.facts.join('; ');
         }
 
-        // Fallback for old schema if model hallucinates old format
+        // Fallback for old schema
         if (!parsed.entities && !parsed.facts && parsed.knowledge_graph) {
             const kg = parsed.knowledge_graph;
             if (kg.facts) reconstructed += `[FACTS]: ` + kg.facts.join('; ');
             if (kg.entities) reconstructed += `\n[ENTS]: ` + kg.entities.map((e: any) => `${e.name}(${e.desc})`).join('; ');
         }
 
+        // 如果重构结果为空，说明提取失败，返回原文以防丢失信息
+        if (!reconstructed.trim()) {
+            console.warn('[ContextOptimization] Reconstructed text is empty, returning raw context.');
+            return rawContext;
+        }
+
+        console.log(`[ContextOptimization] Success. Ratio: ${(reconstructed.length / rawContext.length * 100).toFixed(1)}%`);
+
+        // 写入缓存
+        if (enableCache) {
+            if (contextCache.size >= MAX_CACHE_SIZE) {
+                // 简单的 LRU: 删除第一个 (最早插入的)
+                const firstKey = contextCache.keys().next().value;
+                if (firstKey) contextCache.delete(firstKey);
+            }
+            contextCache.set(cacheKey, reconstructed);
+        }
+
         return reconstructed;
 
     } catch (error) {
-        console.warn("Context optimization failed, using raw context.", error);
+        console.error("[ContextOptimization] Fatal error, using raw context.", error);
         return rawContext;
     }
 };

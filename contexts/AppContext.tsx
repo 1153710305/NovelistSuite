@@ -39,6 +39,10 @@ interface AppContextType {
     fastMode: boolean; // 是否启用 Fast 模式
     toggleFastMode: () => void; // 切换 Fast 模式
 
+    // 上下文缓存
+    enableCache: boolean; // 是否启用缓存
+    toggleCache: () => void; // 切换缓存
+
     // 模型动态配置
     modelConfigs: ModelConfig[];
     updateModelConfig: (id: string, updates: Partial<ModelConfig>) => void;
@@ -106,6 +110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 默认模型改为 Lite
     const [model, setModelState] = useState<string>('gemini-flash-lite-latest');
     const [fastMode, setFastMode] = useState<boolean>(false); // Fast 模式状态
+    const [enableCache, setEnableCache] = useState<boolean>(true); // 缓存开关 (默认开启)
     const [modelConfigs, setModelConfigsState] = useState<ModelConfig[]>(AVAILABLE_MODELS);
     const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
     const [sources, setSources] = useState<string[]>(AVAILABLE_SOURCES);
@@ -164,6 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (savedSettings.model) setModelState(savedSettings.model);
             if (savedSettings.sources) setSources(savedSettings.sources);
             if (savedSettings.fastMode !== undefined) setFastMode(savedSettings.fastMode);
+            if (savedSettings.enableCache !== undefined) setEnableCache(savedSettings.enableCache);
         }
 
         // 加载自定义模型配置
@@ -265,6 +271,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             saveToStorage(STORAGE_KEYS.SETTINGS, { ...savedSettings, fastMode: newFastMode });
             console.log(`[FastMode] 切换到: ${newFastMode ? 'Fast 模式' : '正常模式'}`);
             return newFastMode;
+        });
+    }
+
+    const toggleCache = () => {
+        setEnableCache(prev => {
+            const newState = !prev;
+            const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS) || {};
+            saveToStorage(STORAGE_KEYS.SETTINGS, { ...savedSettings, enableCache: newState });
+            console.log(`[Cache] 切换到: ${newState ? '开启' : '关闭'}`);
+            return newState;
         });
     }
 
@@ -592,7 +608,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return (
         <AppContext.Provider value={{
-            model, setModel, fastMode, toggleFastMode, modelConfigs, updateModelConfig, resetModelConfigs,
+            model, setModel, fastMode, toggleFastMode, enableCache, toggleCache, modelConfigs, updateModelConfig, resetModelConfigs,
             showOnboarding, completeOnboarding, resetOnboarding, sources, toggleSource,
             usageStats, studioState, setStudioState, architectState, setArchitectState, startArchitectGeneration, labState, setLabState, startLabAnalysis,
             promptLibrary, addPrompt, updatePrompt, deletePrompt, activeTasks, startBackgroundTask, retryTask, pauseTask, resumeTask, updateTaskProgress, completeTask, failTask, dismissTask, cancelTask,

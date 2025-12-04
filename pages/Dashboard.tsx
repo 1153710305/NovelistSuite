@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, ExternalLink, Globe, BarChart2, Cpu, Zap, Info } from 'lucide-react';
+import { Trophy, Flame, TrendingUp, Activity, ArrowUp, ArrowDown, Minus, ExternalLink, Globe, BarChart2, Cpu, Zap, Info, Database } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
 import { DataMethodologyModal } from '../components/DataMethodologyModal';
@@ -300,7 +300,7 @@ const ExternalPortals: React.FC = () => {
 export const Dashboard: React.FC = () => {
     const { t } = useI18n();
     // 使用 modelConfigs 读取动态配置
-    const { model, usageStats, modelConfigs, fastMode, toggleFastMode } = useApp();
+    const { model, usageStats, modelConfigs, fastMode, toggleFastMode, enableCache, toggleCache } = useApp();
     const [isDocOpen, setIsDocOpen] = useState(false); // 数据方法论模态框状态
 
     // 本地筛选状态
@@ -428,8 +428,8 @@ export const Dashboard: React.FC = () => {
                             <button
                                 onClick={toggleFastMode}
                                 className={`mt-2 w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${fastMode
-                                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                     }`}
                             >
                                 <span className="flex items-center gap-1">
@@ -441,6 +441,23 @@ export const Dashboard: React.FC = () => {
                                 </span>
                             </button>
                         )}
+
+                        {/* 上下文缓存开关 */}
+                        <button
+                            onClick={toggleCache}
+                            className={`mt-2 w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${enableCache
+                                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                        >
+                            <span className="flex items-center gap-1">
+                                <Database size={12} className={enableCache ? 'text-blue-100' : 'text-slate-400'} />
+                                {enableCache ? '缓存开启' : '缓存关闭'}
+                            </span>
+                            <span className="text-[10px] opacity-75">
+                                {enableCache ? '💾 节省Token' : '🔄 实时清洗'}
+                            </span>
+                        </button>
                     </div>
                 </div>
 

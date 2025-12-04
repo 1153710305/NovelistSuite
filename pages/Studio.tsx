@@ -116,7 +116,7 @@ export const Studio: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'daily' | 'tools'>('daily');
     const [mainViewMode, setMainViewMode] = useState<'quick-tools' | 'story-map' | 'story-files' | 'story-editor'>('quick-tools');
 
-    const { model, studioState, setStudioState, startBackgroundTask, updateTaskProgress, promptLibrary, activeTasks, globalPersona, pauseTask } = useApp();
+    const { model, studioState, setStudioState, startBackgroundTask, updateTaskProgress, promptLibrary, activeTasks, globalPersona, pauseTask, enableCache } = useApp();
     const { t, lang, getToolLabel, getProcessLabel } = useI18n();
     const isMobile = useIsMobile();
 
@@ -621,7 +621,7 @@ export const Studio: React.FC = () => {
                     });
 
                     // Call Optimization API
-                    finalOptimizedContext = await optimizeContextWithAI(mapContextToOptimize, lang);
+                    finalOptimizedContext = await optimizeContextWithAI(mapContextToOptimize, lang, enableCache);
 
                     // Calculate compression ratio
                     const ratio = ((1 - finalOptimizedContext.length / (originalMapContext.length || 1)) * 100).toFixed(1);
@@ -875,7 +875,7 @@ export const Studio: React.FC = () => {
                 });
 
                 // 只优化 context
-                context = await optimizeContextWithAI(context, lang);
+                context = await optimizeContextWithAI(context, lang, enableCache);
 
                 const ratio = ((1 - context.length / (originalContext.length || 1)) * 100);
                 const displayRatio = ratio < 0 ? `结构化膨胀` : t('process.opt_success').replace('{ratio}', ratio.toFixed(1));
