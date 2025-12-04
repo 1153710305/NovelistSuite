@@ -4,9 +4,10 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storag
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity } from 'lucide-react';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity, MessageSquare } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
 import { ModelHealthChecker } from '../components/ModelHealthChecker';
+import { PromptManager } from './PromptManager';
 
 
 interface AdminProps {
@@ -16,7 +17,7 @@ interface AdminProps {
 export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const { t } = useI18n();
     const { modelConfigs, updateModelConfig, resetModelConfigs } = useApp();
-    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs' | 'config'>('config');
+    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs' | 'config' | 'prompts'>('config');
     const [data, setData] = useState<any[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -145,6 +146,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
 
     const tabs = [
         { id: 'config', label: t('admin.tabConfig'), icon: Settings },
+        { id: 'prompts', label: '提示词管理', icon: MessageSquare },
         { id: 'lab', label: t('admin.tabLab'), icon: FileText },
         { id: 'studio', label: t('admin.tabStudio'), icon: PenTool },
         { id: 'architect', label: t('admin.tabArchitect'), icon: Network },
@@ -300,6 +302,11 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        ) : activeTab === 'prompts' ? (
+                            // --- PROMPTS VIEW ---
+                            <div className="h-full">
+                                <PromptManager />
                             </div>
                         ) : activeTab === 'logs' ? (
                             // --- LOGS VIEW ---
