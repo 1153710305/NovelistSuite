@@ -1424,14 +1424,41 @@ export const regenerateSingleMap = async (
     });
 
     const executeGen = async (targetModel: string) => {
-        return await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+        // 使用流式API
+        const stream = await ai.models.generateContentStream({
             model: targetModel,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 systemInstruction: finalSystemInstruction
             }
-        }));
+        });
+
+        let fullText = '';
+
+        // 流式处理每个chunk
+        for await (const chunk of stream) {
+            const text = chunk.text || '';
+            fullText += text;
+
+            // 实时回调，传递累积的文本
+            if (onUpdate) {
+                onUpdate("流式生成中", 50, `已生成 ${fullText.length} 字符`, undefined, {
+                    apiPayload: {
+                        response: fullText
+                    }
+                });
+            }
+        }
+
+        // 返回完整响应（模拟GenerateContentResponse格式）
+        return {
+            text: fullText,
+            candidates: [{
+                content: { parts: [{ text: fullText }] },
+                finishReason: 'STOP'
+            }]
+        } as GenerateContentResponse;
     };
 
     const startTime = Date.now();
