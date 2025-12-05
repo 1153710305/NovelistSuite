@@ -1490,36 +1490,38 @@ export const regenerateSingleMap = async (
                 }
                 // Case 1c: 数组包含中文字段名的对象 [{事件名词: "...", 欲望: "..."}]
                 else if (firstItem && typeof firstItem === 'object' && (firstItem['事件名词'] || firstItem['名称'] || firstItem['节点名'])) {
-                    console.log('[regenerateSingleMap] ✅ 检测到中文字段名数组，转换并创建根节点包装');
-                    // 转换中文字段名为标准字段名，保留所有原始字段
+                    console.log('[regenerateSingleMap] ✅ 检测到中文字段名数组，转换为层级结构');
+                    // 动态处理所有字段，将非标准字段转换为子节点
                     const convertedChildren = rawObj.map((item: any) => {
-                        // 构建完整的描述，包含所有中文字段的内容
-                        const descParts: string[] = [];
-                        if (item['欲望']) descParts.push(`【欲望】${item['欲望']}`);
-                        if (item['阻碍']) descParts.push(`【阻碍】${item['阻碍']}`);
-                        if (item['行动']) descParts.push(`【行动】${item['行动']}`);
-                        if (item['结果']) descParts.push(`【结果】${item['结果']}`);
-                        if (item['意外']) descParts.push(`【意外】${item['意外']}`);
-                        if (item['转折']) descParts.push(`【转折】${item['转折']}`);
-                        if (item['结局']) descParts.push(`【结局】${item['结局']}`);
-                        if (item['描述']) descParts.push(item['描述']);
-                        if (item['description']) descParts.push(item['description']);
+                        const children: any[] = [];
 
-                        const fullDescription = descParts.length > 0 ? descParts.join('\n\n') : '';
+                        // 定义标准字段（不应该成为子节点的字段）
+                        const standardFields = ['事件名词', '名称', '节点名', 'name', '描述', 'description', 'type', 'children'];
+
+                        // 遍历所有字段，将非标准字段转换为子节点
+                        Object.keys(item).forEach(key => {
+                            // 跳过标准字段
+                            if (standardFields.includes(key)) {
+                                return;
+                            }
+
+                            const value = item[key];
+                            // 只处理字符串类型的值
+                            if (typeof value === 'string' && value.trim()) {
+                                children.push({
+                                    name: key,
+                                    type: childType,
+                                    description: value,
+                                    children: []
+                                });
+                            }
+                        });
 
                         return {
                             name: item['事件名词'] || item['名称'] || item['节点名'] || item.name || '未命名节点',
                             type: childType,
-                            description: fullDescription,
-                            children: [],
-                            // 保留原始字段作为自定义属性（可选）
-                            ...(item['欲望'] && { 欲望: item['欲望'] }),
-                            ...(item['阻碍'] && { 阻碍: item['阻碍'] }),
-                            ...(item['行动'] && { 行动: item['行动'] }),
-                            ...(item['结果'] && { 结果: item['结果'] }),
-                            ...(item['意外'] && { 意外: item['意外'] }),
-                            ...(item['转折'] && { 转折: item['转折'] }),
-                            ...(item['结局'] && { 结局: item['结局'] })
+                            description: item['描述'] || item['description'] || '',
+                            children: children
                         };
                     });
                     rawObj = {
