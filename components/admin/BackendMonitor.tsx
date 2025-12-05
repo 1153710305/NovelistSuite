@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BackendAPI } from '../../services/backendApi';
 import { Activity, Server, RefreshCw, Play, XCircle, Clock, CheckCircle, AlertCircle, FileText, X } from 'lucide-react';
+import { useI18n } from '../../i18n';
 
 export const BackendMonitor: React.FC = () => {
+    const { t } = useI18n();
     const [stats, setStats] = useState<any>(null);
     const [queueStatus, setQueueStatus] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
@@ -40,12 +42,12 @@ export const BackendMonitor: React.FC = () => {
     }, [autoRefresh]);
 
     const handleCancelTask = async (taskId: string) => {
-        if (confirm('Are you sure you want to cancel this task?')) {
+        if (confirm(t('admin.monitor.confirmCancel'))) {
             try {
                 await BackendAPI.tasks.delete(taskId);
                 fetchData();
             } catch (error) {
-                alert('Failed to cancel task');
+                alert(t('admin.monitor.cancelFailed'));
             }
         }
     };
@@ -77,7 +79,7 @@ export const BackendMonitor: React.FC = () => {
         <div className="space-y-6 p-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <Server className="text-teal-600" /> Backend Monitor
+                    <Server className="text-teal-600" /> {t('admin.monitor.title')}
                 </h2>
                 <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -87,7 +89,7 @@ export const BackendMonitor: React.FC = () => {
                             onChange={e => setAutoRefresh(e.target.checked)}
                             className="rounded text-teal-600 focus:ring-teal-500"
                         />
-                        Auto Refresh (5s)
+                        {t('admin.monitor.autoRefresh')}
                     </label>
                     <button
                         onClick={fetchData}
@@ -101,26 +103,26 @@ export const BackendMonitor: React.FC = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Queue Length</div>
+                    <div className="text-sm text-slate-500 mb-1">{t('admin.monitor.queueLength')}</div>
                     <div className="text-2xl font-bold text-slate-800">{queueStatus?.queueLength || 0}</div>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Running Tasks</div>
+                    <div className="text-sm text-slate-500 mb-1">{t('admin.monitor.runningTasks')}</div>
                     <div className="text-2xl font-bold text-blue-600">{queueStatus?.runningCount || 0}</div>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Completed Today</div>
+                    <div className="text-sm text-slate-500 mb-1">{t('admin.monitor.completedToday')}</div>
                     <div className="text-2xl font-bold text-green-600">{stats?.completed || 0}</div>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Failed Today</div>
+                    <div className="text-sm text-slate-500 mb-1">{t('admin.monitor.failedToday')}</div>
                     <div className="text-2xl font-bold text-red-600">{stats?.failed || 0}</div>
                 </div>
             </div>
 
             {/* Task List */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-200 font-bold text-slate-700">Recent Tasks</div>
+                <div className="p-4 border-b border-slate-200 font-bold text-slate-700">{t('admin.monitor.recentTasks')}</div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-500">
@@ -154,7 +156,7 @@ export const BackendMonitor: React.FC = () => {
                                         <button
                                             onClick={() => handleViewLogs(task.id)}
                                             className="text-slate-600 hover:bg-slate-100 p-1 rounded"
-                                            title="View Logs"
+                                            title={t('admin.monitor.viewLogs')}
                                         >
                                             <FileText size={16} />
                                         </button>
@@ -162,7 +164,7 @@ export const BackendMonitor: React.FC = () => {
                                             <button
                                                 onClick={() => handleCancelTask(task.id)}
                                                 className="text-red-600 hover:bg-red-50 p-1 rounded"
-                                                title="Cancel Task"
+                                                title={t('admin.monitor.cancelTask')}
                                             >
                                                 <XCircle size={16} />
                                             </button>
@@ -172,7 +174,7 @@ export const BackendMonitor: React.FC = () => {
                             ))}
                             {tasks.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-slate-400">No tasks found</td>
+                                    <td colSpan={6} className="p-8 text-center text-slate-400">{t('admin.monitor.noTasks')}</td>
                                 </tr>
                             )}
                         </tbody>
@@ -185,14 +187,14 @@ export const BackendMonitor: React.FC = () => {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
                         <div className="p-4 border-b flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800">Task Logs: <span className="font-mono text-sm text-slate-500">{currentTaskId}</span></h3>
+                            <h3 className="font-bold text-slate-800">{t('admin.monitor.taskLogs')}: <span className="font-mono text-sm text-slate-500">{currentTaskId}</span></h3>
                             <button onClick={() => setShowLogModal(false)} className="text-slate-500 hover:text-slate-800">
                                 <X size={20} />
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto flex-1 bg-slate-50 font-mono text-xs">
                             {selectedTaskLogs.length === 0 ? (
-                                <div className="text-center text-slate-400 py-8">No logs available</div>
+                                <div className="text-center text-slate-400 py-8">{t('admin.monitor.noLogs')}</div>
                             ) : (
                                 selectedTaskLogs.map((log, i) => (
                                     <div key={i} className="mb-2 border-b border-slate-100 pb-1 last:border-0">

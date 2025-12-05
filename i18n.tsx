@@ -15,7 +15,9 @@ const translations: Record<Language, any> = {
         login: { title: 'InkFlow AI Login', subtitle: 'Select your access role', userBtn: 'Author Login', adminBtn: 'Admin Login', userDesc: 'Enter Creative Suite', adminDesc: 'View System Data' },
         admin: {
             title: 'Admin Dashboard', tabUsers: 'Users', tabLab: 'Lab Data', tabStudio: 'Studio Data', tabArchitect: 'Architect Data', tabConfig: 'Model Config', refresh: 'Refresh', clearAll: 'Clear', empty: 'No Records', id: 'ID', timestamp: 'Time', content: 'Content', type: 'Type', exit: 'Exit', exportAll: 'Export All Data', importAll: 'Import All Data', confirmImport: 'This action will OVERWRITE all local data with the imported file. Continue?', importSuccess: 'Data imported successfully. Reloading...',
-            config: { title: 'Model Resource Limits', reset: 'Reset to Defaults', modelName: 'Model Name', rpm: 'RPM (Req/Min)', rpd: 'Daily Limit (Req/Day)', context: 'Context Window (Tokens)', save: 'Save Config', saved: 'Configuration saved.' }
+            config: { title: 'Model Resource Limits', reset: 'Reset to Defaults', modelName: 'Model Name', rpm: 'RPM (Req/Min)', rpd: 'Daily Limit (Req/Day)', context: 'Context Window (Tokens)', save: 'Save Config', saved: 'Configuration saved.', healthCheck: 'Test Health' },
+            backendConfig: { title: 'Backend Configuration', maxConcurrent: 'Max Concurrent Tasks', maxConcurrentDesc: 'Maximum number of AI tasks running simultaneously.', save: 'Save Backend Config', saved: 'Backend config saved.', failed: 'Failed to save backend config.' },
+            monitor: { title: 'Backend Monitor', autoRefresh: 'Auto Refresh (5s)', queueLength: 'Queue Length', runningTasks: 'Running Tasks', completedToday: 'Completed Today', failedToday: 'Failed Today', recentTasks: 'Recent Tasks', noTasks: 'No tasks found', viewLogs: 'View Logs', cancelTask: 'Cancel Task', confirmCancel: 'Are you sure you want to cancel this task?', cancelFailed: 'Failed to cancel task', taskLogs: 'Task Logs', noLogs: 'No logs available' }
         },
         models: {
             lite: 'Gemini Flash Lite',
@@ -274,7 +276,9 @@ const translations: Record<Language, any> = {
         login: { title: 'InkFlow AI 登录', subtitle: '请选择您的访问身份', userBtn: '作者登录', adminBtn: '管理员登录', userDesc: '进入创作系统', adminDesc: '查看本地数据' },
         admin: {
             title: '系统管理后台', tabUsers: '用户信息', tabLab: '拆书数据', tabStudio: '工作室数据', tabArchitect: '大纲数据', tabConfig: '模型配置', refresh: '刷新', clearAll: '清空', empty: '无记录', id: 'ID', timestamp: '时间', content: '内容', type: '类型', exit: '退出', exportAll: '导出全部数据', importAll: '导入全部数据', confirmImport: '此操作将覆盖所有本地数据！确定继续吗？', importSuccess: '数据导入成功，页面将刷新。',
-            config: { title: '模型资源与配额限制', reset: '恢复默认设置', modelName: '模型名称', rpm: '频率限制 (Req/Min)', rpd: '每日配额 (Req/Day)', context: '上下文窗口 (Tokens)', save: '保存配置', saved: '配置已更新。' }
+            config: { title: '模型资源与配额限制', reset: '恢复默认设置', modelName: '模型名称', rpm: '频率限制 (Req/Min)', rpd: '每日配额 (Req/Day)', context: '上下文窗口 (Tokens)', save: '保存配置', saved: '配置已更新。', healthCheck: '测试模型健康' },
+            backendConfig: { title: '后端配置', maxConcurrent: '最大并发任务数', maxConcurrentDesc: '同时运行的最大 AI 任务数。', save: '保存后端配置', saved: '后端配置已保存。', failed: '保存后端配置失败。' },
+            monitor: { title: '后端监控', autoRefresh: '自动刷新 (5秒)', queueLength: '队列长度', runningTasks: '运行中任务', completedToday: '今日完成', failedToday: '今日失败', recentTasks: '最近任务', noTasks: '无任务记录', viewLogs: '查看日志', cancelTask: '取消任务', confirmCancel: '确定要取消此任务吗？', cancelFailed: '取消任务失败', taskLogs: '任务日志', noLogs: '无日志记录' }
         },
         models: {
             lite: 'Gemini Flash Lite',

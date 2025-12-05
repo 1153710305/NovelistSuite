@@ -267,14 +267,14 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                 <div>
                                     <div className="flex justify-between items-center mb-4">
                                         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <Server size={18} className="text-teal-600" /> Backend Configuration
+                                            <Server size={18} className="text-teal-600" /> {t('admin.backendConfig.title')}
                                         </h3>
                                     </div>
                                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                         <div className="flex items-center gap-4">
                                             <div className="flex-1">
-                                                <label className="block text-sm font-medium text-slate-700 mb-1">Max Concurrent Tasks</label>
-                                                <p className="text-xs text-slate-500">Maximum number of AI tasks running simultaneously.</p>
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.backendConfig.maxConcurrent')}</label>
+                                                <p className="text-xs text-slate-500">{t('admin.backendConfig.maxConcurrentDesc')}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <input
@@ -288,7 +288,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                                 <button
                                                     onClick={saveBackendConfig}
                                                     className="p-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
-                                                    title="Save Backend Config"
+                                                    title={t('admin.backendConfig.save')}
                                                 >
                                                     <Save size={16} />
                                                 </button>
@@ -308,10 +308,10 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                                                 onClick={() => setShowHealthChecker(true)}
                                                 className="flex items-center gap-2 text-sm text-teal-600 hover:bg-teal-50 px-3 py-1.5 rounded transition-colors border border-teal-200"
                                             >
-                                                <Activity size={14} /> Test Health
+                                                <Activity size={14} /> {t('admin.config.healthCheck')}
                                             </button>
                                             <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
-                                                <RotateCcw size={14} /> Reset Defaults
+                                                <RotateCcw size={14} /> {t('admin.config.reset')}
                                             </button>
                                         </div>
                                     </div>
