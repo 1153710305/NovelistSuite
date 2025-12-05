@@ -1491,13 +1491,37 @@ export const regenerateSingleMap = async (
                 // Case 1c: 数组包含中文字段名的对象 [{事件名词: "...", 欲望: "..."}]
                 else if (firstItem && typeof firstItem === 'object' && (firstItem['事件名词'] || firstItem['名称'] || firstItem['节点名'])) {
                     console.log('[regenerateSingleMap] ✅ 检测到中文字段名数组，转换并创建根节点包装');
-                    // 转换中文字段名为标准字段名
-                    const convertedChildren = rawObj.map((item: any) => ({
-                        name: item['事件名词'] || item['名称'] || item['节点名'] || item.name || '未命名节点',
-                        type: childType,
-                        description: item['描述'] || item['description'] || item['欲望'] || '',
-                        children: []
-                    }));
+                    // 转换中文字段名为标准字段名，保留所有原始字段
+                    const convertedChildren = rawObj.map((item: any) => {
+                        // 构建完整的描述，包含所有中文字段的内容
+                        const descParts: string[] = [];
+                        if (item['欲望']) descParts.push(`【欲望】${item['欲望']}`);
+                        if (item['阻碍']) descParts.push(`【阻碍】${item['阻碍']}`);
+                        if (item['行动']) descParts.push(`【行动】${item['行动']}`);
+                        if (item['结果']) descParts.push(`【结果】${item['结果']}`);
+                        if (item['意外']) descParts.push(`【意外】${item['意外']}`);
+                        if (item['转折']) descParts.push(`【转折】${item['转折']}`);
+                        if (item['结局']) descParts.push(`【结局】${item['结局']}`);
+                        if (item['描述']) descParts.push(item['描述']);
+                        if (item['description']) descParts.push(item['description']);
+
+                        const fullDescription = descParts.length > 0 ? descParts.join('\n\n') : '';
+
+                        return {
+                            name: item['事件名词'] || item['名称'] || item['节点名'] || item.name || '未命名节点',
+                            type: childType,
+                            description: fullDescription,
+                            children: [],
+                            // 保留原始字段作为自定义属性（可选）
+                            ...(item['欲望'] && { 欲望: item['欲望'] }),
+                            ...(item['阻碍'] && { 阻碍: item['阻碍'] }),
+                            ...(item['行动'] && { 行动: item['行动'] }),
+                            ...(item['结果'] && { 结果: item['结果'] }),
+                            ...(item['意外'] && { 意外: item['意外'] }),
+                            ...(item['转折'] && { 转折: item['转折'] }),
+                            ...(item['结局'] && { 结局: item['结局'] })
+                        };
+                    });
                     rawObj = {
                         name: mapType,
                         type: rootType,
