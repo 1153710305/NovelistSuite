@@ -11,7 +11,8 @@
 
 import BackendAPI, { pollTaskResult } from './backendApi';
 import * as FrontendGeminiService from './geminiService';
-import { AIMetrics, InspirationRules, OutlineNode } from '../types';
+import { AIMetrics, OutlineNode, ArchitectureMap } from '../types';
+import { InspirationRules } from './promptService';
 
 /**
  * 判断是否使用后端 API
@@ -110,7 +111,7 @@ export const generateNovelArchitecture = async (
     model: string,
     systemInstruction: string,
     onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void
-): Promise<OutlineNode> => {
+): Promise<ArchitectureMap> => {
     if (USE_BACKEND) {
         try {
             if (onUpdate) onUpdate('连接后端服务器...', 10);
@@ -135,9 +136,9 @@ export const generateNovelArchitecture = async (
 
             if (onUpdate) onUpdate('生成完成', 100);
 
-            // 后端返回的是 JSON 对象，需要转换为 OutlineNode
-            // 这里简化处理，实际可能需要更复杂的转换
-            return result as OutlineNode;
+            // 后端返回的是简化的 JSON 对象，需要转换为 ArchitectureMap
+            // 这里做一个基础的类型转换
+            return result as ArchitectureMap;
         } catch (error: any) {
             console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
             return FrontendGeminiService.generateNovelArchitecture(
@@ -163,22 +164,24 @@ export const generateNovelArchitecture = async (
  * 章节内容生成（适配器）
  */
 export const generateChapterContent = async (
-    chapterTitle: string,
-    chapterOutline: string,
-    wordCount: number,
+    node: OutlineNode,
     context: string,
     lang: string,
     model: string,
-    systemInstruction: string,
-    onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics) => void
+    stylePrompt: string | undefined,
+    wordCount: number = 2000,
+    systemInstruction?: string,
+    onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics) => void,
+    previousContent?: string,
+    nextChapterInfo?: { title: string, desc?: string, childrenText?: string }
 ): Promise<string> => {
     if (USE_BACKEND) {
         try {
             if (onUpdate) onUpdate('连接后端服务器...', 10);
 
             const { data } = await BackendAPI.generate.chapterContent({
-                title: chapterTitle,
-                outline: chapterOutline,
+                title: node.name,
+                outline: node.description || '',
                 wordCount,
                 lang,
                 model
@@ -203,26 +206,30 @@ export const generateChapterContent = async (
         } catch (error: any) {
             console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
             return FrontendGeminiService.generateChapterContent(
-                chapterTitle,
-                chapterOutline,
-                wordCount,
+                node,
                 context,
                 lang,
                 model,
+                stylePrompt,
+                wordCount,
                 systemInstruction,
-                onUpdate
+                onUpdate,
+                previousContent,
+                nextChapterInfo
             );
         }
     } else {
         return FrontendGeminiService.generateChapterContent(
-            chapterTitle,
-            chapterOutline,
-            wordCount,
+            node,
             context,
             lang,
             model,
+            stylePrompt,
+            wordCount,
             systemInstruction,
-            onUpdate
+            onUpdate,
+            previousContent,
+            nextChapterInfo
         );
     }
 };
@@ -242,7 +249,6 @@ export const extractContextFromTree = FrontendGeminiService.extractContextFromTr
 export const manipulateText = FrontendGeminiService.manipulateText;
 export const rewriteChapterWithContext = FrontendGeminiService.rewriteChapterWithContext;
 export const analyzeText = FrontendGeminiService.analyzeText;
-export const generateEmbedding = FrontendGeminiService.generateEmbedding;
 export const retrieveRelevantContext = FrontendGeminiService.retrieveRelevantContext;
 
 // 导出所有其他函数...
