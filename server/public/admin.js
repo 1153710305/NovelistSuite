@@ -230,11 +230,14 @@ async function loadApiKeys() {
         const res = await fetch(`${API_BASE}/api/admin/api-keys`);
         const data = await res.json();
 
+        // 后端返回格式: { success: true, data: { keys: [...], totalCount: n, activeCount: n } }
+        const keys = data.data?.keys || [];
+
         const tbody = document.getElementById('keysTableBody');
-        if (data.data.length === 0) {
+        if (keys.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400">${t('noKeys')}</td></tr>`;
         } else {
-            tbody.innerHTML = data.data.map(key => `
+            tbody.innerHTML = keys.map(key => `
                 <tr class="hover:bg-gray-50">
                     <td class="p-3 font-mono text-xs text-gray-500">${key.id}</td>
                     <td class="p-3">
