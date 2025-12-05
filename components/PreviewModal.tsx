@@ -57,8 +57,8 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     <button
                         onClick={() => setActiveTab('old')}
                         className={`flex-1 py-3 px-4 font-medium transition-colors ${activeTab === 'old'
-                                ? 'bg-slate-800 text-white border-b-2 border-blue-500'
-                                : 'text-slate-400 hover:bg-slate-800/50'
+                            ? 'bg-slate-800 text-white border-b-2 border-blue-500'
+                            : 'text-slate-400 hover:bg-slate-800/50'
                             }`}
                     >
                         原内容
@@ -66,8 +66,8 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     <button
                         onClick={() => setActiveTab('new')}
                         className={`flex-1 py-3 px-4 font-medium transition-colors ${activeTab === 'new'
-                                ? 'bg-slate-800 text-white border-b-2 border-purple-500'
-                                : 'text-slate-400 hover:bg-slate-800/50'
+                            ? 'bg-slate-800 text-white border-b-2 border-purple-500'
+                            : 'text-slate-400 hover:bg-slate-800/50'
                             }`}
                     >
                         新内容 {isStreaming && <span className="ml-2 text-xs">⏳</span>}
@@ -160,7 +160,7 @@ function renderContent(type: 'map' | 'draft', content: OutlineNode | string) {
                 </div>
             );
         }
-        return <MindMap rootNode={mapContent} />;
+        return <MindMap data={mapContent} onNodeClick={() => { }} />;
     } else {
         // 正文草稿预览
         const draftContent = content as string;

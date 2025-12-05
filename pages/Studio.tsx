@@ -132,6 +132,10 @@ export const Studio: React.FC = () => {
         title: string;
         oldContent: OutlineNode | string;
         newContent: OutlineNode | string;
+        metadata?: {
+            mapType?: string; // 用于思维导图
+            chapterTitle?: string; // 用于草稿
+        };
     } | null>(null);
 
     const [showInspirationConfig, setShowInspirationConfig] = useState(false);
@@ -228,6 +232,45 @@ export const Studio: React.FC = () => {
     const allMaps = [...coreMaps, ...plotMaps];
 
     const loadHistory = () => setTimeout(() => setHistory(getHistory<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO)), 100);
+
+    // 确认替换预览内容
+    const handleConfirmReplace = () => {
+        if (!previewData || !activeStoryRecord) return;
+
+        if (previewData.type === 'map') {
+            // 替换思维导图
+            const mapType = previewData.metadata?.mapType;
+            if (mapType) {
+                const newArchitecture = {
+                    ...activeStoryRecord.architecture,
+                    [mapType]: previewData.newContent as OutlineNode
+                };
+                const updatedRecord = { ...activeStoryRecord, architecture: newArchitecture };
+                setActiveStoryRecord(updatedRecord);
+                updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { architecture: newArchitecture });
+                console.log(`[Studio] 思维导图已更新: ${mapType}`);
+            }
+        } else if (previewData.type === 'draft') {
+            // 添加新章节
+            const chapterTitle = previewData.metadata?.chapterTitle || '新章节';
+            const newChapters = [...(activeStoryRecord.chapters || []), {
+                title: chapterTitle,
+                content: previewData.newContent as string
+            }];
+            const updatedRecord = { ...activeStoryRecord, chapters: newChapters };
+            setActiveStoryRecord(updatedRecord);
+            updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { chapters: newChapters });
+            console.log(`[Studio] 章节已添加: ${chapterTitle}`);
+        }
+
+        setPreviewData(null);
+    };
+
+    // 取消替换
+    const handleCancelReplace = () => {
+        console.log('[Studio] 用户取消了内容替换');
+        setPreviewData(null);
+    };
 
     useEffect(() => {
         const savedData = loadFromStorage(STORAGE_KEYS.STUDIO);
@@ -691,11 +734,19 @@ export const Studio: React.FC = () => {
                     (stage, progress, log, metrics, debugInfo) => updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo),
                     regenRequirements
                 );
-                const newArchitecture = { ...activeStoryRecord.architecture, [selectedMapType]: newRoot };
-                const updatedRecord = { ...activeStoryRecord, architecture: newArchitecture };
-                setActiveStoryRecord(updatedRecord);
-                updateHistoryItem<StudioRecord>(STORAGE_KEYS.HISTORY_STUDIO, activeStoryRecord.id, { architecture: newArchitecture });
-                setHistory(prev => prev.map(item => item.id === activeStoryRecord.id ? updatedRecord : item));
+
+                // 不立即替换，显示预览
+                setPreviewData({
+                    type: 'map',
+                    title: `重绘 ${selectedMapType} 导图`,
+                    oldContent: activeStoryRecord.architecture?.[selectedMapType] || { name: '空导图', type: 'book' as const, children: [] },
+                    newContent: newRoot,
+                    metadata: {
+                        mapType: selectedMapType
+                    }
+                });
+
+                updateTaskProgress(taskId, t('process.complete'), 100, '✅ 生成完成，请在预览窗口确认是否替换');
                 return t('process.done');
             });
         };
@@ -1092,7 +1143,7 @@ export const Studio: React.FC = () => {
         if (!activeStoryRecord) return;
         if (mode === 'upload' && file) {
             const reader = new FileReader();
-            reader.onloadend = () => insertTextAtCursor(`\n\n![Uploaded Illustration](${reader.result})\n\n`);
+            reader.onloadend = () => insertTextAtCursor(`\n\n![Uploaded Illustration](${reader.result}`);
             reader.readAsDataURL(file);
             return;
         }
@@ -1804,6 +1855,19 @@ export const Studio: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* 预览Modal */}
+            {previewData && (
+                <PreviewModal
+                    type={previewData.type}
+                    title={previewData.title}
+                    oldContent={previewData.oldContent}
+                    newContent={previewData.newContent}
+                    isStreaming={false} // 阶段1不使用流式
+                    onConfirm={handleConfirmReplace}
+                    onCancel={handleCancelReplace}
+                />
+            )}
         </div>
     );
 };
