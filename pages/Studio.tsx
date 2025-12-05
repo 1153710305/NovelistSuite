@@ -28,6 +28,7 @@ import { StudioSidebar } from '../components/studio/StudioSidebar';
 import { StudioEditor } from '../components/studio/StudioEditor';
 import { StudioFileList } from '../components/studio/StudioFileList';
 import { DataManagerModal } from '../components/DataManagerModal';
+import { PreviewModal } from '../components/PreviewModal';
 import { PromptLibraryModal } from '../components/PromptLibraryModal';
 import { InspirationRules, PromptService } from '../services/promptService';
 
@@ -124,6 +125,14 @@ export const Studio: React.FC = () => {
     const [selectedSources, setSelectedSources] = useState<string[]>(['fanqie']);
     const [targetAudience, setTargetAudience] = useState<string>('male');
     const [showSourceSelector, setShowSourceSelector] = useState(false);
+
+    // 预览数据状态 - 用于生成内容的预览和确认
+    const [previewData, setPreviewData] = useState<{
+        type: 'map' | 'draft';
+        title: string;
+        oldContent: OutlineNode | string;
+        newContent: OutlineNode | string;
+    } | null>(null);
 
     const [showInspirationConfig, setShowInspirationConfig] = useState(false);
     const [inspirationRules, setInspirationRules] = useState<InspirationRules>({
