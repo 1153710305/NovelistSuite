@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InkFlow 后端管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-button.active {
+            background-color: rgb(13 148 136);
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">🚀 InkFlow 后端管理系统</h1>
+                <div class="flex items-center gap-4">
+                    <select id="langSelect" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                    </select>
+                    <span id="serverStatus" class="flex items-center gap-2 text-sm">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span id="statusText">服务器运行中</span>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="max-w-7xl mx-auto px-4 mt-6">
+            <div class="flex gap-2 border-b border-gray-200">
+                <button class="tab-button active px-6 py-3 font-medium rounded-t-lg transition-colors" data-tab="monitor" id="tabMonitor">
+                    后端监控
+                </button>
+                <button class="tab-button px-6 py-3 font-medium rounded-t-lg transition-colors hover:bg-gray-100" data-tab="apikeys" id="tabApiKeys">
+                    API Keys
+                </button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <!-- Backend Monitor Tab -->
+            <div id="content-monitor" class="tab-content">
+                <div class="space-y-6">
+                    <!-- Controls -->
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xl font-bold text-gray-800" id="monitorTitle">后端监控</h2>
+                        <div class="flex items-center gap-4">
+                            <label class="flex items-center gap-2 text-sm text-gray-600">
+                                <input type="checkbox" id="autoRefresh" checked class="rounded">
+                                <span id="autoRefreshText">自动刷新 (5秒)</span>
+                            </label>
+                            <button id="refreshBtn" class="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="statsCards">
+                        <!-- Will be populated by JS -->
+                    </div>
+
+                    <!-- Tasks Table -->
+                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-gray-200 font-bold text-gray-700" id="recentTasksTitle">最近任务</div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-50 text-gray-500">
+                                    <tr>
+                                        <th class="p-3 font-medium">ID</th>
+                                        <th class="p-3 font-medium" id="thType">类型</th>
+                                        <th class="p-3 font-medium" id="thStatus">状态</th>
+                                        <th class="p-3 font-medium" id="thCreated">创建时间</th>
+                                        <th class="p-3 font-medium" id="thDuration">耗时</th>
+                                        <th class="p-3 font-medium" id="thActions">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tasksTableBody" class="divide-y divide-gray-100">
+                                    <!-- Will be populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Keys Tab -->
+            <div id="content-apikeys" class="tab-content hidden">
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-gray-800" id="apiKeysTitle">API Key 管理</h2>
+
+                    <!-- Add Key Form -->
+                    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex gap-2">
+                        <input type="text" id="newKeyInput" placeholder="输入新的 Gemini API Key..." 
+                            class="flex-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                        <button id="addKeyBtn" class="px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 flex items-center gap-2">
+                            <span id="addKeyText">添加 Key</span>
+                        </button>
+                    </div>
+
+                    <!-- Keys Table -->
+                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-50 text-gray-500">
+                                    <tr>
+                                        <th class="p-3 font-medium">Key ID</th>
+                                        <th class="p-3 font-medium" id="thKeyStatus">状态</th>
+                                        <th class="p-3 font-medium" id="thUsage">使用次数</th>
+                                        <th class="p-3 font-medium" id="thFailures">失败次数</th>
+                                        <th class="p-3 font-medium" id="thLastUsed">最后使用</th>
+                                        <th class="p-3 font-medium" id="thKeyActions">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="keysTableBody" class="divide-y divide-gray-100">
+                                    <!-- Will be populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Info Box -->
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3 items-start">
+                        <svg class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div class="text-sm text-blue-700">
+                            <p class="font-bold mb-1" id="rotationTitle">关于 API Key 轮换</p>
+                            <p id="rotationDesc">系统使用最近最少使用 (LRU) 策略自动在激活的 Key 之间轮换。如果某个 Key 失败次数过多，将被自动禁用。您可以在此手动重新激活。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="logsModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">
+                    <span id="logsModalTitle">任务日志</span>: 
+                    <span id="currentTaskId" class="font-mono text-sm text-gray-500"></span>
+                </h3>
+                <button id="closeLogsModal" class="text-gray-500 hover:text-gray-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="logsContent" class="p-4 overflow-y-auto flex-1 bg-gray-50 font-mono text-xs">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/admin.js"></script>
+</body>
+</html>

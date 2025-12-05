@@ -66,6 +66,15 @@ app.get('/api/info', (req, res) => {
     });
 });
 
+// 静态文件服务（管理界面）
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../public')));
+
+// 管理界面路由
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/admin.html'));
+});
+
 // 任务路由
 const tasksRoutes = require('./routes/tasks');
 app.use('/api/tasks', tasksRoutes);
@@ -74,7 +83,6 @@ app.use('/api/tasks', tasksRoutes);
 const generateRoutes = require('./routes/generate');
 app.use('/api/generate', generateRoutes);
 
-// 管理员路由
 // 管理员路由
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);

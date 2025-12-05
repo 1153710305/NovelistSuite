@@ -4,13 +4,10 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storag
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity, MessageSquare, Server } from 'lucide-react';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity, MessageSquare } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
 import { ModelHealthChecker } from '../components/ModelHealthChecker';
 import { PromptManager } from './PromptManager';
-import { BackendMonitor } from '../components/admin/BackendMonitor';
-import { ApiKeyManager } from '../components/admin/ApiKeyManager';
-import { BackendAPI } from '../services/backendApi';
 
 
 interface AdminProps {
@@ -20,7 +17,7 @@ interface AdminProps {
 export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const { t } = useI18n();
     const { modelConfigs, updateModelConfig, resetModelConfigs } = useApp();
-    const [activeTab, setActiveTab] = useState<'monitor' | 'apikeys' | 'lab' | 'studio' | 'architect' | 'logs' | 'config' | 'prompts'>('monitor');
+    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs' | 'config' | 'prompts'>('lab');
     const [data, setData] = useState<any[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -29,7 +26,6 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
 
     // 本地编辑状态，用于模型配置
     const [editingConfigs, setEditingConfigs] = useState<Record<string, any>>({});
-    const [backendConfig, setBackendConfig] = useState<{ maxConcurrent: number }>({ maxConcurrent: 3 });
 
     useEffect(() => {
         if (activeTab === 'logs') {
@@ -41,13 +37,6 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                 initEdit[m.id] = { ...m };
             });
             setEditingConfigs(initEdit);
-
-            // Fetch backend config
-            BackendAPI.tasks.queueStatus().then(res => {
-                if (res.success) {
-                    setBackendConfig({ maxConcurrent: res.data.maxConcurrent });
-                }
-            });
         } else if (['lab', 'studio', 'architect'].includes(activeTab)) {
             let key = '';
             switch (activeTab) {
@@ -154,30 +143,16 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         }
     }
 
-    const handleBackendConfigChange = (val: number) => {
-        setBackendConfig({ maxConcurrent: val });
-    };
-
-    const saveBackendConfig = async () => {
-        try {
-            await BackendAPI.tasks.configQueue({ maxConcurrent: backendConfig.maxConcurrent });
-            alert(t('admin.config.saved'));
-        } catch (error) {
-            alert('Failed to save backend config');
-        }
-    };
 
     const formatDate = (ts: number) => new Date(ts).toLocaleString();
 
     const tabs = [
-        { id: 'monitor', label: 'Backend Monitor', icon: Activity },
-        { id: 'apikeys', label: 'API Keys', icon: Network },
-        { id: 'config', label: t('admin.tabConfig'), icon: Settings },
-        { id: 'prompts', label: '提示词管理', icon: MessageSquare },
         { id: 'lab', label: t('admin.tabLab'), icon: FileText },
         { id: 'studio', label: t('admin.tabStudio'), icon: PenTool },
         { id: 'architect', label: t('admin.tabArchitect'), icon: Network },
         { id: 'logs', label: t('common.logs'), icon: Terminal },
+        { id: 'config', label: t('admin.tabConfig'), icon: Settings },
+        { id: 'prompts', label: 'Prompts', icon: MessageSquare }
     ];
 
     return (
@@ -247,7 +222,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <button onClick={handleRefresh} className="p-2 text-slate-500 hover:text-teal-600 rounded-lg hover:bg-slate-100" title={t('admin.refresh')}>
                                 <RefreshCw size={18} />
                             </button>
-                            {!['config', 'monitor', 'apikeys'].includes(activeTab) && (
+                            {!['config', 'prompts'].includes(activeTab) && (
                                 <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50" title={t('admin.clearAll')}>
                                     <Trash2 size={18} />
                                 </button>
@@ -256,47 +231,9 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                     </div>
 
                     <div className="p-0 overflow-x-auto flex-1">
-                        {activeTab === 'monitor' ? (
-                            <BackendMonitor />
-                        ) : activeTab === 'apikeys' ? (
-                            <ApiKeyManager />
-                        ) : activeTab === 'config' ? (
+                        {activeTab === 'config' ? (
                             // --- CONFIG VIEW ---
                             <div className="p-6 space-y-8">
-                                {/* Backend Configuration */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <Server size={18} className="text-teal-600" /> {t('admin.backendConfig.title')}
-                                        </h3>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex-1">
-                                                <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.backendConfig.maxConcurrent')}</label>
-                                                <p className="text-xs text-slate-500">{t('admin.backendConfig.maxConcurrentDesc')}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="10"
-                                                    value={backendConfig.maxConcurrent}
-                                                    onChange={(e) => handleBackendConfigChange(parseInt(e.target.value) || 1)}
-                                                    className="w-20 p-2 border border-slate-200 rounded text-sm"
-                                                />
-                                                <button
-                                                    onClick={saveBackendConfig}
-                                                    className="p-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
-                                                    title={t('admin.backendConfig.save')}
-                                                >
-                                                    <Save size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 {/* Frontend Model Configuration */}
                                 <div>
                                     <div className="flex justify-between items-center mb-4">
