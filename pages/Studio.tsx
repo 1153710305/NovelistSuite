@@ -132,6 +132,7 @@ export const Studio: React.FC = () => {
         title: string;
         oldContent: OutlineNode | string;
         newContent: OutlineNode | string;
+        rawResponse?: string; // AI原始响应（JSON文本）
         metadata?: {
             mapType?: string; // 用于思维导图
             chapterTitle?: string; // 用于草稿
@@ -725,13 +726,22 @@ export const Studio: React.FC = () => {
                     prompt: actualTaskPayload
                 });
 
+
+                let rawResponseText = ''; // 存储原始响应
+
                 const newRoot = await regenerateSingleMap(
                     selectedMapType,
                     regenIdea,
                     finalContext,
                     lang, model, regenStyleContent,
                     globalPersona,
-                    (stage, progress, log, metrics, debugInfo) => updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo),
+                    (stage, progress, log, metrics, debugInfo) => {
+                        // 捕获原始响应
+                        if (debugInfo?.apiPayload?.response) {
+                            rawResponseText = debugInfo.apiPayload.response;
+                        }
+                        updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo);
+                    },
                     regenRequirements
                 );
 
@@ -741,6 +751,7 @@ export const Studio: React.FC = () => {
                     title: `重绘 ${selectedMapType} 导图`,
                     oldContent: activeStoryRecord.architecture?.[selectedMapType] || { name: '空导图', type: 'book' as const, children: [] },
                     newContent: newRoot,
+                    rawResponse: rawResponseText, // 添加原始响应
                     metadata: {
                         mapType: selectedMapType
                     }
@@ -1863,6 +1874,7 @@ export const Studio: React.FC = () => {
                     title={previewData.title}
                     oldContent={previewData.oldContent}
                     newContent={previewData.newContent}
+                    rawResponse={previewData.rawResponse}
                     isStreaming={false} // 阶段1不使用流式
                     onConfirm={handleConfirmReplace}
                     onCancel={handleCancelReplace}
