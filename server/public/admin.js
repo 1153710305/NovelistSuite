@@ -337,20 +337,32 @@ document.getElementById('addKeyBtn').addEventListener('click', async () => {
     const input = document.getElementById('newKeyInput');
     const key = input.value.trim();
 
-    if (!key) return;
+    if (!key) {
+        alert(currentLang === 'zh' ? '请输入 API Key' : 'Please enter an API Key');
+        return;
+    }
 
     try {
-        await fetch(`${API_BASE}/api/admin/api-keys`, {
+        console.log('Adding API key:', key);
+        const res = await fetch(`${API_BASE}/api/admin/api-keys`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key })
         });
 
-        input.value = '';
-        loadApiKeys();
+        const data = await res.json();
+        console.log('Add API key response:', data);
+
+        if (data.success) {
+            input.value = '';
+            alert(currentLang === 'zh' ? 'API Key 添加成功' : 'API Key added successfully');
+            await loadApiKeys();
+        } else {
+            alert(currentLang === 'zh' ? `添加失败: ${data.error}` : `Failed: ${data.error}`);
+        }
     } catch (error) {
         console.error('Failed to add API key:', error);
-        alert('Failed to add API key');
+        alert(currentLang === 'zh' ? '添加 API Key 失败' : 'Failed to add API key');
     }
 });
 
