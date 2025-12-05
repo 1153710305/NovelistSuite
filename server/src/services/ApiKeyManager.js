@@ -41,6 +41,9 @@ class ApiKeyManager {
             this.keyStats.set(keyId, {
                 keyId,
                 key,
+                alias: '', // 别名/备注
+                tags: [], // 标签数组
+                priority: 0, // 优先级（数字越大优先级越高，默认0）
                 lastUsedAt: null,
                 totalUsage: 0,
                 failCount: 0,
@@ -53,7 +56,9 @@ class ApiKeyManager {
 
     /**
      * 获取下一个可用的 API Key
-     * 策略：选择距离上次使用时间最远的 Key
+     * 策略：
+     * 1. 优先选择优先级高的 Key
+     * 2. 同优先级中选择距离上次使用时间最远的 Key (LRU)
      * @returns {{ keyId: string, key: string }}
      */
     getNextKey() {
@@ -63,11 +68,17 @@ class ApiKeyManager {
             throw new Error('没有可用的 API Key');
         }
 
-        // 找出上次使用时间最久远的 Key
+        // 找出最高优先级
+        const maxPriority = Math.max(...activeKeys.map(k => k.priority));
+
+        // 筛选出最高优先级的 Keys
+        const highestPriorityKeys = activeKeys.filter(k => k.priority === maxPriority);
+
+        // 在最高优先级的 Keys 中，选择上次使用时间最久远的 Key (LRU)
         let selectedKey = null;
         let oldestTime = Date.now();
 
-        for (const keyInfo of activeKeys) {
+        for (const keyInfo of highestPriorityKeys) {
             const lastUsed = keyInfo.lastUsedAt || 0;
             if (lastUsed < oldestTime) {
                 oldestTime = lastUsed;
@@ -77,10 +88,10 @@ class ApiKeyManager {
 
         if (!selectedKey) {
             // 如果所有 Key 都没用过，选第一个
-            selectedKey = activeKeys[0];
+            selectedKey = highestPriorityKeys[0];
         }
 
-        console.log(`[ApiKeyManager] 选择 Key: ${selectedKey.keyId} (上次使用: ${selectedKey.lastUsedAt ? new Date(selectedKey.lastUsedAt).toISOString() : '从未使用'})`);
+        console.log(`[ApiKeyManager] 选择 Key: ${selectedKey.keyId} (优先级: ${selectedKey.priority}, 上次使用: ${selectedKey.lastUsedAt ? new Date(selectedKey.lastUsedAt).toISOString() : '从未使用'})`);
 
         return {
             keyId: selectedKey.keyId,
@@ -141,6 +152,9 @@ class ApiKeyManager {
         return Array.from(this.keyStats.values()).map(k => ({
             keyId: k.keyId,
             key: k.key.substring(0, 10) + '...' + k.key.substring(k.key.length - 4), // 脱敏
+            alias: k.alias,
+            tags: k.tags,
+            priority: k.priority,
             lastUsedAt: k.lastUsedAt,
             totalUsage: k.totalUsage,
             failCount: k.failCount,
@@ -190,6 +204,33 @@ class ApiKeyManager {
 
         this.keyStats.delete(keyId);
         console.log(`[ApiKeyManager] 删除 Key: ${keyId}`);
+        return true;
+    }
+
+    /**
+     * 更新 Key 信息（别名、标签、优先级）
+     * @param {string} keyId - Key ID
+     * @param {Object} updates - 更新的字段 { alias, tags, priority }
+     * @returns {boolean} 是否成功
+     */
+    updateKeyInfo(keyId, updates) {
+        const keyInfo = this.keyStats.get(keyId);
+        if (!keyInfo) {
+            return false;
+        }
+
+        // 更新允许的字段
+        if (updates.alias !== undefined) {
+            keyInfo.alias = updates.alias;
+        }
+        if (updates.tags !== undefined) {
+            keyInfo.tags = Array.isArray(updates.tags) ? updates.tags : [];
+        }
+        if (updates.priority !== undefined) {
+            keyInfo.priority = Number(updates.priority) || 0;
+        }
+
+        console.log(`[ApiKeyManager] 更新 Key 信息: ${keyId}`, updates);
         return true;
     }
 

@@ -116,6 +116,41 @@ router.put('/api-keys/:keyId/reactivate', (req, res) => {
 });
 
 /**
+ * PUT /admin/api-keys/:keyId
+ * 更新 API Key 信息（别名、标签、优先级）
+ */
+router.put('/api-keys/:keyId', (req, res) => {
+    try {
+        const { keyId } = req.params;
+        const { alias, tags, priority } = req.body;
+
+        const updates = {};
+        if (alias !== undefined) updates.alias = alias;
+        if (tags !== undefined) updates.tags = tags;
+        if (priority !== undefined) updates.priority = priority;
+
+        const result = apiKeyManager.updateKeyInfo(keyId, updates);
+
+        if (result) {
+            res.json({
+                success: true,
+                message: 'API Key 信息更新成功'
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'API Key 不存在'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
  * GET /admin/api-keys/test/:keyId
  * 测试 API Key 选择
  */
