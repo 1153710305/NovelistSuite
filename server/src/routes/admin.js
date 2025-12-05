@@ -138,4 +138,47 @@ router.get('/api-keys/test', (req, res) => {
     }
 });
 
+/**
+ * POST /admin/test-model
+ * 测试指定模型
+ */
+router.post('/test-model', async (req, res) => {
+    const { model } = req.body;
+    const geminiService = require('../services/GeminiService');
+
+    try {
+        const { key } = apiKeyManager.getNextKey();
+        const startTime = Date.now();
+
+        // 发送简单请求
+        const result = await geminiService.generateContent(
+            key,
+            model,
+            "Hello, reply with 'OK'.",
+            { maxOutputTokens: 10 }
+        );
+
+        const latency = Date.now() - startTime;
+
+        res.json({
+            success: true,
+            data: {
+                model,
+                latency,
+                response: result.text,
+                status: 'healthy'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            data: {
+                model,
+                status: 'unhealthy'
+            }
+        });
+    }
+});
+
 module.exports = router;

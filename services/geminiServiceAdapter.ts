@@ -171,7 +171,7 @@ export const generateChapterContent = async (
     stylePrompt: string | undefined,
     wordCount: number = 2000,
     systemInstruction?: string,
-    onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics) => void,
+    onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void,
     previousContent?: string,
     nextChapterInfo?: { title: string, desc?: string, childrenText?: string }
 ): Promise<string> => {
@@ -235,21 +235,198 @@ export const generateChapterContent = async (
 };
 
 /**
- * 重绘思维导图（暂时使用前端）
+ * 重绘单个导图（适配器）
  */
-export const regenerateSingleMap = FrontendGeminiService.regenerateSingleMap;
+export const regenerateSingleMap = async (
+    mapType: string,
+    idea: string,
+    context: string,
+    lang: string,
+    model: string,
+    style: string | undefined,
+    systemInstruction: string,
+    onUpdate?: (stage: string, progress: number, log?: string, metrics?: AIMetrics, debugInfo?: any) => void,
+    mandatoryRequirements?: string
+): Promise<OutlineNode> => {
+    if (USE_BACKEND) {
+        try {
+            if (onUpdate) onUpdate('连接后端服务器...', 10);
+
+            const { data } = await BackendAPI.generate.regenerateMap({
+                mapType,
+                idea,
+                context,
+                style,
+                requirements: mandatoryRequirements,
+                lang,
+                model
+            });
+
+            if (onUpdate) onUpdate('任务已创建，等待执行...', 20, `任务ID: ${data.taskId}`);
+
+            const result = await pollTaskResult(
+                data.taskId,
+                (task) => {
+                    const progress = 20 + (task.progress || 0) * 0.7;
+                    if (onUpdate) {
+                        onUpdate('正在重绘导图...', progress, `状态: ${task.status}`);
+                    }
+                }
+            );
+
+            if (onUpdate) onUpdate('重绘完成', 100);
+            return result as OutlineNode;
+        } catch (error: any) {
+            console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
+            return FrontendGeminiService.regenerateSingleMap(
+                mapType,
+                idea,
+                context,
+                lang,
+                model,
+                style,
+                systemInstruction,
+                onUpdate,
+                mandatoryRequirements
+            );
+        }
+    } else {
+        return FrontendGeminiService.regenerateSingleMap(
+            mapType,
+            idea,
+            context,
+            lang,
+            model,
+            style,
+            systemInstruction,
+            onUpdate,
+            mandatoryRequirements
+        );
+    }
+};
 
 /**
- * 其他未迁移的功能，直接导出前端版本
+ * 扩展节点（适配器）
  */
-export const optimizeContextWithAI = FrontendGeminiService.optimizeContextWithAI;
-export const transformPromptFormat = FrontendGeminiService.transformPromptFormat;
-export const analyzeTrendKeywords = FrontendGeminiService.analyzeTrendKeywords;
-export const extractContextFromTree = FrontendGeminiService.extractContextFromTree;
-export const manipulateText = FrontendGeminiService.manipulateText;
-export const rewriteChapterWithContext = FrontendGeminiService.rewriteChapterWithContext;
-export const analyzeText = FrontendGeminiService.analyzeText;
-export const retrieveRelevantContext = FrontendGeminiService.retrieveRelevantContext;
+export const expandNodeContent = async (
+    node: OutlineNode,
+    context: string,
+    lang: string,
+    model: string,
+    style?: string,
+    systemInstruction?: string
+): Promise<OutlineNode[]> => {
+    if (USE_BACKEND) {
+        try {
+            const { data } = await BackendAPI.generate.expandNode({
+                node,
+                context,
+                style,
+                lang,
+                model
+            });
+            const result = await pollTaskResult(data.taskId);
+            return result as OutlineNode[];
+        } catch (error: any) {
+            console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
+            return FrontendGeminiService.expandNodeContent(node, context, lang, model, style, systemInstruction);
+        }
+    } else {
+        return FrontendGeminiService.expandNodeContent(node, context, lang, model, style, systemInstruction);
+    }
+};
+
+/**
+ * 文本工具（适配器）
+ */
+export const manipulateText = async (
+    text: string,
+    mode: 'continue' | 'rewrite' | 'polish',
+    lang: string,
+    model: string,
+    systemInstruction?: string
+): Promise<string> => {
+    if (USE_BACKEND) {
+        try {
+            const { data } = await BackendAPI.generate.manipulateText({
+                text,
+                mode,
+                lang,
+                model
+            });
+            const result = await pollTaskResult(data.taskId);
+            return result;
+        } catch (error: any) {
+            console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
+            return FrontendGeminiService.manipulateText(text, mode, lang, model, systemInstruction);
+        }
+    } else {
+        return FrontendGeminiService.manipulateText(text, mode, lang, model, systemInstruction);
+    }
+};
+
+/**
+ * 章节重写（适配器）
+ */
+export const rewriteChapterWithContext = async (
+    content: string,
+    context: string,
+    lang: string,
+    model: string,
+    style?: string,
+    systemInstruction?: string
+): Promise<string> => {
+    if (USE_BACKEND) {
+        try {
+            const { data } = await BackendAPI.generate.rewriteChapter({
+                content,
+                context,
+                style,
+                lang,
+                model
+            });
+            const result = await pollTaskResult(data.taskId);
+            return result;
+        } catch (error: any) {
+            console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
+            return FrontendGeminiService.rewriteChapterWithContext(content, context, lang, model, style, systemInstruction);
+        }
+    } else {
+        return FrontendGeminiService.rewriteChapterWithContext(content, context, lang, model, style, systemInstruction);
+    }
+};
+
+/**
+ * 趋势分析（适配器）
+ */
+export const analyzeTrendKeywords = async (
+    sources: string[],
+    gender: string,
+    lang: string,
+    model: string,
+    systemInstruction?: string,
+    onDebug?: (debugInfo: any) => void
+): Promise<string> => {
+    if (USE_BACKEND) {
+        try {
+            // 注意：后端 analyzeTrend 目前没有接收 gender 参数，可能需要后端也更新
+            // 暂时先忽略 gender 参数传递给后端，或者假设后端 PromptService 已经处理了
+            // 实际上后端 PromptService.analyzeTrend 也没有 gender 参数
+            const { data } = await BackendAPI.generate.analyzeTrend({
+                sources,
+                lang,
+                model
+            });
+            const result = await pollTaskResult(data.taskId);
+            return result;
+        } catch (error: any) {
+            console.error('[GeminiAdapter] 后端调用失败，回退到前端:', error);
+            return FrontendGeminiService.analyzeTrendKeywords(sources, gender, lang, model, systemInstruction, onDebug);
+        }
+    } else {
+        return FrontendGeminiService.analyzeTrendKeywords(sources, gender, lang, model, systemInstruction, onDebug);
+    }
+};
 
 // 导出所有其他函数...
 export * from './geminiService';

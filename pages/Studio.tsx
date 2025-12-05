@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 
 import {
-    manipulateText, rewriteChapterWithContext, extractContextFromTree, analyzeTrendKeywords, generateChapterContent, generateImage, generateIllustrationPrompt, generateNovelArchitecture, generateStoryFromIdea, regenerateSingleMap, generateDailyStories, optimizeContextWithAI, retrieveRelevantContext
-} from '../services/geminiService';
+    manipulateText, rewriteChapterWithContext, extractContextFromTree, analyzeTrendKeywords, generateChapterContent, generateImage, generateIllustrationPrompt, generateNovelArchitecture, generateStoryFromIdea, regenerateSingleMap, generateDailyStories, optimizeContextWithAI, retrieveRelevantContext, expandNodeContent
+} from '../services/geminiServiceAdapter';
 
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';

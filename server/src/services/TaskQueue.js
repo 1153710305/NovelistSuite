@@ -257,12 +257,23 @@ class TaskQueue {
                     break;
 
                 case TaskType.REGENERATE_MAP:
+                    result = await geminiService.regenerateSingleMap(apiKey, task.payload);
+                    break;
+
                 case TaskType.EXPAND_NODE:
-                    // 这些功能待后续实现
-                    result = {
-                        message: `${task.type} 功能待实现`,
-                        payload: task.payload
-                    };
+                    result = await geminiService.expandNode(apiKey, task.payload);
+                    break;
+
+                case TaskType.MANIPULATE_TEXT:
+                    result = await geminiService.manipulateText(apiKey, task.payload);
+                    break;
+
+                case TaskType.REWRITE_CHAPTER:
+                    result = await geminiService.rewriteChapter(apiKey, task.payload);
+                    break;
+
+                case TaskType.ANALYZE_TREND:
+                    result = await geminiService.analyzeTrend(apiKey, task.payload);
                     break;
 
                 default:

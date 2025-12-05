@@ -8,6 +8,8 @@ import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Termin
 import { LogEntry, LogLevel } from '../types';
 import { ModelHealthChecker } from '../components/ModelHealthChecker';
 import { PromptManager } from './PromptManager';
+import { BackendMonitor } from '../components/admin/BackendMonitor';
+import { ApiKeyManager } from '../components/admin/ApiKeyManager';
 
 
 interface AdminProps {
@@ -17,7 +19,7 @@ interface AdminProps {
 export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const { t } = useI18n();
     const { modelConfigs, updateModelConfig, resetModelConfigs } = useApp();
-    const [activeTab, setActiveTab] = useState<'lab' | 'studio' | 'architect' | 'logs' | 'config' | 'prompts'>('config');
+    const [activeTab, setActiveTab] = useState<'monitor' | 'apikeys' | 'lab' | 'studio' | 'architect' | 'logs' | 'config' | 'prompts'>('monitor');
     const [data, setData] = useState<any[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -37,7 +39,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                 initEdit[m.id] = { ...m };
             });
             setEditingConfigs(initEdit);
-        } else {
+        } else if (['lab', 'studio', 'architect'].includes(activeTab)) {
             let key = '';
             switch (activeTab) {
                 case 'lab': key = STORAGE_KEYS.HISTORY_LAB; break;
@@ -67,6 +69,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         }
     };
 
+    // ... (keep existing export/import logic) ...
     const handleExportAll = () => {
         const allData: Record<string, any> = {};
         Object.values(STORAGE_KEYS).forEach(key => {
@@ -145,6 +148,8 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
     const formatDate = (ts: number) => new Date(ts).toLocaleString();
 
     const tabs = [
+        { id: 'monitor', label: 'Backend Monitor', icon: Activity },
+        { id: 'apikeys', label: 'API Keys', icon: Network },
         { id: 'config', label: t('admin.tabConfig'), icon: Settings },
         { id: 'prompts', label: '提示词管理', icon: MessageSquare },
         { id: 'lab', label: t('admin.tabLab'), icon: FileText },
@@ -202,12 +207,12 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                 {/* Content */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
                     <div className="border-b border-slate-200 flex items-center justify-between p-2 bg-slate-50">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 overflow-x-auto">
                             {tabs.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${activeTab === tab.id
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === tab.id
                                         ? 'bg-white text-teal-600 shadow-sm ring-1 ring-slate-200'
                                         : 'text-slate-500 hover:bg-slate-200'
                                         }`}
@@ -220,7 +225,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <button onClick={handleRefresh} className="p-2 text-slate-500 hover:text-teal-600 rounded-lg hover:bg-slate-100" title={t('admin.refresh')}>
                                 <RefreshCw size={18} />
                             </button>
-                            {activeTab !== 'config' && (
+                            {!['config', 'monitor', 'apikeys'].includes(activeTab) && (
                                 <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50" title={t('admin.clearAll')}>
                                     <Trash2 size={18} />
                                 </button>
@@ -229,7 +234,11 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                     </div>
 
                     <div className="p-0 overflow-x-auto flex-1">
-                        {activeTab === 'config' ? (
+                        {activeTab === 'monitor' ? (
+                            <BackendMonitor />
+                        ) : activeTab === 'apikeys' ? (
+                            <ApiKeyManager />
+                        ) : activeTab === 'config' ? (
                             // --- CONFIG VIEW ---
                             <div className="p-6">
                                 <div className="flex justify-between items-center mb-6">

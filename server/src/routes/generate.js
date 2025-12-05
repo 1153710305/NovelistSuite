@@ -129,20 +129,24 @@ router.post('/chapter-content', async (req, res) => {
  */
 router.post('/regenerate-map', async (req, res) => {
     try {
-        const { mapType, idea, context } = req.body;
+        const { mapType, idea, context, style, requirements, lang, model } = req.body;
 
         const task = await taskQueue.addTask({
             type: TaskType.REGENERATE_MAP,
             payload: {
                 mapType,
                 idea,
-                context
+                context,
+                style,
+                requirements,
+                lang,
+                model
             }
         });
 
         res.json({
             success: true,
-            message: '任务已创建（功能待实现）',
+            message: '任务已创建',
             data: {
                 taskId: task.id,
                 status: task.status
@@ -162,20 +166,124 @@ router.post('/regenerate-map', async (req, res) => {
  */
 router.post('/expand-node', async (req, res) => {
     try {
-        const { nodeId, nodeName, context } = req.body;
+        const { node, context, style, lang, model } = req.body;
 
         const task = await taskQueue.addTask({
             type: TaskType.EXPAND_NODE,
             payload: {
-                nodeId,
-                nodeName,
-                context
+                node,
+                context,
+                style,
+                lang,
+                model
             }
         });
 
         res.json({
             success: true,
-            message: '任务已创建（功能待实现）',
+            message: '任务已创建',
+            data: {
+                taskId: task.id,
+                status: task.status
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /generate/manipulate-text
+ * 文本工具 (润色/续写)
+ */
+router.post('/manipulate-text', async (req, res) => {
+    try {
+        const { text, mode, lang, model } = req.body;
+
+        const task = await taskQueue.addTask({
+            type: TaskType.MANIPULATE_TEXT,
+            payload: {
+                text,
+                mode,
+                lang,
+                model
+            }
+        });
+
+        res.json({
+            success: true,
+            message: '任务已创建',
+            data: {
+                taskId: task.id,
+                status: task.status
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /generate/rewrite-chapter
+ * 章节重写
+ */
+router.post('/rewrite-chapter', async (req, res) => {
+    try {
+        const { content, context, style, lang, model } = req.body;
+
+        const task = await taskQueue.addTask({
+            type: TaskType.REWRITE_CHAPTER,
+            payload: {
+                content,
+                context,
+                style,
+                lang,
+                model
+            }
+        });
+
+        res.json({
+            success: true,
+            message: '任务已创建',
+            data: {
+                taskId: task.id,
+                status: task.status
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /generate/analyze-trend
+ * 趋势分析
+ */
+router.post('/analyze-trend', async (req, res) => {
+    try {
+        const { sources, lang, model } = req.body;
+
+        const task = await taskQueue.addTask({
+            type: TaskType.ANALYZE_TREND,
+            payload: {
+                sources,
+                lang,
+                model
+            }
+        });
+
+        res.json({
+            success: true,
+            message: '任务已创建',
             data: {
                 taskId: task.id,
                 status: task.status

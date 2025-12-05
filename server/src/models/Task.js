@@ -25,7 +25,10 @@ const TaskType = {
     NOVEL_ARCHITECTURE: 'novel_architecture',
     CHAPTER_CONTENT: 'chapter_content',
     REGENERATE_MAP: 'regenerate_map',
-    EXPAND_NODE: 'expand_node'
+    EXPAND_NODE: 'expand_node',
+    MANIPULATE_TEXT: 'manipulate_text',
+    REWRITE_CHAPTER: 'rewrite_chapter',
+    ANALYZE_TREND: 'analyze_trend'
 };
 
 class TaskModel {

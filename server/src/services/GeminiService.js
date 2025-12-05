@@ -31,9 +31,16 @@ class GeminiService {
         this.initClient(apiKey);
 
         const executeGen = async () => {
-            const generativeModel = this.client.getGenerativeModel({
+            const modelParams = {
                 model: model || 'gemini-2.0-flash-exp'
-            });
+            };
+
+            // 如果有 tools 配置，添加到模型参数中
+            if (config.tools) {
+                modelParams.tools = config.tools;
+            }
+
+            const generativeModel = this.client.getGenerativeModel(modelParams);
 
             const result = await generativeModel.generateContent({
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -169,6 +176,116 @@ class GeminiService {
                 rawText: result.text
             };
         }
+    }
+
+    /**
+     * 重绘单个导图
+     */
+    async regenerateSingleMap(apiKey, params) {
+        const { mapType, idea, context, lang = 'zh', model, style, requirements } = params;
+        const PromptService = require('./PromptService');
+        const prompt = `${PromptService.regenerateMap(mapType, idea, context, style, requirements)} ${PromptService.getLangInstruction(lang)}`;
+
+        const config = {
+            temperature: 0.9,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+            jsonMode: true
+        };
+
+        const result = await this.generateContent(apiKey, model, prompt, config);
+        try {
+            return JSON.parse(result.text);
+        } catch (e) {
+            return { error: 'JSON解析失败', rawText: result.text };
+        }
+    }
+
+    /**
+     * 扩展节点
+     */
+    async expandNode(apiKey, params) {
+        const { node, context, lang = 'zh', model, style } = params;
+        const PromptService = require('./PromptService');
+        const prompt = `${PromptService.expandNode(node, context, style)} ${PromptService.getLangInstruction(lang)}`;
+
+        const config = {
+            temperature: 0.9,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+            jsonMode: true
+        };
+
+        const result = await this.generateContent(apiKey, model, prompt, config);
+        try {
+            const parsed = JSON.parse(result.text);
+            return Array.isArray(parsed) ? parsed : (parsed.children || []);
+        } catch (e) {
+            return []; // 扩展失败返回空数组
+        }
+    }
+
+    /**
+     * 文本工具 (润色/续写)
+     */
+    async manipulateText(apiKey, params) {
+        const { text, mode, lang = 'zh', model } = params;
+        const PromptService = require('./PromptService');
+        const prompt = `${PromptService.manipulateText(text, mode)} ${PromptService.getLangInstruction(lang)}`;
+
+        const config = {
+            temperature: 0.8,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+            jsonMode: false
+        };
+
+        const result = await this.generateContent(apiKey, model, prompt, config);
+        return result.text;
+    }
+
+    /**
+     * 章节重写
+     */
+    async rewriteChapter(apiKey, params) {
+        const { content, context, lang = 'zh', model, style } = params;
+        const PromptService = require('./PromptService');
+        const prompt = `${PromptService.rewriteChapter(content, context, style)} ${PromptService.getLangInstruction(lang)}`;
+
+        const config = {
+            temperature: 0.8,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+            jsonMode: false
+        };
+
+        const result = await this.generateContent(apiKey, model, prompt, config);
+        return result.text;
+    }
+
+    /**
+     * 趋势分析
+     */
+    async analyzeTrend(apiKey, params) {
+        const { sources, lang = 'zh', model } = params;
+        const PromptService = require('./PromptService');
+        const prompt = `${PromptService.analyzeTrend(sources)} ${PromptService.getLangInstruction(lang)}`;
+
+        const config = {
+            temperature: 0.5,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 1024,
+            jsonMode: false,
+            tools: [{ googleSearch: {} }] // 启用 Google Search
+        };
+
+        const result = await this.generateContent(apiKey, model, prompt, config);
+        return result.text;
     }
 }
 

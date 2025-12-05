@@ -196,6 +196,10 @@ export const BackendAPI = {
             mapType: string;
             idea: string;
             context?: string;
+            style?: string;
+            requirements?: string;
+            lang?: string;
+            model?: string;
         }) => {
             return request<{ success: boolean; data: { taskId: string; status: string } }>(
                 '/api/generate/regenerate-map',
@@ -210,12 +214,68 @@ export const BackendAPI = {
          * 扩展节点
          */
         expandNode: async (params: {
-            nodeId: string;
-            nodeName: string;
+            node: any;
             context?: string;
+            style?: string;
+            lang?: string;
+            model?: string;
         }) => {
             return request<{ success: boolean; data: { taskId: string; status: string } }>(
                 '/api/generate/expand-node',
+                {
+                    method: 'POST',
+                    body: JSON.stringify(params),
+                }
+            );
+        },
+
+        /**
+         * 文本工具 (润色/续写)
+         */
+        manipulateText: async (params: {
+            text: string;
+            mode: 'continue' | 'rewrite' | 'polish';
+            lang?: string;
+            model?: string;
+        }) => {
+            return request<{ success: boolean; data: { taskId: string; status: string } }>(
+                '/api/generate/manipulate-text',
+                {
+                    method: 'POST',
+                    body: JSON.stringify(params),
+                }
+            );
+        },
+
+        /**
+         * 章节重写
+         */
+        rewriteChapter: async (params: {
+            content: string;
+            context?: string;
+            style?: string;
+            lang?: string;
+            model?: string;
+        }) => {
+            return request<{ success: boolean; data: { taskId: string; status: string } }>(
+                '/api/generate/rewrite-chapter',
+                {
+                    method: 'POST',
+                    body: JSON.stringify(params),
+                }
+            );
+        },
+
+        /**
+         * 趋势分析
+         */
+        analyzeTrend: async (params: {
+            sources: string[];
+            lang?: string;
+            model?: string;
+        }) => {
+            return request<{ success: boolean; data: { taskId: string; status: string } }>(
+                '/api/generate/analyze-trend',
                 {
                     method: 'POST',
                     body: JSON.stringify(params),
@@ -268,6 +328,16 @@ export const BackendAPI = {
          */
         testApiKeys: async () => {
             return request<{ success: boolean; data: any }>('/admin/api-keys/test');
+        },
+
+        /**
+         * 测试模型健康
+         */
+        testModel: async (model: string) => {
+            return request<{ success: boolean; data: any }>('/admin/test-model', {
+                method: 'POST',
+                body: JSON.stringify({ model }),
+            });
         },
     },
 };

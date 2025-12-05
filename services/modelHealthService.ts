@@ -66,6 +66,8 @@ export const testModelHealth = async (
     }
 };
 
+import BackendAPI from './backendApi';
+
 /**
  * 测试 Google Gemini 模型
  */
@@ -74,6 +76,29 @@ const testGeminiModel = async (
     apiKey: string,
     startTime: number
 ): Promise<ModelHealthResult> => {
+    const USE_BACKEND = process.env.NEXT_PUBLIC_USE_BACKEND !== 'false';
+
+    if (USE_BACKEND) {
+        try {
+            const res = await BackendAPI.admin.testModel(modelId);
+            return {
+                modelId,
+                status: 'healthy',
+                latency: res.data.latency,
+                responsePreview: res.data.response,
+                timestamp: Date.now()
+            };
+        } catch (error: any) {
+            return {
+                modelId,
+                status: 'unhealthy',
+                latency: Date.now() - startTime,
+                error: error.message || '后端测试失败',
+                timestamp: Date.now()
+            };
+        }
+    }
+
     try {
         const ai = new GoogleGenAI({ apiKey });
 
