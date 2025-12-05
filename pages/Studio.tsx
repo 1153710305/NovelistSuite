@@ -626,7 +626,7 @@ export const Studio: React.FC = () => {
 
                 // 2. Execute Optimization if needed
                 if (mapContextToOptimize.length > 100) { // Only optimize if substantial content
-                    updateTaskProgress(taskId, t('process.optimizing'), 15, t('process.scrubbing') + ` (${mapToOptimizeKeys.join(', ')})`, undefined, {
+                    updateTaskProgress(taskId, t('process.optimizing'), 15, '🔄 ' + t('process.scrubbing') + ` (${mapToOptimizeKeys.join(', ')})`, undefined, {
                         systemInstruction: globalPersona,
                         context: mapContextToOptimize, // Show what is being sent to scrubber
                         prompt: "Context Scrubbing Task"
@@ -639,7 +639,7 @@ export const Studio: React.FC = () => {
                     // Calculate compression ratio - 使用返回结果中的压缩率
                     const ratio = optResult.compressionRatio.toFixed(1);
                     const logMsg = optResult.success
-                        ? t('process.opt_success').replace('{ratio}', ratio)
+                        ? '✅ ' + t('process.opt_success').replace('{ratio}', ratio)
                         : `⚠️ 智能清洗未生效: ${optResult.message || '未知原因'}`;
 
                     updateTaskProgress(taskId, t('process.optimizing'), 30, logMsg, undefined, {
@@ -657,6 +657,12 @@ export const Studio: React.FC = () => {
 
                 // 3. Combine Metadata + Raw Context + Optimized Context
                 const finalContext = coreMetadata + mapContextRaw + finalOptimizedContext;
+
+                // 智能清洗已完成，准备调用AI
+                updateTaskProgress(taskId, t('process.regen_map'), 35, '✅ 上下文准备完成，等待确认...', undefined, {
+                    context: finalContext,
+                    prompt: actualTaskPayload
+                });
 
                 await pauseTask(taskId);
 

@@ -117,7 +117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [promptLibrary, setPromptLibrary] = useState<PromptTemplate[]>([]);
     const [usageStats, setUsageStats] = useState<GlobalUsageStats>({ totalTokens: 0, totalRequests: 0, lastReset: Date.now(), modelUsage: {} });
     const [activeTasks, setActiveTasks] = useState<BackgroundTask[]>([]);
-    const [autoExecute, setAutoExecute] = useState<boolean>(false); // 新增自动执行状态
+    const [autoExecute, setAutoExecute] = useState<boolean>(true); // 默认开启自动执行，提供流畅体验
 
     // 任务执行器映射表 (用于重试机制)
     // 使用 useRef 存储函数引用，避免闭包陷阱，同时不触发重渲染
