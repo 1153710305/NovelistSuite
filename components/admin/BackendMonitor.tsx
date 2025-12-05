@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BackendAPI } from '../../services/backendApi';
-import { Activity, Server, RefreshCw, Play, XCircle, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Activity, Server, RefreshCw, Play, XCircle, Clock, CheckCircle, AlertCircle, FileText, X } from 'lucide-react';
 
 export const BackendMonitor: React.FC = () => {
     const [stats, setStats] = useState<any>(null);
@@ -8,6 +8,9 @@ export const BackendMonitor: React.FC = () => {
     const [tasks, setTasks] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [selectedTaskLogs, setSelectedTaskLogs] = useState<any[]>([]);
+    const [showLogModal, setShowLogModal] = useState(false);
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -44,6 +47,19 @@ export const BackendMonitor: React.FC = () => {
             } catch (error) {
                 alert('Failed to cancel task');
             }
+        }
+    };
+
+    const handleViewLogs = async (taskId: string) => {
+        setCurrentTaskId(taskId);
+        setShowLogModal(true);
+        // Don't set global loading, just maybe local or just wait
+        try {
+            const res = await BackendAPI.tasks.logs(taskId);
+            setSelectedTaskLogs(res.data);
+        } catch (error) {
+            console.error('Failed to fetch logs', error);
+            setSelectedTaskLogs([]);
         }
     };
 
@@ -134,7 +150,14 @@ export const BackendMonitor: React.FC = () => {
                                             : '-'
                                         }
                                     </td>
-                                    <td className="p-3">
+                                    <td className="p-3 flex gap-2">
+                                        <button
+                                            onClick={() => handleViewLogs(task.id)}
+                                            className="text-slate-600 hover:bg-slate-100 p-1 rounded"
+                                            title="View Logs"
+                                        >
+                                            <FileText size={16} />
+                                        </button>
                                         {(task.status === 'pending' || task.status === 'running') && (
                                             <button
                                                 onClick={() => handleCancelTask(task.id)}
@@ -156,6 +179,40 @@ export const BackendMonitor: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Logs Modal */}
+            {showLogModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800">Task Logs: <span className="font-mono text-sm text-slate-500">{currentTaskId}</span></h3>
+                            <button onClick={() => setShowLogModal(false)} className="text-slate-500 hover:text-slate-800">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1 bg-slate-50 font-mono text-xs">
+                            {selectedTaskLogs.length === 0 ? (
+                                <div className="text-center text-slate-400 py-8">No logs available</div>
+                            ) : (
+                                selectedTaskLogs.map((log, i) => (
+                                    <div key={i} className="mb-2 border-b border-slate-100 pb-1 last:border-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-slate-400">[{new Date(log.createdAt).toLocaleTimeString()}]</span>
+                                            <span className={`px-1.5 py-0.5 rounded font-bold ${log.level === 'ERROR' ? 'text-red-600 bg-red-50' :
+                                                log.level === 'WARN' ? 'text-amber-600 bg-amber-50' :
+                                                    'text-blue-600 bg-blue-50'
+                                                }`}>
+                                                {log.level}
+                                            </span>
+                                        </div>
+                                        <div className="text-slate-700 pl-2 break-all whitespace-pre-wrap">{log.message}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

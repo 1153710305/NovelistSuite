@@ -355,6 +355,8 @@ export async function pollTaskResult(
     maxAttempts: number = 60,
     interval: number = 2000
 ): Promise<any> {
+    let currentInterval = 1000; // Start with 1s
+
     for (let i = 0; i < maxAttempts; i++) {
         const response = await BackendAPI.tasks.get(taskId);
         const task = response.data;
@@ -375,8 +377,11 @@ export async function pollTaskResult(
             throw new Error('任务已取消');
         }
 
-        // 等待后继续轮询
-        await new Promise(resolve => setTimeout(resolve, interval));
+        // 等待后继续轮询 (动态间隔)
+        await new Promise(resolve => setTimeout(resolve, currentInterval));
+
+        // 增加间隔，最大 5 秒
+        currentInterval = Math.min(currentInterval * 1.5, 5000);
     }
 
     throw new Error('任务超时：轮询次数已达上限');

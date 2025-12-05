@@ -75,8 +75,9 @@ const generateRoutes = require('./routes/generate');
 app.use('/api/generate', generateRoutes);
 
 // 管理员路由
+// 管理员路由
 const adminRoutes = require('./routes/admin');
-app.use('/admin', adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

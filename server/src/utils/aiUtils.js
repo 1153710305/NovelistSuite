@@ -99,6 +99,10 @@ function handleGeminiError(error, context = '') {
         return `[${context}] 内容被安全过滤器拦截`;
     }
 
+    if (message.includes('API_KEY_INVALID') || message.includes('API key not valid')) {
+        return `[${context}] API Key 无效，请检查配置`;
+    }
+
     return `[${context}] ${message}`;
 }
 

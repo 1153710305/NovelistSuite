@@ -4,12 +4,13 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../services/storag
 import { Logger } from '../services/logger';
 import { useI18n } from '../i18n';
 import { useApp } from '../contexts/AppContext';
-import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity, MessageSquare } from 'lucide-react';
+import { Database, Trash2, RefreshCw, LogOut, FileText, PenTool, Network, Terminal, Download, Settings, Save, RotateCcw, Upload, Activity, MessageSquare, Server } from 'lucide-react';
 import { LogEntry, LogLevel } from '../types';
 import { ModelHealthChecker } from '../components/ModelHealthChecker';
 import { PromptManager } from './PromptManager';
 import { BackendMonitor } from '../components/admin/BackendMonitor';
 import { ApiKeyManager } from '../components/admin/ApiKeyManager';
+import { BackendAPI } from '../services/backendApi';
 
 
 interface AdminProps {
@@ -28,6 +29,7 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
 
     // 本地编辑状态，用于模型配置
     const [editingConfigs, setEditingConfigs] = useState<Record<string, any>>({});
+    const [backendConfig, setBackendConfig] = useState<{ maxConcurrent: number }>({ maxConcurrent: 3 });
 
     useEffect(() => {
         if (activeTab === 'logs') {
@@ -39,6 +41,13 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                 initEdit[m.id] = { ...m };
             });
             setEditingConfigs(initEdit);
+
+            // Fetch backend config
+            BackendAPI.tasks.queueStatus().then(res => {
+                if (res.success) {
+                    setBackendConfig({ maxConcurrent: res.data.maxConcurrent });
+                }
+            });
         } else if (['lab', 'studio', 'architect'].includes(activeTab)) {
             let key = '';
             switch (activeTab) {
@@ -145,6 +154,19 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
         }
     }
 
+    const handleBackendConfigChange = (val: number) => {
+        setBackendConfig({ maxConcurrent: val });
+    };
+
+    const saveBackendConfig = async () => {
+        try {
+            await BackendAPI.tasks.configQueue({ maxConcurrent: backendConfig.maxConcurrent });
+            alert(t('admin.config.saved'));
+        } catch (error) {
+            alert('Failed to save backend config');
+        }
+    };
+
     const formatDate = (ts: number) => new Date(ts).toLocaleString();
 
     const tabs = [
@@ -240,76 +262,115 @@ export const Admin: React.FC<AdminProps> = ({ onLogout }) => {
                             <ApiKeyManager />
                         ) : activeTab === 'config' ? (
                             // --- CONFIG VIEW ---
-                            <div className="p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-lg font-bold text-slate-800">{t('admin.config.title')}</h3>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => setShowHealthChecker(true)}
-                                            className="flex items-center gap-2 text-sm text-teal-600 hover:bg-teal-50 px-3 py-1.5 rounded transition-colors border border-teal-200"
-                                        >
-                                            <Activity size={14} /> 测试模型健康
-                                        </button>
-                                        <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
-                                            <RotateCcw size={14} /> {t('admin.config.reset')}
-                                        </button>
+                            <div className="p-6 space-y-8">
+                                {/* Backend Configuration */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Server size={18} className="text-teal-600" /> Backend Configuration
+                                        </h3>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex-1">
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">Max Concurrent Tasks</label>
+                                                <p className="text-xs text-slate-500">Maximum number of AI tasks running simultaneously.</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="10"
+                                                    value={backendConfig.maxConcurrent}
+                                                    onChange={(e) => handleBackendConfigChange(parseInt(e.target.value) || 1)}
+                                                    className="w-20 p-2 border border-slate-200 rounded text-sm"
+                                                />
+                                                <button
+                                                    onClick={saveBackendConfig}
+                                                    className="p-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
+                                                    title="Save Backend Config"
+                                                >
+                                                    <Save size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm border-collapse">
-                                        <thead className="bg-slate-50 text-slate-500">
-                                            <tr>
-                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.modelName')}</th>
-                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpm')}</th>
-                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpd')}</th>
-                                                <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.context')}</th>
-                                                <th className="p-4 font-medium border-b border-slate-200 w-24">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {modelConfigs.map((model) => (
-                                                <tr key={model.id} className="hover:bg-slate-50">
-                                                    <td className="p-4 font-medium text-slate-700">
-                                                        {t(model.nameKey)}
-                                                        <div className="text-xs text-slate-400 font-mono mt-1">{model.id}</div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <input
-                                                            type="number"
-                                                            value={editingConfigs[model.id]?.rpm ?? model.rpm}
-                                                            onChange={(e) => handleConfigChange(model.id, 'rpm', e.target.value)}
-                                                            className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
-                                                        />
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <input
-                                                            type="number"
-                                                            value={editingConfigs[model.id]?.dailyLimit ?? model.dailyLimit}
-                                                            onChange={(e) => handleConfigChange(model.id, 'dailyLimit', e.target.value)}
-                                                            className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
-                                                        />
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <input
-                                                            type="number"
-                                                            value={editingConfigs[model.id]?.contextWindow ?? model.contextWindow}
-                                                            onChange={(e) => handleConfigChange(model.id, 'contextWindow', e.target.value)}
-                                                            className="w-32 p-2 border border-slate-200 rounded text-sm bg-white"
-                                                        />
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <button
-                                                            onClick={() => saveConfig(model.id)}
-                                                            className="p-2 bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition-colors"
-                                                            title={t('admin.config.save')}
-                                                        >
-                                                            <Save size={16} />
-                                                        </button>
-                                                    </td>
+
+                                {/* Frontend Model Configuration */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Settings size={18} className="text-teal-600" /> Frontend Model Configuration
+                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setShowHealthChecker(true)}
+                                                className="flex items-center gap-2 text-sm text-teal-600 hover:bg-teal-50 px-3 py-1.5 rounded transition-colors border border-teal-200"
+                                            >
+                                                <Activity size={14} /> Test Health
+                                            </button>
+                                            <button onClick={handleResetConfig} className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
+                                                <RotateCcw size={14} /> Reset Defaults
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <table className="w-full text-left text-sm border-collapse">
+                                            <thead className="bg-slate-50 text-slate-500">
+                                                <tr>
+                                                    <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.modelName')}</th>
+                                                    <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpm')}</th>
+                                                    <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.rpd')}</th>
+                                                    <th className="p-4 font-medium border-b border-slate-200">{t('admin.config.context')}</th>
+                                                    <th className="p-4 font-medium border-b border-slate-200 w-24">Action</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {modelConfigs.map((model) => (
+                                                    <tr key={model.id} className="hover:bg-slate-50">
+                                                        <td className="p-4 font-medium text-slate-700">
+                                                            {t(model.nameKey)}
+                                                            <div className="text-xs text-slate-400 font-mono mt-1">{model.id}</div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <input
+                                                                type="number"
+                                                                value={editingConfigs[model.id]?.rpm ?? model.rpm}
+                                                                onChange={(e) => handleConfigChange(model.id, 'rpm', e.target.value)}
+                                                                className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                            />
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <input
+                                                                type="number"
+                                                                value={editingConfigs[model.id]?.dailyLimit ?? model.dailyLimit}
+                                                                onChange={(e) => handleConfigChange(model.id, 'dailyLimit', e.target.value)}
+                                                                className="w-24 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                            />
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <input
+                                                                type="number"
+                                                                value={editingConfigs[model.id]?.contextWindow ?? model.contextWindow}
+                                                                onChange={(e) => handleConfigChange(model.id, 'contextWindow', e.target.value)}
+                                                                className="w-32 p-2 border border-slate-200 rounded text-sm bg-white"
+                                                            />
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <button
+                                                                onClick={() => saveConfig(model.id)}
+                                                                className="p-2 bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition-colors"
+                                                                title={t('admin.config.save')}
+                                                            >
+                                                                <Save size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         ) : activeTab === 'prompts' ? (
