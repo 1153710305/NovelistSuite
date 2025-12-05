@@ -239,7 +239,7 @@ async function loadApiKeys() {
         } else {
             tbody.innerHTML = keys.map(key => `
                 <tr class="hover:bg-gray-50">
-                    <td class="p-3 font-mono text-xs text-gray-500">${key.id}</td>
+                    <td class="p-3 font-mono text-xs text-gray-500">${key.keyId}</td>
                     <td class="p-3">
                         <div class="flex items-center gap-1.5">
                             ${key.isActive ? '✅' : '❌'}
@@ -248,10 +248,10 @@ async function loadApiKeys() {
                             </span>
                         </div>
                     </td>
-                    <td class="p-3 text-gray-700 font-medium">${key.usageCount}</td>
+                    <td class="p-3 text-gray-700 font-medium">${key.totalUsage}</td>
                     <td class="p-3">
-                        <span class="${key.failureCount > 0 ? 'text-red-600 font-bold' : 'text-gray-500'}">
-                            ${key.failureCount}
+                        <span class="${key.failCount > 0 ? 'text-red-600 font-bold' : 'text-gray-500'}">
+                            ${key.failCount}
                         </span>
                     </td>
                     <td class="p-3 text-gray-500">
@@ -259,11 +259,11 @@ async function loadApiKeys() {
                     </td>
                     <td class="p-3 flex gap-2">
                         ${!key.isActive
-                    ? `<button onclick="reactivateKey('${key.id}')" class="text-green-600 hover:bg-green-50 px-2 py-1 rounded text-xs font-bold">
+                    ? `<button onclick="reactivateKey('${key.keyId}')" class="text-green-600 hover:bg-green-50 px-2 py-1 rounded text-xs font-bold">
                                 🔄 ${t('reactivate')}
                             </button>`
                     : ''}
-                        <button onclick="deleteKey('${key.id}')" class="text-red-600 hover:bg-red-50 p-1 rounded" title="${t('removeKey')}">
+                        <button onclick="deleteKey('${key.keyId}')" class="text-red-600 hover:bg-red-50 p-1 rounded" title="${t('removeKey')}">
                             🗑️
                         </button>
                     </td>
