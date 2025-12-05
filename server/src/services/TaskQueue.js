@@ -11,6 +11,7 @@
 
 const { TaskModel, TaskLogModel, TaskStatus, LogLevel } = require('../models');
 const apiKeyManager = require('./ApiKeyManager');
+const notificationService = require('./NotificationService');
 const { config } = require('../config');
 
 class TaskQueue {
@@ -57,6 +58,9 @@ class TaskQueue {
 
         // 尝试处理队列
         this.processQueue();
+
+        // 广播新任务事件
+        notificationService.broadcast('task_created', task);
 
         return task;
     }
@@ -115,6 +119,8 @@ class TaskQueue {
 
             console.log(`[TaskQueue] 开始执行任务: ${taskId} (运行中: ${this.running.size})`);
 
+            notificationService.broadcast('task_updated', { id: taskId, status: TaskStatus.RUNNING });
+
             // 执行任务
             await this.runTaskWithRetry(task);
 
@@ -169,6 +175,9 @@ class TaskQueue {
                 });
 
                 console.log(`[TaskQueue] 任务完成: ${task.id}`);
+
+                notificationService.broadcast('task_updated', { id: task.id, status: TaskStatus.COMPLETED, result });
+
                 return;
 
             } catch (error) {
@@ -205,6 +214,8 @@ class TaskQueue {
         });
 
         console.error(`[TaskQueue] 任务失败: ${task.id}`);
+
+        notificationService.broadcast('task_updated', { id: task.id, status: TaskStatus.FAILED, error: lastError.message });
     }
 
     /**
@@ -324,6 +335,7 @@ class TaskQueue {
             });
 
             console.log(`[TaskQueue] 任务已取消: ${taskId}`);
+            notificationService.broadcast('task_updated', { id: taskId, status: TaskStatus.CANCELLED });
             return true;
         }
 
