@@ -1466,14 +1466,50 @@ export const regenerateSingleMap = async (
         let rawObj = JSON.parse(cleanJson(res.text || "{}"));
         console.log('[regenerateSingleMap] 解析后的原始对象:', JSON.stringify(rawObj, null, 2).substring(0, 1000));
 
-        // 智能解包逻辑 (Smart Unwrapping) v3 - 增强版
-        // Case 1: Array wrapper [ {name...} ] -> {name...}
+        // 智能解包逻辑 (Smart Unwrapping) v6 - 支持中文字段名
+        // Case 1: Array wrapper
         if (Array.isArray(rawObj)) {
             console.log('[regenerateSingleMap] 检测到数组包装,长度:', rawObj.length);
             if (rawObj.length > 0) {
-                rawObj = rawObj[0];
-                console.log('[regenerateSingleMap] 解包数组后:', JSON.stringify(rawObj, null, 2).substring(0, 500));
+                // 检查数组的第一个元素
+                const firstItem = rawObj[0];
+
+                // Case 1a: 数组包含单个根节点对象 [{name: "root", children: [...]}]
+                if (firstItem && typeof firstItem === 'object' && firstItem.name && !firstItem.type) {
+                    console.log('[regenerateSingleMap] ✅ 检测到单根节点数组，解包第一个元素');
+                    rawObj = firstItem;
+                }
+                // Case 1b: 数组直接是children列表 [{name: "child1"}, {name: "child2"}]
+                else if (firstItem && typeof firstItem === 'object' && (firstItem.name || firstItem.type)) {
+                    console.log('[regenerateSingleMap] ✅ 检测到children数组，创建根节点包装');
+                    rawObj = {
+                        name: mapType,
+                        type: rootType,
+                        children: rawObj
+                    };
+                }
+                // Case 1c: 数组包含中文字段名的对象 [{事件名词: "...", 欲望: "..."}]
+                else if (firstItem && typeof firstItem === 'object' && (firstItem['事件名词'] || firstItem['名称'] || firstItem['节点名'])) {
+                    console.log('[regenerateSingleMap] ✅ 检测到中文字段名数组，转换并创建根节点包装');
+                    // 转换中文字段名为标准字段名
+                    const convertedChildren = rawObj.map((item: any) => ({
+                        name: item['事件名词'] || item['名称'] || item['节点名'] || item.name || '未命名节点',
+                        type: childType,
+                        description: item['描述'] || item['description'] || item['欲望'] || '',
+                        children: []
+                    }));
+                    rawObj = {
+                        name: mapType,
+                        type: rootType,
+                        children: convertedChildren
+                    };
+                }
+                else {
+                    console.log('[regenerateSingleMap] 解包数组后:', JSON.stringify(firstItem, null, 2).substring(0, 500));
+                    rawObj = firstItem;
+                }
             } else {
+                console.error('[regenerateSingleMap] ❌ 数组为空，无法解包');
                 rawObj = {};
             }
         }
@@ -1486,13 +1522,20 @@ export const regenerateSingleMap = async (
             const keys = Object.keys(rawObj);
             console.log('[regenerateSingleMap] 可用的键:', keys);
 
+            let unwrapped = false;
             for (const key of keys) {
                 const val = rawObj[key];
                 if (val && typeof val === 'object' && !Array.isArray(val) && (val.name || Array.isArray(val.children))) {
-                    console.warn(`[regenerateSingleMap] 检测到包装的JSON响应,键名: '${key}', 正在解包...`);
+                    console.warn(`[regenerateSingleMap] ✅ 检测到包装的JSON响应,键名: '${key}', 正在解包...`);
                     rawObj = val;
+                    unwrapped = true;
                     break;
                 }
+            }
+
+            if (!unwrapped) {
+                console.error('[regenerateSingleMap] ❌ 未找到有效的节点对象，可用键:', keys);
+                console.error('[regenerateSingleMap] ❌ 原始对象:', JSON.stringify(rawObj, null, 2).substring(0, 500));
             }
         }
 
@@ -1500,7 +1543,9 @@ export const regenerateSingleMap = async (
 
         // 有效性兜底：如果依然无效，手动构建一个错误提示节点，防止 UI 空白
         if (!rawObj.name) {
-            console.warn('[regenerateSingleMap] 缺少name字段,使用默认值');
+            console.error('[regenerateSingleMap] ❌ 缺少name字段,使用默认值');
+            console.error('[regenerateSingleMap] ❌ 当前对象结构:', Object.keys(rawObj));
+            console.error('[regenerateSingleMap] ❌ 完整对象:', JSON.stringify(rawObj, null, 2));
             rawObj.name = `${mapType} (生成不完整)`;
             rawObj.description = "AI 返回的数据结构不完整或为空。请检查上下文长度或重试。";
             rawObj.type = rootType;
@@ -1514,10 +1559,11 @@ export const regenerateSingleMap = async (
 
         if (!Array.isArray(rawObj.children)) {
             console.warn('[regenerateSingleMap] children不是数组,初始化为空数组');
+            console.warn('[regenerateSingleMap] children当前值:', rawObj.children);
             rawObj.children = [];
         }
 
-        console.log(`[regenerateSingleMap] 最终children数量: ${rawObj.children.length}`);
+        console.log(`[regenerateSingleMap] ✅ 最终children数量: ${rawObj.children.length}`);
 
         // 这里的空数据兜底非常重要
         if (rawObj.children.length === 0) {
