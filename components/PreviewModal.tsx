@@ -64,13 +64,26 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     </button>
                 </div>
 
+                {/* 任务进度显示 */}
+                {isStreaming && (
+                    <div className="px-6 py-4 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border-b border-slate-700">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium text-purple-300">AI正在生成思维导图...</span>
+                        </div>
+                        <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse" style={{ width: '60%' }}></div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Tab Switcher */}
                 <div className="flex border-b border-slate-700 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('raw')}
                         className={`flex-1 md:flex-none py-3 px-6 font-medium transition-colors whitespace-nowrap ${activeTab === 'raw'
-                                ? 'bg-slate-800 text-white border-b-2 border-green-500'
-                                : 'text-slate-400 hover:bg-slate-800/50'
+                            ? 'bg-slate-800 text-white border-b-2 border-green-500'
+                            : 'text-slate-400 hover:bg-slate-800/50'
                             }`}
                     >
                         <div className="flex items-center gap-2 justify-center">
@@ -82,8 +95,8 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     <button
                         onClick={() => setActiveTab('old')}
                         className={`flex-1 md:flex-none py-3 px-6 font-medium transition-colors whitespace-nowrap ${activeTab === 'old'
-                                ? 'bg-slate-800 text-white border-b-2 border-blue-500'
-                                : 'text-slate-400 hover:bg-slate-800/50'
+                            ? 'bg-slate-800 text-white border-b-2 border-blue-500'
+                            : 'text-slate-400 hover:bg-slate-800/50'
                             }`}
                     >
                         <div className="flex items-center gap-2 justify-center">
@@ -94,8 +107,8 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     <button
                         onClick={() => setActiveTab('new')}
                         className={`flex-1 md:flex-none py-3 px-6 font-medium transition-colors whitespace-nowrap ${activeTab === 'new'
-                                ? 'bg-slate-800 text-white border-b-2 border-purple-500'
-                                : 'text-slate-400 hover:bg-slate-800/50'
+                            ? 'bg-slate-800 text-white border-b-2 border-purple-500'
+                            : 'text-slate-400 hover:bg-slate-800/50'
                             }`}
                     >
                         <div className="flex items-center gap-2 justify-center">

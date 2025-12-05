@@ -726,6 +726,17 @@ export const Studio: React.FC = () => {
                     prompt: actualTaskPayload
                 });
 
+                // 立即弹出预览窗口（生成开始前）
+                setPreviewData({
+                    type: 'map',
+                    title: `重绘 ${selectedMapType} 导图`,
+                    oldContent: activeStoryRecord.architecture?.[selectedMapType] || { name: '空导图', type: 'book' as const, children: [] },
+                    newContent: { name: '生成中...', type: 'book' as const, children: [] }, // 临时占位
+                    rawResponse: '', // 初始为空，将流式更新
+                    metadata: {
+                        mapType: selectedMapType
+                    }
+                });
 
                 let rawResponseText = ''; // 存储原始响应
 
@@ -736,26 +747,26 @@ export const Studio: React.FC = () => {
                     lang, model, regenStyleContent,
                     globalPersona,
                     (stage, progress, log, metrics, debugInfo) => {
-                        // 捕获原始响应
+                        // 捕获并实时更新原始响应
                         if (debugInfo?.apiPayload?.response) {
                             rawResponseText = debugInfo.apiPayload.response;
+                            // 实时更新预览窗口的原始响应
+                            setPreviewData(prev => prev ? {
+                                ...prev,
+                                rawResponse: rawResponseText
+                            } : null);
                         }
                         updateTaskProgress(taskId, stage, progress, log, metrics, debugInfo);
                     },
                     regenRequirements
                 );
 
-                // 不立即替换，显示预览
-                setPreviewData({
-                    type: 'map',
-                    title: `重绘 ${selectedMapType} 导图`,
-                    oldContent: activeStoryRecord.architecture?.[selectedMapType] || { name: '空导图', type: 'book' as const, children: [] },
+                // 生成完成，更新newContent
+                setPreviewData(prev => prev ? {
+                    ...prev,
                     newContent: newRoot,
-                    rawResponse: rawResponseText, // 添加原始响应
-                    metadata: {
-                        mapType: selectedMapType
-                    }
-                });
+                    rawResponse: rawResponseText
+                } : null);
 
                 updateTaskProgress(taskId, t('process.complete'), 100, '✅ 生成完成，请在预览窗口确认是否替换');
                 return t('process.done');
@@ -1875,7 +1886,11 @@ export const Studio: React.FC = () => {
                     oldContent={previewData.oldContent}
                     newContent={previewData.newContent}
                     rawResponse={previewData.rawResponse}
-                    isStreaming={false} // 阶段1不使用流式
+                    isStreaming={
+                        previewData.type === 'map'
+                            ? (previewData.newContent as OutlineNode).name === '生成中...'
+                            : false
+                    }
                     onConfirm={handleConfirmReplace}
                     onCancel={handleCancelReplace}
                 />
